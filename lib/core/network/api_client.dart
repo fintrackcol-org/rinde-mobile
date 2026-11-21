@@ -1,0 +1,193 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../config/app_config.dart';
+import 'api_exception.dart';
+import 'session_holder.dart';
+
+/// Acceso a la API de Rinde. `public` va sin token; `authed` pone el Bearer y renueva la
+/// sesión ante un 401, igual que `authFetch` de Rinde Web.
+class ApiClient {
+  ApiClient({required AppConfig config, required SessionHolder session, HttpClientAdapter? adapter}) {
+    final options = BaseOptions(
+      baseUrl: config.hasApi ? config.apiV1 : 'http://sin-configurar.invalid',
+      connectTimeout: const Duration(seconds: 20),
+      // El plan gratuito de Render puede tardar en despertar.
+      receiveTimeout: const Duration(seconds: 45),
+      contentType: Headers.jsonContentType,
+      responseType: ResponseType.json,
+      headers: {'Accept-Language': 'es'},
+    );
+    public = Dio(options);
+    authed = Dio(options);
+    if (adapter != null) {
+      public.httpClientAdapter = adapter;
+      authed.httpClientAdapter = adapter;
+    }
+    final guard = _ConfigGuard(config.problem);
+    public.interceptors.add(guard);
+    authed.interceptors
+      ..add(guard)
+      ..add(_AuthInterceptor(session: session, refresher: public));
+  }
+
+  late final Dio public;
+  late final Dio authed;
+
+  Future<dynamic> post(String path, {Object? body, bool auth = false}) =>
+      _send(() => (auth ? authed : public).post<dynamic>(path, data: body));
+
+  Future<dynamic> get(String path, {bool auth = true}) =>
+      _send(() => (auth ? authed : public).get<dynamic>(path));
+
+  Future<dynamic> _send(Future<Response<dynamic>> Function() request) async {
+    try {
+      final response = await request();
+      return response.data;
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+}
+
+/// Corta toda petición si el ambiente no está bien configurado (sin URL o apuntando a producción).
+class _ConfigGuard extends Interceptor {
+  _ConfigGuard(this.problem);
+  final String? problem;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (problem == null) return handler.next(options);
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        error: ApiException(code: ApiCodes.notConfigured, serverMessage: problem),
+      ),
+    );
+  }
+}
+
+/// Pone el token y, ante 401, renueva una vez y repite la petición.
+/// Es "en cola": si llegan varios 401 a la vez, se atienden de a uno y solo el primero renueva.
+class _AuthInterceptor extends QueuedInterceptor {
+  _AuthInterceptor({required this.session, required this.refresher});
+
+  final SessionHolder session;
+
+  /// Dio sin este interceptor: renueva y repite sin volver a pasar por la cola (evita bloqueos).
+  final Dio refresher;
+
+  static const _retried = 'rinde.retried';
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final current = session.current;
+    if (current == null) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: const ApiException(code: ApiCodes.unauthorized, serverMessage: ApiMessages.sessionExpired),
+        ),
+      );
+      return;
+    }
+    options.headers['Authorization'] = 'Bearer ${current.accessToken}';
+    handler.next(options);
+  }
+
+  @override
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    final failure = ApiException.fromDio(err);
+    final isAuthError =
+        err.response?.statusCode == 401 &&
+        (failure.code == ApiCodes.unauthorized || failure.code == ApiCodes.tokenExpired);
+    if (!isAuthError || err.requestOptions.extra[_retried] == true) return handler.next(err);
+
+    final current = session.current;
+    // Otra petición ya intentó renovar y el servidor cerró la sesión: mismo mensaje para todas.
+    if (current == null) {
+      return handler.reject(
+        _withError(
+          err,
+          const ApiException(
+            code: ApiCodes.tokenExpired,
+            serverMessage: ApiMessages.sessionExpired,
+            status: 401,
+          ),
+        ),
+      );
+    }
+
+    final usedHeader = err.requestOptions.headers['Authorization'];
+    var tokens = current;
+    // Otra petición ya renovó mientras esta esperaba en la cola: basta con repetir.
+    if (usedHeader == 'Bearer ${current.accessToken}') {
+      try {
+        final response = await refresher.post<dynamic>(
+          '/auth/refresh',
+          data: {'refreshToken': current.refreshToken},
+        );
+        final data = response.data;
+        if (data is! Map || data['accessToken'] is! String || data['refreshToken'] is! String) {
+          throw const ApiException(code: ApiCodes.unknown);
+        }
+        tokens = current.copyWith(
+          accessToken: data['accessToken'] as String,
+          refreshToken: data['refreshToken'] as String,
+        );
+        await session.save(tokens);
+      } on DioException catch (e) {
+        final refreshFailure = ApiException.fromDio(e);
+        final status = e.response?.statusCode;
+        if (status == 401 || status == 400) {
+          await session.expire();
+          return handler.reject(
+            _withError(
+              err,
+              const ApiException(
+                code: ApiCodes.tokenExpired,
+                serverMessage: ApiMessages.sessionExpired,
+                status: 401,
+              ),
+            ),
+          );
+        }
+        if (refreshFailure.isNetwork) return handler.reject(_withError(err, refreshFailure));
+        return handler.reject(
+          _withError(
+            err,
+            const ApiException(
+              code: 'REFRESH_FAILED',
+              serverMessage: 'No pudimos renovar tu sesión. Inténtalo de nuevo.',
+            ),
+          ),
+        );
+      } on ApiException catch (e) {
+        return handler.reject(_withError(err, e));
+      }
+    }
+
+    // Si el cuerpo lleva el refresh token (logout), va el vigente: el viejo ya se rotó y revocarlo
+    // dejaría vivo el nuevo en el servidor.
+    final body = err.requestOptions.data;
+    final retry = err.requestOptions.copyWith(
+      data: body is Map && body.containsKey('refreshToken')
+          ? {...body, 'refreshToken': tokens.refreshToken}
+          : body,
+      headers: {...err.requestOptions.headers, 'Authorization': 'Bearer ${tokens.accessToken}'},
+      extra: {...err.requestOptions.extra, _retried: true},
+    );
+    try {
+      handler.resolve(await refresher.fetch<dynamic>(retry));
+    } on DioException catch (e) {
+      handler.reject(e);
+    }
+  }
+
+  DioException _withError(DioException original, ApiException error) =>
+      original.copyWith(error: error, type: DioExceptionType.unknown);
+}
+
+final apiClientProvider = Provider<ApiClient>(
+  (ref) => ApiClient(config: ref.watch(appConfigProvider), session: ref.watch(sessionHolderProvider)),
+);

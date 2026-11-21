@@ -1,0 +1,5 @@
+{
+  "APP_ENV": "qa",
+  "API_BASE_URL": "https://URL-DE-LA-API-DE-QA",
+  "WEB_URL": "https://www.rindecol.online"
+}

@@ -1,0 +1,45 @@
+name: rinde_mobile
+description: "Rinde para Android e iOS: finanzas personales para quienes tienen ingresos irregulares."
+publish_to: 'none'
+
+# versionName+versionCode (Android) / CFBundleShortVersionString+CFBundleVersion (iOS).
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Desde Flutter 3.47 Material vive en este paquete (package:flutter/material.dart está deprecado).
+  material_ui: ^1.1.0
+  # Estado e inyección de dependencias.
+  flutter_riverpod: ^3.5.0
+  # Navegación central con guardas de sesión.
+  go_router: ^18.1.4
+  # Cliente HTTP con interceptores (renovación de sesión, tiempos de espera).
+  dio: ^5.11.1
+  # Tokens en Keystore (Android) y Keychain (iOS), nunca en texto plano.
+  flutter_secure_storage: ^11.2.0
+  # Logo e íconos oficiales en SVG.
+  flutter_svg: ^2.5.0
+  # Abrir términos y política de privacidad (sitio web) antes de aceptarlos.
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/brand/
+    - assets/icons/
+
+  fonts:
+    # Inter Tight variable (eje wght 100–900), la misma fuente de Rinde Web. Licencia OFL en assets/fonts/OFL.txt.
+    - family: Inter Tight
+      fonts:
+        - asset: assets/fonts/InterTight-Variable.ttf
