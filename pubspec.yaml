@@ -37,6 +37,8 @@ flutter:
   assets:
     - assets/brand/
     - assets/icons/
+    # Traducciones en/pt (las genera tool/export_l10n.mjs desde Rinde Web).
+    - assets/l10n/
 
   fonts:
     # Inter Tight variable (eje wght 100–900), la misma fuente de Rinde Web. Licencia OFL en assets/fonts/OFL.txt.

@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/network/session_holder.dart';
+import '../../../core/region/region.dart';
+import '../../../core/region/region_provider.dart';
 import '../data/auth_models.dart';
 import '../data/auth_repository.dart';
 
@@ -37,10 +40,19 @@ class SessionController extends AsyncNotifier<SessionState> {
     state = AsyncData(SessionState(session: session));
   }
 
+  /// MODO DEMOSTRACIÓN: entra con una cuenta sintética que no sale a la red. Solo existe en
+  /// compilaciones de desarrollo con DEMO_MODE=true; en cualquier otra lanza error.
+  Future<void> signInDemo(String scenario) async {
+    if (!ref.read(appConfigProvider).demoMode) throw StateError('El modo demostración está apagado');
+    final session = Session.demo(scenario);
+    await _holder.save(session);
+    state = AsyncData(SessionState(session: session));
+  }
+
   /// Cierra la sesión en el servidor si se puede; en el dispositivo, siempre.
   Future<void> signOut() async {
     final current = _holder.current;
-    if (current != null) {
+    if (current != null && !current.demo) {
       try {
         // Tope corto: cerrar sesión en el dispositivo no puede esperar a un servidor dormido.
         await _repo.logout(current.refreshToken).timeout(const Duration(seconds: 5));
@@ -59,6 +71,30 @@ final sessionControllerProvider = AsyncNotifierProvider<SessionController, Sessi
 
 /// Perfil del usuario dentro (términos y región). Se vuelve a pedir al cambiar de usuario.
 final profileProvider = FutureProvider<UserProfile>((ref) {
-  ref.watch(sessionControllerProvider.select((s) => s.value?.session?.user.id));
-  return ref.read(authRepositoryProvider).me();
+  final session = ref.watch(sessionControllerProvider.select((s) => s.value?.session));
+  if (session != null && session.demo) {
+    // Perfil sintético de la demostración: no viene de ningún servidor.
+    return UserProfile(
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      termsAccepted: true,
+      country: 'CO',
+      currency: 'COP',
+      language: 'es',
+    );
+  }
+  return ref.read(authRepositoryProvider).me().then((profile) {
+    // useSyncProfile de la web: el formato y el idioma siguen a la cuenta (puede haber cambiado en
+    // otro dispositivo, o el teléfono está en otro idioma).
+    final region = Region.fromJson({
+      'country': profile.country,
+      'currency': profile.currency,
+      'language': profile.language,
+    });
+    if (ref.mounted && region != ref.read(appRegionProvider)) {
+      unawaited(ref.read(appRegionProvider.notifier).set(region));
+    }
+    return profile;
+  });
 });

@@ -2,13 +2,20 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
+import '../i18n/tr.dart';
+import '../region/region_provider.dart';
 import 'api_exception.dart';
 import 'session_holder.dart';
 
 /// Acceso a la API de Rinde. `public` va sin token; `authed` pone el Bearer y renueva la
 /// sesión ante un 401, igual que `authFetch` de Rinde Web.
 class ApiClient {
-  ApiClient({required AppConfig config, required SessionHolder session, HttpClientAdapter? adapter}) {
+  ApiClient({
+    required AppConfig config,
+    required SessionHolder session,
+    HttpClientAdapter? adapter,
+    Map<String, String> Function()? regionHeaders,
+  }) {
     final options = BaseOptions(
       baseUrl: config.hasApi ? config.apiV1 : 'http://sin-configurar.invalid',
       connectTimeout: const Duration(seconds: 20),
@@ -25,9 +32,13 @@ class ApiClient {
       authed.httpClientAdapter = adapter;
     }
     final guard = _ConfigGuard(config.problem);
-    public.interceptors.add(guard);
+    final region = _RegionHeaders(regionHeaders);
+    public.interceptors
+      ..add(guard)
+      ..add(region);
     authed.interceptors
       ..add(guard)
+      ..add(region)
       ..add(_AuthInterceptor(session: session, refresher: public));
   }
 
@@ -37,8 +48,12 @@ class ApiClient {
   Future<dynamic> post(String path, {Object? body, bool auth = false}) =>
       _send(() => (auth ? authed : public).post<dynamic>(path, data: body));
 
-  Future<dynamic> get(String path, {bool auth = true}) =>
-      _send(() => (auth ? authed : public).get<dynamic>(path));
+  Future<dynamic> get(String path, {bool auth = true, Map<String, dynamic>? query}) =>
+      _send(() => (auth ? authed : public).get<dynamic>(path, queryParameters: query));
+
+  Future<dynamic> put(String path, {Object? body}) => _send(() => authed.put<dynamic>(path, data: body));
+
+  Future<dynamic> patch(String path, {Object? body}) => _send(() => authed.patch<dynamic>(path, data: body));
 
   Future<dynamic> _send(Future<Response<dynamic>> Function() request) async {
     try {
@@ -67,6 +82,19 @@ class _ConfigGuard extends Interceptor {
   }
 }
 
+/// regionHeaders() de la web: el servidor responde (errores, nombres por defecto) en el idioma que
+/// se ve y con la moneda y el país de la persona, leídos en cada petición.
+class _RegionHeaders extends Interceptor {
+  _RegionHeaders(this.read);
+  final Map<String, String> Function()? read;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (read case final read?) options.headers.addAll(read());
+    handler.next(options);
+  }
+}
+
 /// Pone el token y, ante 401, renueva una vez y repite la petición.
 /// Es "en cola": si llegan varios 401 a la vez, se atienden de a uno y solo el primero renueva.
 class _AuthInterceptor extends QueuedInterceptor {
@@ -87,6 +115,19 @@ class _AuthInterceptor extends QueuedInterceptor {
         DioException(
           requestOptions: options,
           error: const ApiException(code: ApiCodes.unauthorized, serverMessage: ApiMessages.sessionExpired),
+        ),
+      );
+      return;
+    }
+    if (current.demo) {
+      // MODO DEMOSTRACIÓN: ninguna petición con sesión sale del dispositivo.
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: const ApiException(
+            code: ApiCodes.demoNoBackend,
+            serverMessage: 'Modo demostración: esta acción no llega a ningún servidor.',
+          ),
         ),
       );
       return;
@@ -189,5 +230,16 @@ class _AuthInterceptor extends QueuedInterceptor {
 }
 
 final apiClientProvider = Provider<ApiClient>(
-  (ref) => ApiClient(config: ref.watch(appConfigProvider), session: ref.watch(sessionHolderProvider)),
+  (ref) => ApiClient(
+    config: ref.watch(appConfigProvider),
+    session: ref.watch(sessionHolderProvider),
+    regionHeaders: () {
+      final region = ref.read(appRegionProvider);
+      return {
+        'Accept-Language': ref.read(displayLanguageProvider),
+        'X-Rinde-Currency': region.currency,
+        'X-Rinde-Country': region.country,
+      };
+    },
+  ),
 );

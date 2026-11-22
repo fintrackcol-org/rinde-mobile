@@ -57,6 +57,12 @@ void main() {
       ]) {
         expect(ApiException.fromDio(DioException(requestOptions: _options, type: type)).isNetwork, isTrue);
       }
+      // Una espera vencida no es «sin conexión»: la petición pudo haber llegado.
+      expect(
+        ApiException.fromDio(DioException(requestOptions: _options, type: DioExceptionType.receiveTimeout))
+            .code,
+        ApiCodes.timeout,
+      );
     });
 
     test('cuerpo que no es JSON (o sin "error") es UNKNOWN con el status', () {

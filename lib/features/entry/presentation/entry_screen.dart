@@ -11,6 +11,11 @@ import '../../../design/widgets/rinde_icon.dart';
 import '../../../design/widgets/rinde_spinner.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../onboarding/data/onboarding_repository.dart';
+import '../../onboarding/presentation/money_invite.dart';
+import '../../../app/routes.dart';
+
+import 'package:go_router/go_router.dart';
 
 /// Entrada a la app con sesión. Primero trae el perfil (GET /users/me), porque el login no dice
 /// si faltan aceptar términos. Términos pendientes → aceptarlos; si no → inicio.
@@ -27,8 +32,8 @@ class EntryScreen extends ConsumerWidget {
       body: SafeArea(
         child: switch (profile) {
           AsyncData(:final value) when !value.termsAccepted => const _TermsGate(),
-          AsyncData(:final value) => _HomePlaceholder(name: value.name, email: value.email),
-          AsyncError() when user != null => _HomePlaceholder(name: user.name, email: user.email),
+          AsyncData(:final value) => _WelcomeGate(name: value.name, email: value.email),
+          AsyncError() when user != null => _WelcomeGate(name: user.name, email: user.email),
           _ => Center(
             child: Semantics(label: 'Cargando', child: const RindeSpinner(size: 28)),
           ),
@@ -95,12 +100,53 @@ class _TermsGateState extends ConsumerState<_TermsGate> {
   }
 }
 
+/// Decide la bienvenida como el inicio de la web (Dashboard.jsx): sin movimientos y sin bienvenida →
+/// bienvenida completa; con movimientos y sin bienvenida → invitación a las tres preguntas.
+/// Si no se puede saber (sin red), no se redirige: se entra al inicio, como en la web.
+class _WelcomeGate extends ConsumerWidget {
+  const _WelcomeGate({required this.name, required this.email});
+  final String? name;
+  final String email;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(welcomeStatusProvider);
+    final pendingSources = ref.watch(pendingSourcesProvider).value == true;
+    // Solo con un dato fresco: mientras se vuelve a pedir (p. ej. justo al terminar la bienvenida),
+    // el valor anterior diría «pendiente» y devolvería a la persona a la bienvenida.
+    final fresh = status.isLoading || status.hasError ? null : status.value;
+    // Sin bienvenida y sin movimientos → completa. Bienvenida guardada pero con las fuentes
+    // pendientes en este dispositivo → solo las preguntas de plata, para terminar la etapa 2.
+    final target = fresh == null
+        ? null
+        : !fresh.welcomeDone && !fresh.hasTransactions
+        ? Routes.onboarding
+        : fresh.welcomeDone && pendingSources
+        ? Routes.onboardingQuestions
+        : null;
+    if (target != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go(target);
+      });
+    }
+    if (status.isLoading || target != null) {
+      return Center(
+        child: Semantics(label: 'Cargando', child: const RindeSpinner(size: 28)),
+      );
+    }
+    return _HomePlaceholder(name: name, email: email, invite: fresh?.welcomeDone == false);
+  }
+}
+
 /// PROVISIONAL: marca el final del primer flujo (ya dentro, con sesión real) mientras se construye
 /// el Inicio. No es una pantalla del producto: el siguiente módulo la reemplaza.
 class _HomePlaceholder extends ConsumerWidget {
-  const _HomePlaceholder({required this.name, required this.email});
+  const _HomePlaceholder({required this.name, required this.email, this.invite = false});
   final String? name;
   final String email;
+
+  /// Tiene movimientos pero no respondió las preguntas de plata.
+  final bool invite;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -109,6 +155,7 @@ class _HomePlaceholder extends ConsumerWidget {
       title: name == null ? 'Hola' : 'Hola, $name',
       message: 'Entraste a Rinde como $email. El Inicio de la app móvil es el próximo módulo.',
       actions: [
+        if (invite) const MoneyInviteCard(),
         RindeButton(
           label: 'Cerrar sesión',
           variant: RindeButtonVariant.outline,

@@ -113,6 +113,25 @@ void main() {
     expect(request.headers['Accept-Language'], 'es');
   });
 
+  test('regionHeaders: idioma, moneda y país vigentes en cada petición (como la web)', () async {
+    final adapter = FakeHttpAdapter((_) => jsonBody(200, {'ok': true}));
+    var language = 'en';
+    final api = ApiClient(
+      config: _qa,
+      session: holder,
+      adapter: adapter,
+      regionHeaders: () => {'Accept-Language': language, 'X-Rinde-Currency': 'USD', 'X-Rinde-Country': 'US'},
+    );
+    await api.get('/users/me');
+    language = 'pt';
+    await api.post('/auth/login', body: {});
+
+    expect(adapter.requests[0].headers['Accept-Language'], 'en');
+    expect(adapter.requests[0].headers['X-Rinde-Currency'], 'USD');
+    expect(adapter.requests[0].headers['X-Rinde-Country'], 'US');
+    expect(adapter.requests[1].headers['Accept-Language'], 'pt');
+  });
+
   test('con sesión pero sin tokens guardados falla con UNAUTHORIZED sin salir a la red', () async {
     await holder.clear();
     final adapter = FakeHttpAdapter((_) => jsonBody(200, {}));

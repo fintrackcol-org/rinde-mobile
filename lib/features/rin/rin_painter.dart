@@ -43,6 +43,7 @@ const _billLine = Color(0xFF22B386);
 const _stem = Color(0xFF1F7A5C);
 const _dollar = Color(0xFF17805C);
 const _white = Color(0xFFFFFFFF);
+const _amber = Color(0xFFFFB900); // stroke-amber-400 de las chispas
 
 // Trazos literales de `Rin.jsx`.
 final _body = parseSvgPath(
@@ -61,6 +62,9 @@ final _grinTongue = parseSvgPath('M-6.5 7.5Q0 2.5 6.5 7.5Q4 11.4 0 11.4Q-4 11.4 
 final _flat = parseSvgPath('M-5 1L6 0');
 final _soft = parseSvgPath('M-6 1.5Q0 -0.6 6 1.5');
 final _wobble = parseSvgPath('M-10 -1Q-5 5 0 1Q5 5 10 -1');
+final _sparks = [
+  for (final d in const ['M0 0L10 -9', 'M5 9L19 5', 'M4 20L16 24']) parseSvgPath(d),
+];
 
 /// Caja ajustada de la silueta: el degradado del cuerpo usa `objectBoundingBox` (default de SVG).
 const _bodyBox = Rect.fromLTRB(-52.435, -128, 52.435, -6);
@@ -171,6 +175,8 @@ class RinPainter extends CustomPainter {
     // .rin-rise > .rin-act > .rin-breath > .rin-tilt
     canvas.save();
     canvas.translate(100, p[RinChannel.rise]);
+    canvas.translate(0, frame.actY);
+    canvas.scale(frame.actSX, frame.actSY);
     canvas.scale(frame.breathX, frame.breathY);
     canvas.rotate(_rad(p[RinChannel.tilt]));
 
@@ -186,9 +192,25 @@ class RinPainter extends CustomPainter {
     canvas.rotate(_rad(frame.sway));
     canvas.drawPath(_stalk, _line(_stem, 3.6));
     canvas.translate(20, -27);
+    // .rin-coin: la moneda al aire de celebrar.
+    canvas.translate(0, frame.coinY);
+    canvas.scale(frame.coinSX, frame.coinSY);
     canvas.drawCircle(Offset.zero, 14, _fill(_billLine));
     canvas.drawCircle(Offset.zero, 11.4, _fill(_billTop));
     _text(canvas, r'$', 17, _dollar, const Offset(0, 6), center: true);
+    canvas.restore();
+
+    // Chispas de la moneda: cada rayita crece desde el origen del grupo, como en el SVG.
+    canvas.save();
+    canvas.translate(62, -112);
+    for (var n = 0; n < frame.sparks.length && n < _sparks.length; n++) {
+      final (opacity, scale) = frame.sparks[n];
+      if (opacity <= 0) continue;
+      canvas.save();
+      canvas.scale(scale);
+      canvas.drawPath(_sparks[n], _line(_amber.withValues(alpha: opacity.clamp(0.0, 1.0)), 4));
+      canvas.restore();
+    }
     canvas.restore();
 
     // Cuerpo blandito: luz arriba a la izquierda, sombra abajo, y la franja.
@@ -296,7 +318,7 @@ class RinPainter extends CustomPainter {
 
     // Brazos cortos: giran desde el hombro.
     for (final (x, angle, wave) in [
-      (-48.0, p[RinChannel.armL], 0.0),
+      (-48.0, p[RinChannel.armL], frame.waveL),
       (48.0, p[RinChannel.armR], frame.waveR),
     ]) {
       canvas.save();

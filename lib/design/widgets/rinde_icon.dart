@@ -6,6 +6,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 enum RindeIcons {
   arrowLeft('arrow-left'),
   arrowRight('arrow-right'),
+  bike('bike'),
+  briefcaseBusiness('briefcase-business'),
+  chevronDown('chevron-down'),
   chevronLeft('chevron-left'),
   check('check'),
 
@@ -14,13 +17,22 @@ enum RindeIcons {
   circleAlert('circle-alert'),
   eye('eye'),
   eyeOff('eye-off'),
+  gift('gift'),
   keyRound('key-round'),
   loader('loader-circle'),
   logOut('log-out'),
   mail('mail'),
   mailCheck('mail-check'),
+  mic('mic'),
+  plus('plus'),
+  rotateCcw('rotate-ccw'),
+  search('search'),
   shieldAlert('shield-alert'),
-  wifiOff('wifi-off');
+  trendingUp('trending-up'),
+  users('users'),
+  wallet('wallet'),
+  wifiOff('wifi-off'),
+  x('x');
 
   const RindeIcons(this.file);
   final String file;

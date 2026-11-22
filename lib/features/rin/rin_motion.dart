@@ -17,14 +17,13 @@ enum RinEmotion {
 
 /// Gestos: animaciones cortas, una a la vez (`GESTURES` de `lib/rin.js`).
 ///
-/// Solo [saludar] está portado. Los demás quedan pendientes y por ahora no hacen nada:
-/// - [asentir] `rin-nod` 0.8 s, [acomodarse] `rin-settle` 0.9 s, [saltar] `rin-jump` 0.8 s,
-///   [toque] `rin-tap` 0.6 s: deforman el cuerpo entero (grupo `.rin-act`).
-/// - [celebrar] `rin-cheer` + `rin-toss` (moneda al aire) + `rin-shake` en ambos brazos, 1.5 s.
+/// Portados: [saludar], [celebrar], [asentir] y [toque]. Los demás quedan pendientes y por ahora
+/// no hacen nada:
+/// - [acomodarse] `rin-settle` 0.9 s, [saltar] `rin-jump` 0.8 s: deforman el cuerpo (`.rin-act`).
 /// - [senalar] brazo derecho a -96° + `rin-poke`; [acomodar] manos a la pila + `rin-tidy`.
 /// - [tambalear] `rin-wobble` 1.1 s; [crecer] `rin-hop` + `rin-pile` + `rin-shadow` 1.3 s.
 /// - [guinar] cierra el ojo derecho; [mirarmano] brazo izquierdo a 118° y mira la mano.
-/// - Las chispas de la moneda (`rin-twinkle`) de crecer, celebrar y guiñar.
+/// - Las chispas de la moneda (`rin-twinkle`) de crecer y guiñar (las de celebrar ya están).
 enum RinGesture {
   asentir,
   acomodarse,
@@ -39,9 +38,17 @@ enum RinGesture {
   guinar,
   mirarmano;
 
-  /// Lo que dura el gesto; `null` si todavía no está portado.
-  /// Saludar: 0.3 s de espera + 3 sacudidas de 0.42 s (`rin-shake 0.42s ease-in-out 0.3s 3`).
-  Duration? get duration => this == saludar ? const Duration(milliseconds: 1560) : null;
+  /// Lo que dura el gesto hasta que termina su última animación; `null` si no está portado.
+  Duration? get duration => switch (this) {
+    // rin-shake 0.42s ease-in-out 0.3s 3.
+    saludar => const Duration(milliseconds: 1560),
+    // La última chispa: rin-twinkle 0.9s, retardo 0.25s + 2 × 0.13s, dos veces. La web la corta
+    // antes si el paso dura menos (`meta_cumplida` lo deja 1.7 s).
+    celebrar => const Duration(milliseconds: 2310),
+    asentir => const Duration(milliseconds: 800), // rin-nod 0.8s
+    toque => const Duration(milliseconds: 600), // rin-tap 0.6s
+    _ => null,
+  };
 }
 
 /// Bocas del dibujo, en el orden de `Rin.jsx`.
@@ -249,7 +256,85 @@ double rinKeyframes(double p, List<(double, double)> frames, Curve curve) {
   return frames.last.$2;
 }
 
-/// Todo lo que el pintor necesita para un fotograma: la postura y la vida en reposo.
+// Fotogramas clave de los gestos en `rin.css`: (porcentaje, valor) con el 0 % y el 100 % implícitos
+// (el reposo). Un `transform` se separa en traslación Y y escalas X/Y: sin giros, interpolar cada
+// componente da lo mismo que la interpolación de matrices del navegador.
+typedef _Frames = List<(double, double)>;
+
+// rin-shake: 25 % rotate(-14°), 75 % rotate(14°).
+const _Frames _shake = [(0, 0), (0.25, -14), (0.75, 14), (1, 0)];
+// rin-nod: 25 % scale(1.03, 0.94), 50 % none, 75 % scale(1.02, 0.96).
+const _Frames _nodSX = [(0, 1), (0.25, 1.03), (0.5, 1), (0.75, 1.02), (1, 1)];
+const _Frames _nodSY = [(0, 1), (0.25, 0.94), (0.5, 1), (0.75, 0.96), (1, 1)];
+// rin-tap: 30 % scale(1.1, 0.88), 60 % translateY(-6px) scale(0.95, 1.08).
+const _Frames _tapY = [(0, 0), (0.3, 0), (0.6, -6), (1, 0)];
+const _Frames _tapSX = [(0, 1), (0.3, 1.1), (0.6, 0.95), (1, 1)];
+const _Frames _tapSY = [(0, 1), (0.3, 0.88), (0.6, 1.08), (1, 1)];
+// rin-cheer: 8 % scale(1.08, 0.88), 26 % translateY(-30px) scale(0.95, 1.07), 42 % scale(1.1, 0.88),
+// 56 % translateY(-14px) scale(0.97, 1.04), 70 % scale(1.06, 0.93), 84 % scale(0.99, 1.02).
+const _Frames _cheerY = [(0, 0), (0.08, 0), (0.26, -30), (0.42, 0), (0.56, -14), (0.7, 0), (0.84, 0), (1, 0)];
+const _Frames _cheerSX = [
+  (0, 1),
+  (0.08, 1.08),
+  (0.26, 0.95),
+  (0.42, 1.1),
+  (0.56, 0.97),
+  (0.7, 1.06),
+  (0.84, 0.99),
+  (1, 1),
+];
+const _Frames _cheerSY = [
+  (0, 1),
+  (0.08, 0.88),
+  (0.26, 1.07),
+  (0.42, 0.88),
+  (0.56, 1.04),
+  (0.7, 0.93),
+  (0.84, 1.02),
+  (1, 1),
+];
+// rin-toss: 10 % none, 24 % translateY(-22px) scaleX(-1), 38 % translateY(-36px) scaleX(1),
+// 52 % translateY(-30px) scaleX(-1), 66 % translateY(-10px) scaleX(1), 76 % scale(1.18, 0.86),
+// 88 % scale(0.96, 1.05). La moneda gira porque scaleX pasa de 1 a -1.
+const _Frames _tossY = [
+  (0, 0),
+  (0.1, 0),
+  (0.24, -22),
+  (0.38, -36),
+  (0.52, -30),
+  (0.66, -10),
+  (0.76, 0),
+  (0.88, 0),
+  (1, 0),
+];
+const _Frames _tossSX = [
+  (0, 1),
+  (0.1, 1),
+  (0.24, -1),
+  (0.38, 1),
+  (0.52, -1),
+  (0.66, 1),
+  (0.76, 1.18),
+  (0.88, 0.96),
+  (1, 1),
+];
+const _Frames _tossSY = [
+  (0, 1),
+  (0.1, 1),
+  (0.24, 1),
+  (0.38, 1),
+  (0.52, 1),
+  (0.66, 1),
+  (0.76, 0.86),
+  (0.88, 1.05),
+  (1, 1),
+];
+// rin-twinkle: 0 % y 100 % opacity 0 scale(0.3), 50 % opacity 1 scale(1).
+const _Frames _twinkleO = [(0, 0), (0.5, 1), (1, 0)];
+const _Frames _twinkleS = [(0, 0.3), (0.5, 1), (1, 0.3)];
+
+/// Todo lo que el pintor necesita para un fotograma: la postura, el gesto en curso y la vida en
+/// reposo. Sin gesto, todos los valores del gesto quedan en reposo (identidad).
 class RinFrame {
   const RinFrame({
     required this.pose,
@@ -263,11 +348,19 @@ class RinFrame {
     this.zzzX = 0,
     this.zzzY = 0,
     this.zzzScale = 1,
+    this.waveL = 0,
     this.waveR = 0,
+    this.actY = 0,
+    this.actSX = 1,
+    this.actSY = 1,
+    this.coinY = 0,
+    this.coinSX = 1,
+    this.coinSY = 1,
+    this.sparks = const [],
   });
 
-  /// Fotograma en el segundo [t] del reloj, con [wave] segundos de saludo (o `null`).
-  factory RinFrame.alive(RinPose pose, double t, RinEmotion emotion, {double? wave}) {
+  /// Fotograma en el segundo [t] del reloj, con [gesture] en curso desde hace [at] segundos.
+  factory RinFrame.alive(RinPose pose, double t, RinEmotion emotion, {RinGesture? gesture, double at = 0}) {
     double phase(double period) => (t / period) % 1;
 
     // rin-breath: 3.8 s (5.6 s dormido), 50 % scale(0.994, 1.016).
@@ -283,10 +376,44 @@ class RinFrame {
     final zzz = phase(3.2);
     const io = Curves.easeInOut;
 
-    var shake = 0.0;
-    if (wave != null && wave >= 0.3 && wave < 0.3 + 0.42 * 3) {
-      // rin-shake: 25 % -14°, 75 % 14°.
-      shake = rinKeyframes(((wave - 0.3) / 0.42) % 1, const [(0, 0), (0.25, -14), (0.75, 14), (1, 0)], io);
+    // Una animación CSS de [length] s con retardo [delay] y [times] vueltas, a los [at] s del gesto.
+    // Sin `animation-fill-mode`: fuera de su tiempo vale el reposo (el 0 % implícito).
+    double play(double length, _Frames frames, Curve curve, {double delay = 0, int times = 1}) {
+      final local = at - delay;
+      if (local < 0 || local >= length * times) return frames.first.$2;
+      return rinKeyframes((local / length) % 1, frames, curve);
+    }
+
+    var waveL = 0.0, waveR = 0.0, actY = 0.0, actSX = 1.0, actSY = 1.0;
+    var coinY = 0.0, coinSX = 1.0, coinSY = 1.0;
+    var sparks = const <(double, double)>[];
+    switch (gesture) {
+      case RinGesture.saludar:
+        waveR = play(0.42, _shake, io, delay: 0.3, times: 3);
+      case RinGesture.asentir:
+        actSX = play(0.8, _nodSX, io);
+        actSY = play(0.8, _nodSY, io);
+      case RinGesture.toque:
+        actY = play(0.6, _tapY, rinOut);
+        actSX = play(0.6, _tapSX, rinOut);
+        actSY = play(0.6, _tapSY, rinOut);
+      case RinGesture.celebrar:
+        actY = play(1.5, _cheerY, rinOut);
+        actSX = play(1.5, _cheerSX, rinOut);
+        actSY = play(1.5, _cheerSY, rinOut);
+        coinY = play(1.5, _tossY, io);
+        coinSX = play(1.5, _tossSX, io);
+        coinSY = play(1.5, _tossSY, io);
+        waveL = waveR = play(0.5, _shake, io, delay: 0.2, times: 2);
+        sparks = [
+          for (var n = 0; n < 3; n++)
+            (
+              play(0.9, _twinkleO, io, delay: 0.25 + n * 0.13, times: 2),
+              play(0.9, _twinkleS, io, delay: 0.25 + n * 0.13, times: 2),
+            ),
+        ];
+      default:
+        break;
     }
 
     return RinFrame(
@@ -320,7 +447,15 @@ class RinFrame {
       zzzX: rinKeyframes(zzz, const [(0, -4), (1, 6)], io),
       zzzY: rinKeyframes(zzz, const [(0, 6), (1, -8)], io),
       zzzScale: rinKeyframes(zzz, const [(0, 0.8), (1, 1.05)], io),
-      waveR: shake,
+      waveL: waveL,
+      waveR: waveR,
+      actY: actY,
+      actSX: actSX,
+      actSY: actSY,
+      coinY: coinY,
+      coinSX: coinSX,
+      coinSY: coinSY,
+      sparks: sparks,
     );
   }
 
@@ -328,6 +463,15 @@ class RinFrame {
   final double breathX, breathY, sway, blink, glanceX, glanceY;
   final double zzzOpacity, zzzX, zzzY, zzzScale;
 
-  /// Sacudida del brazo derecho (grados) mientras saluda.
-  final double waveR;
+  /// Sacudida de cada brazo en grados (`.rin-arm-act`): saludar y celebrar.
+  final double waveL, waveR;
+
+  /// Cuerpo entero (`.rin-act`) desde los pies: traslación Y y escalas X/Y.
+  final double actY, actSX, actSY;
+
+  /// Moneda de la antena (`.rin-coin`) desde su centro: traslación Y y escalas X/Y.
+  final double coinY, coinSX, coinSY;
+
+  /// Chispas ámbar (`.rin-spark`), en orden: (opacidad, escala). Vacío si no hay.
+  final List<(double, double)> sparks;
 }

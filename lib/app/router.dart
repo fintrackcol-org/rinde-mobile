@@ -8,6 +8,8 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/entry/presentation/boot_screen.dart';
 import '../features/entry/presentation/entry_screen.dart';
+import '../features/onboarding/domain/onboarding_flow.dart';
+import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/welcome/presentation/welcome_screen.dart';
 import 'routes.dart';
 
@@ -46,6 +48,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => ForgotPasswordScreen(initialEmail: _email(state)),
       ),
       GoRoute(path: Routes.app, builder: (_, _) => const EntryScreen()),
+      GoRoute(
+        path: Routes.onboarding,
+        builder: (_, _) => const OnboardingScreen(mode: OnboardingMode.full),
+      ),
+      GoRoute(
+        path: Routes.onboardingQuestions,
+        builder: (_, _) => const OnboardingScreen(mode: OnboardingMode.questions),
+      ),
     ],
   );
   ref.onDispose(() {

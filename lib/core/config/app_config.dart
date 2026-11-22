@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Ambiente de la app. Se fija al compilar, nunca en el código:
@@ -10,13 +11,20 @@ class AppConfig {
     required this.apiBaseUrl,
     required this.environment,
     this.webUrl = 'https://www.rindecol.online',
+    this.demoMode = false,
   });
 
   factory AppConfig.fromEnvironment() => const AppConfig(
     apiBaseUrl: String.fromEnvironment('API_BASE_URL'),
     environment: String.fromEnvironment('APP_ENV', defaultValue: 'local'),
     webUrl: String.fromEnvironment('WEB_URL', defaultValue: 'https://www.rindecol.online'),
+    // Nunca en una versión de tienda: kReleaseMode lo apaga aunque se compile con DEMO_MODE=true.
+    demoMode: bool.fromEnvironment('DEMO_MODE') && !kReleaseMode,
   );
+
+  /// MODO DEMOSTRACIÓN / SIN BACKEND (solo desarrollo). Permite entrar con una cuenta sintética
+  /// que no sale a la red y recorrer la bienvenida con datos simulados.
+  final bool demoMode;
 
   /// Sitio web oficial: términos y privacidad se leen ahí (contenido público, solo lectura).
   final String webUrl;

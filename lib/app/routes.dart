@@ -11,4 +11,9 @@ abstract final class Routes {
 
   /// Dentro de la app (con sesión).
   static const app = '/app';
+
+  /// Bienvenida completa (cuenta nueva) y solo las preguntas de plata (cuenta con movimientos).
+  /// Las dos exigen sesión: están bajo /app.
+  static const onboarding = '/app/bienvenida';
+  static const onboardingQuestions = '/app/bienvenida/preguntas';
 }

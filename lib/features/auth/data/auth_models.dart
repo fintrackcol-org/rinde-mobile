@@ -21,29 +21,47 @@ class AuthUser {
 }
 
 class Session {
-  const Session({required this.user, required this.accessToken, required this.refreshToken});
+  const Session({
+    required this.user,
+    required this.accessToken,
+    required this.refreshToken,
+    this.demo = false,
+  });
 
-  /// Respuesta 200 de login, google y verify-email.
+  /// Respuesta 200 de login, google y verify-email (y la sesión guardada, que agrega `demo`).
   factory Session.fromJson(Map<String, dynamic> json) => Session(
     user: AuthUser.fromJson(_map(json, 'user')),
     accessToken: _string(json, 'accessToken'),
     refreshToken: _string(json, 'refreshToken'),
+    demo: json['demo'] == true,
+  );
+
+  /// Sesión sintética del MODO DEMOSTRACIÓN. No es una cuenta: no tiene tokens del servidor y el
+  /// cliente HTTP se niega a usarla.
+  factory Session.demo(String scenario) => Session(
+    user: AuthUser(id: 'demo-$scenario', email: 'demo@rinde.test', name: 'Ana'),
+    accessToken: 'demo',
+    refreshToken: 'demo',
+    demo: true,
   );
 
   final AuthUser user;
   final String accessToken;
   final String refreshToken;
+  final bool demo;
 
   Session copyWith({AuthUser? user, String? accessToken, String? refreshToken}) => Session(
     user: user ?? this.user,
     accessToken: accessToken ?? this.accessToken,
     refreshToken: refreshToken ?? this.refreshToken,
+    demo: demo,
   );
 
   Map<String, dynamic> toJson() => {
     'user': user.toJson(),
     'accessToken': accessToken,
     'refreshToken': refreshToken,
+    if (demo) 'demo': true,
   };
 }
 

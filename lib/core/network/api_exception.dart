@@ -13,7 +13,13 @@ abstract final class ApiCodes {
 
   // Códigos propios de la app (no vienen del servidor).
   static const network = 'NETWORK';
+
+  /// Venció la espera: a diferencia de `network`, la petición pudo haber llegado al servidor.
+  static const timeout = 'TIMEOUT';
   static const notConfigured = 'NOT_CONFIGURED';
+
+  /// Una sesión de demostración intentó salir a la red: se bloquea siempre.
+  static const demoNoBackend = 'DEMO_NO_BACKEND';
   static const unknown = 'UNKNOWN';
 }
 
@@ -33,10 +39,11 @@ class ApiException implements Exception {
     if (e.error is ApiException) return e.error! as ApiException;
     switch (e.type) {
       case DioExceptionType.connectionError:
+        return const ApiException(code: ApiCodes.network);
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return const ApiException(code: ApiCodes.network);
+        return const ApiException(code: ApiCodes.timeout);
       default:
         break;
     }
@@ -72,13 +79,13 @@ class ApiException implements Exception {
   /// Problema por campo de los errores 422 (`details`).
   final Map<String, String> fields;
 
-  bool get isNetwork => code == ApiCodes.network;
+  bool get isNetwork => code == ApiCodes.network || code == ApiCodes.timeout;
 
   /// Mismo orden que Rinde Web: mensaje propio por código → primer detalle → mensaje del
   /// servidor → texto de respaldo de la pantalla.
   String messageFor({Map<String, String> byCode = const {}, required String fallback}) {
     if (byCode[code] case final custom?) return custom;
-    if (code == ApiCodes.network) return ApiMessages.network;
+    if (isNetwork) return ApiMessages.network;
     if (code == ApiCodes.rateLimited) return ApiMessages.rateLimited;
     if (fields.isNotEmpty) return fields.values.first;
     return serverMessage ?? fallback;

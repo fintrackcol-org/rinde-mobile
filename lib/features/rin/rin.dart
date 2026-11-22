@@ -20,6 +20,7 @@ class Rin extends StatefulWidget {
     super.key,
     this.emotion = RinEmotion.tranquilo,
     this.gesture,
+    this.gestureKey,
     this.level = 0,
     this.tidy = 0,
     this.compact = false,
@@ -29,9 +30,14 @@ class Rin extends StatefulWidget {
 
   final RinEmotion emotion;
 
-  /// Al cambiar a un valor no nulo, el gesto se reproduce una vez. Solo [RinGesture.saludar] está
-  /// portado; los demás no hacen nada todavía.
+  /// Al cambiar a un valor no nulo, el gesto se reproduce una vez y Rin vuelve a la postura de su
+  /// emoción. Portados: saludar, celebrar, asentir y toque; los demás no hacen nada todavía.
+  /// Con movimiento reducido o `animate: false` no hay gestos.
   final RinGesture? gesture;
+
+  /// Para repetir el mismo gesto: cada vez que cambia (por ejemplo, un contador que sube en cada
+  /// toque), [gesture] se vuelve a reproducir desde el principio aunque no haya cambiado.
+  final Object? gestureKey;
 
   /// Billetes en la pila, de 0 a 6.
   final int level;
@@ -132,7 +138,7 @@ class _RinState extends State<Rin> with TickerProviderStateMixin {
   void didUpdateWidget(Rin old) {
     super.didUpdateWidget(old);
     if (widget.animate != old.animate) _syncMotion();
-    if (widget.gesture != old.gesture) _play(widget.gesture);
+    if (widget.gesture != old.gesture || widget.gestureKey != old.gestureKey) _play(widget.gesture);
     if (widget.emotion != old.emotion ||
         widget.level != old.level ||
         widget.tidy != old.tidy ||
@@ -152,10 +158,8 @@ class _RinState extends State<Rin> with TickerProviderStateMixin {
 
   RinFrame _frame() {
     if (_still) return RinFrame(pose: _to);
-    final wave = _playing == RinGesture.saludar
-        ? _gesture.value * _gesture.duration!.inMicroseconds / 1e6
-        : null;
-    return RinFrame.alive(_current(), _seconds.value, widget.emotion, wave: wave);
+    final at = _playing == null ? 0.0 : _gesture.value * _gesture.duration!.inMicroseconds / 1e6;
+    return RinFrame.alive(_current(), _seconds.value, widget.emotion, gesture: _playing, at: at);
   }
 
   @override

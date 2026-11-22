@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../core/i18n/tr.dart';
 import '../design/theme/rinde_theme.dart';
 import 'router.dart';
 
@@ -17,8 +18,9 @@ class RindeApp extends ConsumerWidget {
       darkTheme: RindeTheme.dark,
       // Como Rinde Web: claro por defecto. Elegir oscuro o "según el sistema" llega con Cuenta.
       themeMode: ThemeMode.light,
-      locale: const Locale('es', 'CO'),
-      supportedLocales: const [Locale('es', 'CO'), Locale('es')],
+      // Textos del sistema (copiar, pegar, lector de pantalla) en el idioma que se ve.
+      locale: Locale(ref.watch(displayLanguageProvider)),
+      supportedLocales: const [Locale('es'), Locale('en'), Locale('pt')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // Respeta el tamaño de letra del sistema, con un tope para que no se rompa la composición.
       builder: (context, child) => MediaQuery.withClampedTextScaling(maxScaleFactor: 2, child: child!),

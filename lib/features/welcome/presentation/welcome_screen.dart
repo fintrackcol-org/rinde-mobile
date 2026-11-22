@@ -1,8 +1,10 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/config/app_config.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
 import '../../../design/tokens/rinde_typography.dart';
@@ -10,6 +12,8 @@ import '../../../design/widgets/rinde_button.dart';
 import '../../../design/widgets/rinde_icon.dart';
 import '../../../design/widgets/rinde_logo.dart';
 import '../../../design/widgets/rinde_motion.dart';
+import '../../auth/application/session_controller.dart';
+import '../../onboarding/presentation/demo_panel.dart';
 import '../../rin/rin.dart';
 
 /// Primera pantalla sin sesión. Porte del cierre violeta de la landing
@@ -124,6 +128,7 @@ class WelcomeScreen extends StatelessWidget {
                               onPressed: () => context.push(Routes.login),
                             ),
                           ),
+                          const _DemoEntry(),
                         ],
                       ),
                     ),
@@ -133,6 +138,37 @@ class WelcomeScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// MODO DEMOSTRACIÓN (solo desarrollo, DEMO_MODE=true): entra con una cuenta sintética sin servidor.
+/// En cualquier otra compilación no ocupa espacio.
+class _DemoEntry extends ConsumerWidget {
+  const _DemoEntry();
+
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    final scenario = await showDemoScenarioSheet(context);
+    if (scenario == null || !context.mounted) return;
+    await ref.read(sessionControllerProvider.notifier).signInDemo(scenario.name);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(appConfigProvider).demoMode) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: RindeSpace.s2),
+      child: TextButton(
+        onPressed: () => _open(context, ref),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: RindeBrand.onVioletMuted,
+          textStyle: RindeType.small.w(FontWeight.w500),
+          shape: const StadiumBorder(),
+        ),
+        // TEXTO NUEVO (solo desarrollo)
+        child: const Text('Probar sin servidor (demo)'),
       ),
     );
   }
