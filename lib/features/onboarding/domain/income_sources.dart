@@ -3,6 +3,8 @@
 /// Son para PLANEAR: saber cuándo entra plata. No se anotan como ingresos ni crean movimientos.
 library;
 
+import '../../money/data/money_models.dart' show IncomeSource;
+
 enum IncomeKind {
   sueldo('Sueldo fijo', 'Te pagan lo mismo cada mes o quincena'),
   comisiones('Sueldo + comisiones', 'Una base fija y lo que vendas'),
@@ -76,6 +78,23 @@ class IncomeSourceForm {
       lastMonths: [for (var i = 0; i < 3; i++) i < months.length ? months[i] : ''],
       workDays: workDayOptions.contains(workDays) ? workDays : '6',
       frequency: mesadaFrequencies.containsKey(frequency) ? frequency : 'mensual',
+    );
+  }
+
+  /// Una fuente guardada (GET /money-profile/income), para cambiarla (fromApiSources de la web). A
+  /// diferencia de la web, los montos conservan los centavos. Lo que no está entre las opciones
+  /// (días de trabajo, cada cuánto) vuelve al valor inicial, que es lo que se ve elegido.
+  factory IncomeSourceForm.fromServer(IncomeSource source) {
+    String raw(num? value) => value == null ? '' : (value % 1 == 0 ? '${value.toInt()}' : '$value');
+    return IncomeSourceForm(
+      kind: source.kind,
+      amount: raw(source.amount),
+      low: raw(source.low),
+      high: raw(source.high),
+      payDays: source.payDays,
+      lastMonths: [for (var i = 0; i < 3; i++) i < source.lastMonths.length ? raw(source.lastMonths[i]) : ''],
+      workDays: workDayOptions.contains('${source.workDays}') ? '${source.workDays}' : '6',
+      frequency: mesadaFrequencies.containsKey(source.frequency) ? source.frequency : 'mensual',
     );
   }
 

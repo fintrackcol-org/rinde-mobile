@@ -20,10 +20,13 @@ import '../../../auth/application/session_controller.dart';
 import '../../../home/application/home_providers.dart';
 import '../../../home/domain/home_dates.dart';
 import '../../../home/presentation/widgets/home_money.dart';
+import '../../../money/application/money_providers.dart';
+import '../../../money/data/money_models.dart';
 import '../../../shell/presentation/rinde_tab_scaffold.dart';
 import '../../application/movement_saver.dart';
 import '../../application/movements_controller.dart';
 import '../../domain/movement.dart';
+import 'adjustment_row.dart';
 import 'movement_dates.dart';
 import 'movement_row.dart';
 
@@ -118,10 +121,13 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen> {
   }
 
   /// Deslizar para recargar también reenvía los pendientes (con su mismo localId, sin duplicar).
-  Future<void> _refresh() => Future.wait([
-    ref.read(pendingMovementsProvider.notifier).retryPending(),
-    ref.read(movementsControllerProvider.notifier).refresh(),
-  ]);
+  Future<void> _refresh() {
+    ref.invalidate(balanceAdjustmentsProvider);
+    return Future.wait([
+      ref.read(pendingMovementsProvider.notifier).retryPending(),
+      ref.read(movementsControllerProvider.notifier).refresh(),
+    ]);
+  }
 
   Future<void> _retryPending() async {
     setState(() => (_retrying = true, _retryLeftItems = false));
@@ -153,10 +159,28 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen> {
       hiddenLabel: t('Monto oculto'),
     );
     final label = periodLabel(_period, _date, now, region, t);
+    final range = periodRange(_period, _date);
+    // Un ajuste no tiene tipo, categoría ni descripción: con un filtro puesto no aparece. Si fallan,
+    // la lista se ve igual, sin ellos (como la web).
+    final adjustments = _filtered
+        ? const <BalanceAdjustment>[]
+        : ref
+                  .watch(
+                    balanceAdjustmentsProvider((
+                      ref.watch(accountProvider),
+                      isoDay(range.from),
+                      isoDay(range.to),
+                    )),
+                  )
+                  .value ??
+              const <BalanceAdjustment>[];
+    final loaded = s.total != null;
+    // Sin la primera página no se sabe cuáles van: ni sueltos mientras carga ni junto al error (la web
+    // tampoco pinta filas sin respuesta).
+    final rows = withAdjustments(s.server, adjustments, complete: loaded && !s.hasMore);
 
     final waiting = pending?.items ?? const [];
     final rejected = pending?.rejected ?? const [];
-    final loaded = s.total != null;
     final entries = <Widget Function()>[
       () => _Header(
         t: t,
@@ -208,7 +232,7 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen> {
             ),
           ),
         )
-      else if (loaded && s.server.isEmpty && !s.loading && s.error == null)
+      else if (loaded && rows.isEmpty && !s.loading && s.error == null)
         () => Padding(
           padding: const EdgeInsets.symmetric(vertical: RindeSpace.s8),
           child: Text(
@@ -228,7 +252,7 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen> {
             style: RindeType.meta.copyWith(color: p.inkMuted),
           ),
         ),
-      ..._groups(s.server, now, region, t, names, money),
+      ..._groups(rows, now, region, t, names, money),
       if (s.hasMore && s.server.isNotEmpty)
         () => Padding(
           padding: const EdgeInsets.only(top: RindeSpace.s4),
@@ -270,9 +294,10 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen> {
     );
   }
 
-  /// Encabezado de día y filas, en el orden del servidor (fecha y creación, de lo nuevo a lo viejo).
+  /// Encabezado de día y filas, en el orden del servidor (fecha y creación, de lo nuevo a lo viejo),
+  /// con los ajustes de saldo al inicio de su día.
   List<Widget Function()> _groups(
-    List<Movement> items,
+    List<Object> items,
     DateTime now,
     Region region,
     Tr t,
@@ -281,22 +306,30 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen> {
   ) {
     final out = <Widget Function()>[];
     String? last;
-    for (final m in items) {
-      if (m.date != last) {
-        last = m.date;
-        final day = relativeDay(m.date, now, region, t);
+    for (final row in items) {
+      final date = switch (row) {
+        final Movement m => m.date,
+        final BalanceAdjustment a => a.date,
+        _ => throw ArgumentError(row),
+      };
+      if (date != last) {
+        last = date;
+        final day = relativeDay(date, now, region, t);
         out.add(() => _DayHeader(day));
       }
       out.add(
         () => Padding(
           padding: const EdgeInsets.only(bottom: 6),
-          child: MovementRow(
-            movement: m,
-            category: movementCategoryName(m, names, t),
-            money: money,
-            t: t,
-            onTap: () => context.push(Routes.movement(m.id)),
-          ),
+          child: switch (row) {
+            final BalanceAdjustment a => AdjustmentRow(adjustment: a, money: money, t: t),
+            final m as Movement => MovementRow(
+              movement: m,
+              category: movementCategoryName(m, names, t),
+              money: money,
+              t: t,
+              onTap: () => context.push(Routes.movement(m.id)),
+            ),
+          },
         ),
       );
     }

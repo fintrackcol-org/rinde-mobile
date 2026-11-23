@@ -13,6 +13,8 @@ import '../../../design/widgets/rinde_button.dart';
 import '../../../design/widgets/rinde_segmented.dart';
 import '../../auth/application/session_controller.dart';
 import '../../home/application/home_providers.dart';
+import '../../money/application/money_providers.dart';
+import '../../money/data/demo_money_repository.dart';
 import '../application/onboarding_controller.dart';
 import '../data/demo_onboarding_repository.dart';
 import '../data/draft_store.dart';
@@ -120,6 +122,15 @@ class _DemoPanel extends ConsumerWidget {
       'GET /budgets · /cards · /pending-payments · /notifications · /categories',
     ),
     (DemoOperation.status, 'Leer la plata y el estado de la bienvenida', 'GET /money-profile'),
+    (DemoMoneyOperation.profile, 'Leer el perfil de Mi plata', 'GET /money-profile'),
+    (DemoMoneyOperation.income, 'Leer cómo te entra la plata', 'GET /money-profile/income'),
+    (DemoMoneyOperation.adjustments, 'Leer los ajustes de saldo', 'GET /money-profile/adjustments'),
+    (DemoMoneyOperation.calendar, 'Leer los pagos del mes', 'GET /money-profile/calendar'),
+    (
+      DemoMoneyOperation.write,
+      'Guardar en Mi plata',
+      'PUT /money-profile/sources · POST, PUT y DELETE /money-profile/commitments · PUT /money-profile',
+    ),
   ];
 
   /// Países de prueba: peso sin decimales, dólar, real, euro y libra, en los tres idiomas.
@@ -139,7 +150,7 @@ class _DemoPanel extends ConsumerWidget {
     // Tampoco queda una bienvenida a medias de la cuenta anterior.
     if (userId != null) await container.read(draftStoreProvider).clear(userId);
     container.invalidate(pendingSourcesProvider);
-    invalidateHome(container.invalidate);
+    afterMoneyChange(container);
     if (mode != null) await container.read(onboardingControllerProvider(mode).notifier).restartDemo();
     if (context.mounted) Navigator.of(context).pop();
     if (mode != OnboardingMode.full) router?.go(Routes.app);
@@ -167,7 +178,7 @@ class _DemoPanel extends ConsumerWidget {
     await container.read(demoStateStoreProvider).update(userId, (state) => state.withRegion(region));
     await container.read(appRegionProvider.notifier).set(region, persist: false);
     // Los montos fijos cambian de escala con la moneda: los anteriores no se muestran mientras llegan.
-    invalidateHome((provider) => container.invalidate(provider, asReload: true));
+    afterMoneyChange(container, money: true);
   }
 
   /// La propuesta de saldo que quedó en el borrador es de la otra escala: se quita solo si nadie la
@@ -244,8 +255,8 @@ class _DemoPanel extends ConsumerWidget {
           value: controls.offline,
           onChanged: (offline) {
             notifier.setOffline(offline);
-            // El Inicio se vuelve a pedir en el acto: se ve caer y volver sin tener que deslizar.
-            if (home) invalidateHome(ref.invalidate);
+            // El Inicio y Mi plata se vuelven a pedir en el acto: se ve caer y volver sin deslizar.
+            if (home) afterMoneyChange(ProviderScope.containerOf(context, listen: false));
           },
         ),
         if (home) ...[

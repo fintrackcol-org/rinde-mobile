@@ -94,6 +94,8 @@ void main() {
       ApiMessages.rateLimited,
       ApiMessages.sessionExpired,
       ApiMessages.generic,
+      // El de la demostración: llega a t() como mensaje del error (DEMO_NO_BACKEND).
+      'Modo demostración: esta acción no llega a ningún servidor.',
     ];
     expect(keys, isNot(contains(null)));
     for (final language in assets.keys) {

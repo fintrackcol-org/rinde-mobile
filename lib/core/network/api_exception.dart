@@ -24,6 +24,16 @@ abstract final class ApiCodes {
 
   /// Una sesión de demostración intentó salir a la red: se bloquea siempre.
   static const demoNoBackend = 'DEMO_NO_BACKEND';
+
+  /// Hay una bienvenida a medias en este dispositivo: al retomarla pisaría lo que se escriba ahora.
+  static const welcomePending = 'WELCOME_PENDING';
+
+  /// La plata cambió desde que se abrió la pantalla (comprobación previa de la app, o el 409 de la
+  /// versión del perfil cuando el backend la tenga).
+  static const profileChanged = 'PROFILE_CHANGED';
+
+  /// Una escritura pudo llegar al servidor y leyendo no se pudo confirmar: no se reintenta sola.
+  static const unconfirmed = 'UNCONFIRMED';
   static const unknown = 'UNKNOWN';
 }
 

@@ -55,6 +55,7 @@ class MoneyPlan {
     this.perDay,
     this.nextPay,
     this.pending = const [],
+    this.ledger,
   }) : ready = true;
 
   /// `{ "ready": false }`: falta saber cómo le entra la plata o cuánta tiene.
@@ -67,7 +68,8 @@ class MoneyPlan {
       mode = '',
       perDay = null,
       nextPay = null,
-      pending = const [];
+      pending = const [],
+      ledger = null;
 
   factory MoneyPlan.fromJson(Object? data) {
     final json = readMap(data);
@@ -86,6 +88,7 @@ class MoneyPlan {
         if (json['pending'] is List)
           for (final item in json['pending'] as List) ?PendingPayment.tryParse(item),
       ],
+      ledger: readMoney(json['ledger']),
     );
   }
 
@@ -110,6 +113,10 @@ class MoneyPlan {
   /// AAAA-MM-DD, solo en `daily`.
   final String? nextPay;
   final List<PendingPayment> pending;
+
+  /// Lo que dicen los movimientos (todos los ingresos menos todos los gastos). Corregir saldo lo
+  /// ofrece con «Usar lo que dicen mis movimientos». null si no llegó.
+  final num? ledger;
 
   /// Como la web (MobileHome.jsx): no alcanza para los pagos.
   bool get short => free < 0;

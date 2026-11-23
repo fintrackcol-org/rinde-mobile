@@ -239,6 +239,11 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('«¿De dónde sale?» no abre otra pantalla: lleva a Mi plata, como la web', (tester) async {
+      await _pump(tester, _Server());
+      await _tapAndExpectRoute(tester, find.text('¿De dónde sale?'), Routes.myMoney);
+    });
+
     testWidgets('sin modo diario, o sin la cifra o la fecha, no hay línea «al día»', (tester) async {
       for (final plan in [
         const MoneyPlan(

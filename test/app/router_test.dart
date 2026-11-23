@@ -13,6 +13,11 @@ import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/auth/presentation/login_screen.dart';
 import 'package:rinde_mobile/features/entry/presentation/entry_screen.dart';
+import 'package:rinde_mobile/features/money/application/money_providers.dart';
+import 'package:rinde_mobile/features/money/data/money_models.dart';
+import 'package:rinde_mobile/features/money/presentation/fix_balance_screen.dart';
+import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
+import 'package:rinde_mobile/features/money/presentation/payments_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 
 const _session = Session(
@@ -30,15 +35,19 @@ const _tabRoutes = {
 /// Destinos que se abren encima de una pestaña, con el título que deben mostrar.
 final _pushedRoutes = {
   Routes.notifications: 'Notificaciones',
-  Routes.myMoney: 'Mi plata',
-  Routes.payments: 'Pagos del mes',
-  Routes.fixBalance: 'Corregir saldo',
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
   Routes.budgets: 'Presupuestos',
   Routes.cards: 'Tarjetas',
   Routes.card('t1'): 'Tarjeta',
+  Routes.calendar: 'Calendario',
+  Routes.debts: 'Cuentas',
+  Routes.insights: 'Consejos',
+  // Antes que /app/transacciones/:id: no es el movimiento «exportar».
+  Routes.export: 'Exportar movimientos',
+  Routes.renta: 'Renta y DIAN',
+  Routes.liquidity: 'Tu plata en los próximos días',
 };
 
 // Sin pumpAndSettle: la entrada deja un spinner girando mientras «espera» el perfil.
@@ -59,6 +68,9 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
       overrides: [
         sessionStorageProvider.overrideWithValue(MemorySessionStorage(session)),
         profileProvider.overrideWith((ref, _) => Completer<UserProfile>().future),
+        // Mi plata se queda cargando: estas pruebas son de rutas, no de sus datos.
+        incomeOverviewProvider.overrideWith((ref, _) => Completer<IncomeOverview>().future),
+        moneyProfileProvider.overrideWith((ref, _) => Completer<MoneyProfile>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -81,6 +93,22 @@ void main() {
     }
   });
 
+  test(
+    'estas pruebas recorren exactamente los pendientes; Mi plata, Pagos y Corregir saldo ya no lo son',
+    () {
+      expect(
+        {for (final m in pendingModules) m.path},
+        {
+          for (final route in [..._tabRoutes.keys, ..._pushedRoutes.keys])
+            if (route != Routes.movements) route == Routes.card('t1') ? Routes.card(':id') : route,
+        },
+      );
+      for (final route in [Routes.myMoney, Routes.payments, Routes.fixBalance]) {
+        expect(pendingModules.map((m) => m.path), isNot(contains(route)), reason: route);
+      }
+    },
+  );
+
   testWidgets('sin sesión, ninguna ruta de la app se abre: todas terminan en el login', (tester) async {
     final router = await _pumpApp(tester);
     for (final route in [
@@ -88,6 +116,9 @@ void main() {
       ..._tabRoutes.keys,
       ..._pushedRoutes.keys,
       Routes.record,
+      Routes.myMoney,
+      Routes.fixBalance,
+      Routes.payments,
       Routes.movement('m1'),
     ]) {
       router.go(route);
@@ -164,6 +195,69 @@ void main() {
     await _settle(tester);
     expect(_location(router), Routes.plan);
     expect(find.text('Planear'), findsWidgets);
+  });
+
+  testWidgets('Mi plata ya es pantalla real: se abre encima, sin barra, y «Volver» regresa', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.plan);
+    await _settle(tester);
+    unawaited(router.push(Routes.myMoney));
+    await _settle(tester);
+    expect(find.byType(MyMoneyScreen), findsOneWidget);
+    expect(find.text('En desarrollo'), findsNothing);
+    expect(find.byType(RindeTabScaffold), findsNothing);
+    await tester.tap(find.byTooltip('Volver'));
+    await _settle(tester);
+    expect(_location(router), Routes.plan);
+
+    // Por enlace directo, atrás va al Inicio (backPath de la web).
+    router.go(Routes.myMoney);
+    await _settle(tester);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+    expect(_location(router), Routes.app);
+  });
+
+  testWidgets('Corregir saldo ya es pantalla real; por enlace directo, atrás va a Mi plata', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.plan);
+    await _settle(tester);
+    unawaited(router.push(Routes.fixBalance));
+    await _settle(tester);
+    expect(find.byType(FixBalanceScreen), findsOneWidget);
+    expect(find.text('En desarrollo'), findsNothing);
+    expect(find.byType(RindeTabScaffold), findsNothing);
+    await tester.tap(find.byTooltip('Volver'));
+    await _settle(tester);
+    expect(_location(router), Routes.plan);
+
+    // Sin pantalla anterior, atrás va a Mi plata (backPath de la web).
+    router.go(Routes.fixBalance);
+    await _settle(tester);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+    expect(_location(router), Routes.myMoney);
+  });
+
+  testWidgets('Pagos del mes ya es pantalla real; por enlace directo, atrás va a Planear', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.myMoney);
+    await _settle(tester);
+    unawaited(router.push(Routes.payments));
+    await _settle(tester);
+    expect(find.byType(MoneyPaymentsScreen), findsOneWidget);
+    expect(find.text('En desarrollo'), findsNothing);
+    expect(find.byType(RindeTabScaffold), findsNothing);
+    await tester.tap(find.byTooltip('Volver'));
+    await _settle(tester);
+    expect(_location(router), Routes.myMoney);
+
+    // Sin pantalla anterior, atrás va a Planear (backPath de la web).
+    router.go(Routes.payments);
+    await _settle(tester);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+    expect(_location(router), Routes.plan);
   });
 
   testWidgets('un destino abierto por enlace directo no cierra la app con atrás: va al Inicio', (

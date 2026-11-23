@@ -8,6 +8,9 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/entry/presentation/boot_screen.dart';
 import '../features/entry/presentation/entry_screen.dart';
+import '../features/money/presentation/fix_balance_screen.dart';
+import '../features/money/presentation/my_money_screen.dart';
+import '../features/money/presentation/payments_screen.dart';
 import '../features/movements/domain/movement.dart';
 import '../features/movements/presentation/detail/movement_detail_screen.dart';
 import '../features/movements/presentation/list/movements_screen.dart';
@@ -79,14 +82,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               : MovementType.expense,
         ),
       ),
-      GoRoute(
-        path: '/app/transacciones/:id',
-        builder: (_, state) => MovementDetailScreen(movementId: state.pathParameters['id']!),
-      ),
-      GoRoute(
-        path: '/app/transacciones/:id/editar',
-        builder: (_, state) => EditMovementScreen(movementId: state.pathParameters['id']!),
-      ),
+      GoRoute(path: Routes.myMoney, builder: (_, _) => const MyMoneyScreen()),
+      GoRoute(path: Routes.fixBalance, builder: (_, _) => const FixBalanceScreen()),
+      GoRoute(path: Routes.payments, builder: (_, _) => const MoneyPaymentsScreen()),
       // Destinos de Rinde Web que aún no tienen pantalla: «En desarrollo». Todos bajo /app (con sesión).
       for (final module in pendingModules)
         if (module.tab != null)
@@ -100,6 +98,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: module.path,
             builder: (_, state) => PendingModuleScreen(module, query: state.uri.queryParameters),
           ),
+      // Después de los pendientes: /app/transacciones/exportar no es el movimiento «exportar».
+      GoRoute(
+        path: '/app/transacciones/:id',
+        builder: (_, state) => MovementDetailScreen(movementId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/app/transacciones/:id/editar',
+        builder: (_, state) => EditMovementScreen(movementId: state.pathParameters['id']!),
+      ),
     ],
   );
   ref.onDispose(() {

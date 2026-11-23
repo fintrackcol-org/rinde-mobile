@@ -430,9 +430,9 @@ class _DeleteMovementSheetState extends ConsumerState<DeleteMovementSheet> {
                 onPressed: _removing ? null : _remove,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(RindeSize.buttonLg),
-                  backgroundColor: p.negative,
+                  backgroundColor: p.negativeSolid,
                   foregroundColor: RindeBrand.white,
-                  disabledBackgroundColor: p.negative.withValues(alpha: 0.6),
+                  disabledBackgroundColor: p.negativeSolid.withValues(alpha: 0.6),
                   disabledForegroundColor: RindeBrand.white,
                   shape: const RoundedRectangleBorder(borderRadius: RindeRadius.brXl),
                   textStyle: RindeType.buttonLg,

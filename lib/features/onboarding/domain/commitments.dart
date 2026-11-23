@@ -31,6 +31,9 @@ class CommitmentItem {
     this.amount = '',
     this.dayOfMonth = '',
     this.custom = false,
+    this.kind = 'fixed',
+    this.frequency = 'monthly',
+    this.month,
   });
 
   factory CommitmentItem.create(String name, {bool custom = false}) =>
@@ -63,12 +66,25 @@ class CommitmentItem {
   /// Lo agregó con «Otro»: el nombre se puede editar.
   final bool custom;
 
+  /// `fixed` o `subscription`. La bienvenida solo crea pagos fijos de cada mes: estos tres no van al
+  /// borrador (toJson); los usa el formulario de Mi plata.
+  final String kind;
+
+  /// `monthly` o `yearly`.
+  final String frequency;
+
+  /// 1 a 12; solo cuenta en los anuales.
+  final int? month;
+
   CommitmentItem copyWith({String? name, String? amount, String? dayOfMonth}) => CommitmentItem(
     key: key,
     name: name ?? this.name,
     amount: amount ?? this.amount,
     dayOfMonth: dayOfMonth ?? this.dayOfMonth,
     custom: custom,
+    kind: kind,
+    frequency: frequency,
+    month: month,
   );
 
   Map<String, dynamic> toJson() => {
@@ -109,14 +125,22 @@ class CommitmentProblem {
       }),
     );
   }
+  final yearly = item.frequency == 'yearly';
+  final month = item.month;
+  if (yearly && (month == null || month < 1 || month > 12)) {
+    return (
+      data: null,
+      problem: CommitmentProblem(item.key, 'Elige en qué mes se cobra {cleanName}.', {'cleanName': name}),
+    );
+  }
   return (
     data: {
       'name': name,
       'amount': amount,
       'dayOfMonth': day,
-      'kind': 'fixed',
-      'frequency': 'monthly',
-      'month': null,
+      'kind': item.kind,
+      'frequency': item.frequency,
+      'month': yearly ? month : null,
     },
     problem: null,
   );

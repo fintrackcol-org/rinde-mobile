@@ -46,7 +46,8 @@ enum DemoScenario {
   /// La plata misma está bajo cero.
   negativo('Estás en negativo', income: 600000, expense: 635000, money: -35000, welcomed: true),
 
-  /// Omitió la bienvenida y tiene movimientos: no hay plan, solo el enlace para configurarlo.
+  /// Omitió la bienvenida y tiene movimientos: no hay plan, solo el enlace para configurarlo. Lo que
+  /// configure en Mi plata queda guardado, como en un recorrido.
   sinPlan('Sin plan: omitió la bienvenida', income: 700000, expense: 287700, welcomed: true);
 
   const DemoScenario(this.label, {this.income = 0, this.expense = 0, this.money, this.welcomed = false});
@@ -175,6 +176,9 @@ class DemoState {
     this.commitments = const [],
     this.incomeType,
     this.payDays = const [],
+    this.sources = const [],
+    this.adjustments = const [],
+    this.lastId = 0,
   });
 
   factory DemoState.fromJson(Object? raw) {
@@ -193,6 +197,17 @@ class DemoState {
       ],
       incomeType: raw['incomeType'] is String ? raw['incomeType'] as String : null,
       payDays: _ints(raw['payDays']),
+      sources: [
+        if (raw['sources'] case final List<dynamic> sources)
+          for (final item in sources)
+            if (item is Map) Map<String, dynamic>.from(item),
+      ],
+      adjustments: [
+        if (raw['adjustments'] case final List<dynamic> adjustments)
+          for (final item in adjustments)
+            if (item is Map) Map<String, dynamic>.from(item),
+      ],
+      lastId: raw['lastId'] is int ? raw['lastId'] as int : 0,
     );
   }
 
@@ -205,12 +220,22 @@ class DemoState {
   /// El saldo que la persona dijo. null = no lo ha dicho.
   final num? balance;
 
-  /// Pagos fijos: `{name, amount, dayOfMonth}`.
+  /// Pagos fijos: `{name, amount, dayOfMonth}` (los de Mi plata traen además `id`, `kind`, `frequency` y
+  /// `month`; ver [commitmentsWithIds]).
   final List<Map<String, dynamic>> commitments;
 
   /// `fecha_fija`, `sin_fecha` o null (sin fuentes de ingreso).
   final String? incomeType;
   final List<int> payDays;
+
+  /// Las fuentes de ingreso tal como las recibió PUT /money-profile/sources.
+  final List<Map<String, dynamic>> sources;
+
+  /// Correcciones de saldo `{id, before, after, date, createdAt}`, de la más vieja a la más nueva.
+  final List<Map<String, dynamic>> adjustments;
+
+  /// El mayor `demo-c<n>` que se ha dado: el id de un pago borrado (y su aviso cerrado) no se repite.
+  final int lastId;
 
   Map<String, dynamic> toJson() => {
     'welcomeDone': welcomeDone,
@@ -220,6 +245,9 @@ class DemoState {
     'commitments': commitments,
     'incomeType': incomeType,
     'payDays': payDays,
+    'sources': sources,
+    'adjustments': adjustments,
+    'lastId': lastId,
   };
 
   /// Los montos fijos de los escenarios están pensados en pesos colombianos. Con otra moneda se
@@ -236,6 +264,9 @@ class DemoState {
     commitments: commitments,
     incomeType: incomeType,
     payDays: payDays,
+    sources: sources,
+    adjustments: adjustments,
+    lastId: lastId,
   );
 
   /// POST /money-profile/tutorial.
@@ -247,6 +278,9 @@ class DemoState {
     commitments: commitments,
     incomeType: incomeType,
     payDays: payDays,
+    sources: sources,
+    adjustments: adjustments,
+    lastId: lastId,
   );
 
   /// POST /money-profile/welcome.
@@ -264,6 +298,9 @@ class DemoState {
       balance: answered ? sent : balance,
       incomeType: answered ? body['incomeType'] as String? : incomeType,
       payDays: answered ? _ints(body['payDays']) : payDays,
+      sources: sources,
+      adjustments: adjustments,
+      lastId: lastId,
       commitments: [
         ...commitments,
         // ON CONFLICT (lower(nombre)) DO NOTHING: un nombre que ya está no cambia de monto ni se repite.
@@ -295,8 +332,78 @@ class DemoState {
           ? 'sin_fecha'
           : 'fecha_fija',
       payDays: days.take(4).toList(),
+      sources: sources,
+      adjustments: adjustments,
+      lastId: lastId,
     );
   }
+
+  /// PUT /money-profile con `resetBalance` (Corregir saldo): el saldo nuevo y, si cambió, su ajuste.
+  DemoState withBalance(num balance, {Map<String, dynamic>? adjustment}) => DemoState(
+    welcomeDone: welcomeDone,
+    tutorialDone: tutorialDone,
+    region: region,
+    balance: balance,
+    commitments: commitments,
+    incomeType: incomeType,
+    payDays: payDays,
+    sources: sources,
+    adjustments: [...adjustments, ?adjustment],
+    lastId: lastId,
+  );
+
+  /// PUT /money-profile: el tipo de ingreso y los días (solo con fecha fija), como los mandó.
+  DemoState withIncomeType(String? type, List<int> days) => DemoState(
+    welcomeDone: welcomeDone,
+    tutorialDone: tutorialDone,
+    region: region,
+    balance: balance,
+    commitments: commitments,
+    incomeType: type,
+    payDays: type == 'fecha_fija' ? days : const [],
+    sources: sources,
+    adjustments: adjustments,
+    lastId: lastId,
+  );
+
+  /// Los pagos con su id fijo (`demo-c<n>`). El que no lo tiene (los de la bienvenida o un estado de
+  /// antes) lo recibe al leerlo, después del mayor que ya se haya dado: así no cambia al renombrar ni al
+  /// borrar otro, y Mi plata y el Inicio dicen el mismo id.
+  List<Map<String, dynamic>> get commitmentsWithIds => withDemoIds(commitments, after: lastId);
+
+  /// POST, PUT y DELETE /money-profile/commitments desde Mi plata: la lista completa, ya con ids (los
+  /// nombres repetidos ya los descartó quien llama).
+  DemoState withCommitments(List<Map<String, dynamic>> list) {
+    // Cuenta también el id del que se borra (aunque solo lo tuviera al leerlo).
+    final used = _maxDemoId(commitmentsWithIds, lastId);
+    final next = withDemoIds(list, after: used);
+    return DemoState(
+      welcomeDone: welcomeDone,
+      tutorialDone: tutorialDone,
+      region: region,
+      balance: balance,
+      commitments: next,
+      incomeType: incomeType,
+      payDays: payDays,
+      sources: sources,
+      adjustments: adjustments,
+      lastId: _maxDemoId(next, used),
+    );
+  }
+}
+
+/// El mayor n de los `demo-c<n>` de [list], o [floor] si es mayor.
+int _maxDemoId(List<Map<String, dynamic>> list, int floor) => list.fold(floor, (max, c) {
+  final n = int.tryParse('${c['id']}'.replaceFirst('demo-c', '')) ?? 0;
+  return n > max ? n : max;
+});
+
+/// Pone `demo-c<n>` a los pagos que no tienen id, después del mayor que exista o de [after].
+List<Map<String, dynamic>> withDemoIds(List<Map<String, dynamic>> list, {int after = 0}) {
+  var next = _maxDemoId(list, after) + 1;
+  return [
+    for (final c in list) c['id'] is String ? c : {...c, 'id': 'demo-c${next++}'},
+  ];
 }
 
 /// Estado simulado que sobrevive a cerrar la app (para probar «ya la terminó» y el Inicio).
@@ -367,9 +474,8 @@ WelcomeStatus demoWelcomeStatus(DemoScenario scenario, DemoState state) {
   final ledger = readMoney(income - expense)!;
   // `currentMoney` del servidor: manda el saldo que dijo la persona; si no, lo que dan los movimientos
   // y solo si es positivo. Sin ninguno de los dos no se sabe (null), nunca cero.
-  final said = scenario.welcomed
-      ? (scenario.money == null ? null : state.fixed(scenario.money!))
-      : state.balance;
+  // Los fijos con saldo lo traen literal; sinPlan (sin saldo fijo) y los recorridos, el que se guardó.
+  final said = scenario.money == null ? state.balance : state.fixed(scenario.money!);
   return WelcomeStatus(
     welcomeDone: scenario.welcomed || state.welcomeDone,
     tutorialDone: state.tutorialDone,

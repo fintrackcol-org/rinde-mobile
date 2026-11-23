@@ -17,7 +17,7 @@ import '../../domain/home_view.dart';
 import 'home_money.dart';
 import 'home_tap.dart';
 
-enum _Skin {
+enum HeroSkin {
   /// Fondo violeta con texto blanco.
   violet,
 
@@ -53,8 +53,8 @@ class HeroCard extends ConsumerWidget {
           container: true,
           label: t('Cargando…'),
           child: const ExcludeSemantics(
-            child: _Frame(
-              skin: _Skin.violet,
+            child: HeroFrame(
+              skin: HeroSkin.violet,
               gap: RindeSpace.s3,
               children: [
                 SizedBox(
@@ -106,12 +106,12 @@ class HeroCard extends ConsumerWidget {
               })
             : null;
         final fg = free ? RindeBrand.white : p.ink;
-        return _Frame(
-          skin: free ? _Skin.violet : _Skin.negative,
+        return HeroFrame(
+          skin: free ? HeroSkin.violet : HeroSkin.negative,
           onTap: open,
           label: money.spoken('$title: $amount. ${perDay == null ? '' : '$perDay. '}$detail$seeMore'),
           children: [
-            _Eyebrow(title, color: free ? RindeBrand.white : p.ink.withValues(alpha: 0.85), chevron: fg),
+            HeroEyebrow(title, color: free ? RindeBrand.white : p.ink.withValues(alpha: 0.85), chevron: fg),
             MoneyText(
               amount,
               money: money,
@@ -175,13 +175,13 @@ class HeroCard extends ConsumerWidget {
           until = null;
         }
         final details = [?lasts, ?until].join(', ');
-        return _Frame(
-          skin: _Skin.violet,
+        return HeroFrame(
+          skin: HeroSkin.violet,
           gap: RindeSpace.s3,
           onTap: open,
           label: money.spoken('$title: $amount${details.isEmpty ? '' : '. $details'}$seeMore'),
           children: [
-            _Eyebrow(title, color: RindeBrand.white, chevron: RindeBrand.white),
+            HeroEyebrow(title, color: RindeBrand.white, chevron: RindeBrand.white),
             MoneyText(
               amount,
               money: money,
@@ -218,23 +218,23 @@ class HeroCard extends ConsumerWidget {
         final dash = ExcludeSemantics(child: Text('—', style: RindeType.amount));
         if (reason == UnknownReason.noBalance) {
           final why = t('Todavía no sabemos cuánta plata tienes.');
-          return _Frame(
-            skin: _Skin.violet,
+          return HeroFrame(
+            skin: HeroSkin.violet,
             gap: RindeSpace.s3,
             onTap: open,
             label: '$title. $why$seeMore',
             children: [
-              _Eyebrow(title, color: RindeBrand.white, chevron: RindeBrand.white),
+              HeroEyebrow(title, color: RindeBrand.white, chevron: RindeBrand.white),
               dash,
               muted(why),
             ],
           );
         }
-        return _Frame(
-          skin: _Skin.neutral,
+        return HeroFrame(
+          skin: HeroSkin.neutral,
           gap: RindeSpace.s1,
           children: [
-            _Eyebrow(title, color: p.inkMuted),
+            HeroEyebrow(title, color: p.inkMuted),
             dash,
             Text(
               reason == UnknownReason.offline
@@ -285,9 +285,10 @@ class _HalfRail extends StatelessWidget {
   );
 }
 
-/// Rótulo en mayúsculas de la tarjeta, con la flecha que dice que se puede tocar.
-class _Eyebrow extends StatelessWidget {
-  const _Eyebrow(this.text, {required this.color, this.chevron});
+/// Rótulo en mayúsculas de la tarjeta, con la flecha que dice que se puede tocar. También lo usa la
+/// tarjeta de Mi plata.
+class HeroEyebrow extends StatelessWidget {
+  const HeroEyebrow(this.text, {super.key, required this.color, this.chevron});
   final String text;
   final Color color;
   final Color? chevron;
@@ -303,8 +304,10 @@ class _Eyebrow extends StatelessWidget {
   );
 }
 
-class _Frame extends StatelessWidget {
-  const _Frame({
+/// Marco de la tarjeta grande (violeta, negativo o neutro). También lo usa la tarjeta de Mi plata.
+class HeroFrame extends StatelessWidget {
+  const HeroFrame({
+    super.key,
     required this.skin,
     required this.children,
     this.gap = RindeSpace.s2,
@@ -312,7 +315,7 @@ class _Frame extends StatelessWidget {
     this.label,
   });
 
-  final _Skin skin;
+  final HeroSkin skin;
   final List<Widget> children;
   final double gap;
   final VoidCallback? onTap;
@@ -321,18 +324,18 @@ class _Frame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final violet = skin == _Skin.violet;
+    final violet = skin == HeroSkin.violet;
     final body = ClipRRect(
       borderRadius: RindeRadius.brX3,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: switch (skin) {
-            _Skin.violet => p.brandSolid,
-            _Skin.negative => p.negative.withValues(alpha: 0.1),
-            _Skin.neutral => p.surface,
+            HeroSkin.violet => p.brandSolid,
+            HeroSkin.negative => p.negative.withValues(alpha: 0.1),
+            HeroSkin.neutral => p.surface,
           },
           borderRadius: RindeRadius.brX3,
-          border: skin == _Skin.neutral ? Border.all(color: p.line) : null,
+          border: skin == HeroSkin.neutral ? Border.all(color: p.line) : null,
         ),
         child: Stack(
           children: [

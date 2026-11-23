@@ -22,15 +22,19 @@ final _titles = {
   Routes.plan: 'Planear',
   Routes.account: 'Tu cuenta',
   Routes.notifications: 'Notificaciones',
-  Routes.myMoney: 'Mi plata',
-  Routes.payments: 'Pagos del mes',
-  Routes.fixBalance: 'Corregir saldo',
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
   Routes.budgets: 'Presupuestos',
   Routes.cards: 'Tarjetas',
   Routes.card('t1'): 'Tarjeta',
+  // Accesos de «Más de tu plata».
+  Routes.calendar: 'Calendario',
+  Routes.debts: 'Cuentas',
+  Routes.insights: 'Consejos',
+  Routes.export: 'Exportar movimientos',
+  Routes.renta: 'Renta y DIAN',
+  Routes.liquidity: 'Tu plata en los próximos días',
 };
 const _tabs = {Routes.plan: RindeTab.plan, Routes.account: RindeTab.account};
 
@@ -96,15 +100,18 @@ void main() {
       Routes.plan,
       Routes.account,
       Routes.notifications,
-      Routes.myMoney,
-      Routes.payments,
-      Routes.fixBalance,
       Routes.income,
       Routes.expenses,
       Routes.toConfirm,
       Routes.budgets,
       Routes.cards,
       '/app/tarjetas/:id',
+      Routes.calendar,
+      Routes.debts,
+      Routes.insights,
+      Routes.export,
+      Routes.renta,
+      Routes.liquidity,
     });
     expect({for (final m in pendingModules) ?m.tab}, {RindeTab.plan, RindeTab.account});
   });
@@ -158,7 +165,7 @@ void main() {
   testWidgets('abierto sin pantalla anterior, «Volver» y atrás llevan al Inicio en vez de cerrar la app', (
     tester,
   ) async {
-    await _pump(tester, initial: Routes.payments);
+    await _pump(tester, initial: Routes.notifications);
     await tester.tap(find.byTooltip('Volver'));
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
@@ -191,7 +198,7 @@ void main() {
 
   for (final (name, theme) in [('claro', RindeTheme.light), ('oscuro', RindeTheme.dark)]) {
     testWidgets('320 de ancho y letra al doble, tema $name: nada se desborda', (tester) async {
-      for (final route in [Routes.account, Routes.plan, Routes.fixBalance, Routes.income]) {
+      for (final route in [Routes.account, Routes.plan, Routes.liquidity, Routes.income]) {
         await _pump(tester, initial: route, size: const Size(320, 568), textScale: 2, theme: theme);
         expect(tester.takeException(), isNull, reason: route);
         expect(find.text('En desarrollo'), findsOneWidget, reason: route);

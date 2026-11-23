@@ -24,6 +24,7 @@ import 'package:rinde_mobile/features/home/data/home_models.dart';
 import 'package:rinde_mobile/features/home/data/home_repository.dart';
 import 'package:rinde_mobile/features/home/domain/home_notice.dart';
 import 'package:rinde_mobile/features/home/domain/home_view.dart';
+import 'package:rinde_mobile/features/money/application/money_writer.dart';
 import 'package:rinde_mobile/features/onboarding/application/onboarding_controller.dart';
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
@@ -288,7 +289,9 @@ void main() {
       final c = await open(scenario: 'planListo', now: DateTime(2026, 12, 31, 23, 50));
       final repo = c.read(homeRepositoryProvider);
       final plan = await repo.plan();
-      expect(plan.pending.map((p) => p.date), ['2027-01-03', '2027-01-06', '2027-01-10']);
+      // Los pagos no quedan en el pasado ni pasan al mes siguiente (el calendario del mes, que sale de
+      // aquí, no traería otro mes); el día de pago y la tarjeta, sí.
+      expect(plan.pending.map((p) => p.date), ['2026-12-31', '2026-12-31', '2026-12-31']);
       expect(plan.nextPay, '2027-01-12');
       expect((await repo.cards()).single.daysToPayment, 2);
     });
@@ -385,6 +388,27 @@ void main() {
       expect(view.hero, isA<HeroUnknown>().having((h) => h.reason, 'motivo', UnknownReason.noBalance));
       expect(view.footer, HomeFooter.setup);
     });
+
+    test(
+      '«Sin plan»: guardar las fuentes (MoneyWriter) fija el tipo y el plan pasa a «Libre para gastar»',
+      () async {
+        final c = await open(scenario: 'sinPlan');
+        var view = await home(c);
+        expect(view.hero, isA<HeroMoney>().having((h) => h.money, 'saldo', 412300));
+        expect(view.footer, HomeFooter.setup);
+
+        await c.read(moneyWriterProvider).saveSources([
+          const IncomeSourceForm(kind: IncomeKind.sueldo, amount: '700000', payDays: [30]).toApi(),
+        ]);
+        view = await home(c);
+        // Como el servidor: con tipo de ingreso, la plata que dan los movimientos (700.000 − 287.700) y
+        // sin pagos, todo queda libre. No se inventa ninguna cifra.
+        expect((view.hero as HeroPlan).tone, PlanTone.free);
+        expect((planOf(view).money, planOf(view).pendingTotal, planOf(view).free), (412300, 0, 412300));
+        expect(view.footer, HomeFooter.none);
+        expect((await store.read('demo-sinPlan')).incomeType, 'fecha_fija');
+      },
+    );
 
     test('el estado expone los nombres de los pagos guardados, no los del escenario', () async {
       final c = await open(scenario: 'planListo');
