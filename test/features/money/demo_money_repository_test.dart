@@ -104,6 +104,9 @@ const Map<DemoScenario, _Income> _expected = {
   ),
 };
 
+/// Los que no escriben (DEMO_NO_BACKEND). sinPlan sí: no tiene un plan fijo que contradecir.
+const _locked = [DemoScenario.planListo, DemoScenario.teFaltan, DemoScenario.negativo];
+
 final _sueldo = const IncomeSourceForm(kind: IncomeKind.sueldo, amount: '2500000', payDays: [15]).toApi();
 const _pila = {'name': 'Seguridad social (PILA)', 'amount': 499008, 'dayOfMonth': 10};
 const _arriendo = {
@@ -211,7 +214,7 @@ void main() {
     }
 
     test('guardar fuentes o la PILA: «Modo demostración…» y nada cambia', () async {
-      for (final scenario in _expected.keys) {
+      for (final scenario in _locked) {
         final c = await open(scenario.name);
         final writer = c.read(moneyWriterProvider);
         final demo = throwsA(isA<ApiException>().having((e) => e.code, 'code', ApiCodes.demoNoBackend));
@@ -227,6 +230,36 @@ void main() {
         );
       }
     });
+  });
+
+  test('«Sin plan» lo configura en Mi plata: fuentes, pagos y saldo quedan y el plan los usa', () async {
+    final c = await open('sinPlan');
+    final account = c.read(accountProvider);
+    final writer = c.read(moneyWriterProvider);
+    final repo = c.read(moneyRepositoryProvider);
+    c.listen(homePlanProvider(account), (_, _) {});
+    expect((await c.read(homePlanProvider(account).future)).ready, isFalse);
+
+    await writer.saveSources([_sueldo]);
+    expect((await repo.income()).sources.single.kind, IncomeKind.sueldo);
+    expect((await repo.profile()).incomeType, 'fecha_fija');
+    var plan = await c.read(homePlanProvider(account).future);
+    // La plata sale de los movimientos (700.000 − 287.700), como en el servidor sin saldo dicho.
+    expect((plan.ready, plan.money, plan.free), (true, 412300, 412300));
+
+    await writer.createCommitment(_arriendo);
+    plan = await c.read(homePlanProvider(account).future);
+    expect((plan.pending.single.id, plan.pendingTotal, plan.shortfall), ('demo-c1', 900000, 487700));
+    expect((await repo.calendar('2026-11')).single.id, 'demo-c1');
+
+    // El saldo dicho gana sobre los movimientos y deja su ajuste.
+    await writer.saveBalance(await repo.profile(), 1000000);
+    expect((await repo.profile()).money, 1000000);
+    expect((await c.read(homePlanProvider(account).future)).free, 100000);
+    expect(
+      [for (final a in await repo.adjustments(from: '2026-11-01', to: '2026-11-30')) (a.before, a.after)],
+      [(412300, 1000000)],
+    );
   });
 
   group('recorrido «nuevo»: lo guardado persiste y el Inicio lo refleja', () {
@@ -332,7 +365,7 @@ void main() {
 
   group('Corregir saldo en la demostración (bloque 4B)', () {
     test('escenarios fijos: «Modo demostración…», el saldo no cambia y no hay ajustes', () async {
-      for (final scenario in _expected.keys) {
+      for (final scenario in _locked) {
         final c = await open(scenario.name);
         final repo = c.read(moneyRepositoryProvider);
         final opened = await repo.profile();
@@ -435,7 +468,7 @@ void main() {
     }
 
     test('escenarios fijos: crear, editar y borrar pagos dan «Modo demostración…» y nada cambia', () async {
-      for (final scenario in _expected.keys) {
+      for (final scenario in _locked) {
         final c = await open(scenario.name);
         final writer = c.read(moneyWriterProvider);
         final demo = throwsA(isA<ApiException>().having((e) => e.code, 'code', ApiCodes.demoNoBackend));
@@ -527,9 +560,10 @@ void main() {
       // Borrar otra vez: el 404 cuenta como borrado.
       await writer.deleteCommitment('demo-c1');
 
-      // El siguiente id sale después del mayor que quede.
+      // El siguiente id sale después del mayor que se haya dado: el del borrado (demo-c3) no se repite, y
+      // con él tampoco su aviso cerrado.
       await writer.createCommitment(_arriendo);
-      expect((await repo.profile()).commitments.map((p) => p.id), ['demo-c2', 'demo-c3']);
+      expect((await repo.profile()).commitments.map((p) => p.id), ['demo-c2', 'demo-c4']);
     });
 
     test('los pagos de la bienvenida reciben su id al leerlos y Mi plata y el plan dicen el mismo', () async {
@@ -551,6 +585,12 @@ void main() {
       expect(plan.pending.single.id, 'demo-c1');
       // Lo guardado no cambia hasta que se escriba.
       expect((await store.read('demo-nuevo')).commitments.single.containsKey('id'), isFalse);
+
+      // Borrado el de la bienvenida, el siguiente no hereda su id.
+      final writer = c.read(moneyWriterProvider);
+      await writer.deleteCommitment('demo-c1');
+      await writer.createCommitment(_arriendo);
+      expect((await c.read(moneyRepositoryProvider).profile()).commitments.single.id, 'demo-c2');
     });
 
     test(

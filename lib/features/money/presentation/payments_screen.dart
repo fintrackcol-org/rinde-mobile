@@ -26,6 +26,7 @@ import 'widgets/commitment_sheet.dart';
 import 'widgets/income_overview_card.dart' show moneyOf;
 import 'widgets/paid_button.dart';
 import 'widgets/salary_section.dart';
+import 'widgets/welcome_pending_banner.dart';
 
 /// `/app/mi-plata/pagos` (MoneyPayments.jsx): «Tu sueldo» y los pagos fijos del mes, por pagar y
 /// pagados, con «Ya lo pagué», el lápiz para editar y «Agregar pago». Se abre encima; sin pantalla
@@ -78,6 +79,7 @@ class _MoneyPaymentsScreenState extends ConsumerState<MoneyPaymentsScreen> {
         style: RindeType.lead.copyWith(color: p.ink.withValues(alpha: 0.7)),
       ),
       const SizedBox(height: RindeSpace.s4),
+      const WelcomePendingBanner(),
     ];
     if (profile == null && profileAsync.hasError && !profileAsync.isLoading) {
       children.add(

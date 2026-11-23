@@ -21,6 +21,8 @@ import 'package:rinde_mobile/core/region/region.dart';
 import 'package:rinde_mobile/core/region/region_provider.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
 import 'package:rinde_mobile/design/theme/rinde_theme.dart';
+import 'package:rinde_mobile/design/widgets/rinde_button.dart';
+import 'package:rinde_mobile/design/widgets/rinde_feedback.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/home/application/home_providers.dart';
@@ -678,6 +680,12 @@ void main() {
         const OnboardingDraft(position: 9, country: 'CO', language: 'es', sentWelcome: 'llave').toJson(),
       );
       await pump(tester, drafts: drafts);
+      // De entrada, el aviso con «Terminar» (bloque 4D) y nada que invite a guardar: sin teclado y
+      // «Guardar saldo» apagado, así el mismo mensaje no sale dos veces.
+      expect(find.widgetWithText(RindeBanner, 'Terminar'), findsOneWidget);
+      expect(tester.widget<TextField>(field).focusNode!.hasFocus, isFalse);
+      expect(tester.widget<RindeButton>(find.widgetWithText(RindeButton, 'Guardar saldo')).onPressed, isNull);
+      await tester.enterText(field, '500000');
       await tap(tester, find.text('Guardar saldo'));
       expect(find.text('Primero terminemos de guardar tu bienvenida.'), findsOneWidget);
       expect(repo.count('saveProfile'), 0);

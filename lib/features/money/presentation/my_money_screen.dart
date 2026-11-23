@@ -16,6 +16,7 @@ import 'widgets/money_shortcuts.dart';
 import 'widgets/month_commitments.dart';
 import 'widgets/pending_payment_notice.dart';
 import 'widgets/top_budgets.dart';
+import 'widgets/welcome_pending_banner.dart';
 
 /// `/app/mi-plata` (MiPlata.jsx, variante de celular). Se abre encima, sin barra; sin pantalla
 /// anterior, atrás va al Inicio (backPath de la web). Cada parte es su propia sección, en el orden de
@@ -72,6 +73,7 @@ class MyMoneyScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const WelcomePendingBanner(),
                     for (final (i, section) in sections.indexed) ...[
                       if (i > 0) const SizedBox(height: RindeSpace.s5),
                       section,

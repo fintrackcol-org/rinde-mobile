@@ -19,11 +19,13 @@ import '../../auth/application/session_controller.dart';
 import '../../home/application/home_providers.dart';
 import '../../home/data/home_models.dart' show readMoney;
 import '../../home/presentation/widgets/home_money.dart';
+import '../../onboarding/data/onboarding_repository.dart' show pendingSourcesProvider;
 import '../../shell/presentation/pushed_frame.dart';
 import '../application/money_providers.dart';
 import '../application/money_writer.dart';
 import '../data/money_models.dart';
 import 'widgets/income_overview_card.dart' show moneyOf;
+import 'widgets/welcome_pending_banner.dart';
 
 /// Qué le falta al saldo escrito, o null si se puede guardar. El 0 es un saldo válido.
 String? balanceProblem(String raw, Tr t, MoneyFormat format) {
@@ -179,6 +181,7 @@ class _FixBalanceScreenState extends ConsumerState<FixBalanceScreen> {
         style: RindeType.small.copyWith(color: p.inkMuted),
       ),
       const SizedBox(height: RindeSpace.s5),
+      const WelcomePendingBanner(),
       // Tras un conflicto o una duda se relee: si tarda o falla, lo del guardado se sigue viendo.
       if (profile == null && _error != null) ...[
         RindeBanner(message: _error!),
@@ -244,6 +247,8 @@ class _FixBalanceScreenState extends ConsumerState<FixBalanceScreen> {
       // Como la web: solo si los movimientos dicen otra cosa que la plata de hoy.
       final useLedger = ledger != null && ledger.round() > 0 && ledger.round() != profile.money?.round();
       final hint = describeAmount(_raw, format: format, inPesos: region.currency == 'COP', t: t);
+      // Con la bienvenida a medias no se guarda (MoneyWriter): el aviso de arriba lo dice una sola vez.
+      final pending = ref.watch(pendingSourcesProvider(account)).value ?? false;
       children.addAll([
         RindeMoneyField(
           value: _raw,
@@ -254,7 +259,7 @@ class _FixBalanceScreenState extends ConsumerState<FixBalanceScreen> {
           format: format,
           semanticLabel: t('¿Cuánta plata tienes?'),
           focusNode: _focus,
-          autofocus: true,
+          autofocus: !pending,
           textInputAction: TextInputAction.done,
           errorText: _fieldError,
           message: hint?.message,
@@ -270,13 +275,17 @@ class _FixBalanceScreenState extends ConsumerState<FixBalanceScreen> {
               size: RindeButtonSize.sm,
               pill: true,
               expand: false,
-              onPressed: _saving ? null : () => _save(profile, value: ledger),
+              onPressed: _saving || pending ? null : () => _save(profile, value: ledger),
             ),
           ),
         ],
         if (_error case final error?) ...[const SizedBox(height: RindeSpace.s3), RindeBanner(message: error)],
         const SizedBox(height: RindeSpace.s6),
-        RindeButton(label: t('Guardar saldo'), loading: _saving, onPressed: () => _save(profile)),
+        RindeButton(
+          label: t('Guardar saldo'),
+          loading: _saving,
+          onPressed: pending ? null : () => _save(profile),
+        ),
       ]);
     }
 

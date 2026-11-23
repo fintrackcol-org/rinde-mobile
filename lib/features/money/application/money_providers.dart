@@ -72,13 +72,21 @@ final dismissedPaymentsProvider = AsyncNotifierProvider<DismissedPayments, Set<S
 );
 
 /// El «Ya lo pagué» que se está guardando (`{id}-{date}`); mientras haya uno, los demás no responden
-/// (como la web).
+/// (como la web). Es de quien está dentro: al cambiar de cuenta empieza vacío.
 class PayingPayment extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() {
+    ref.watch(accountProvider);
+    return null;
+  }
 
   // ignore: use_setters_to_change_properties
-  void set(String? key) => state = key;
+  void set(String key) => state = key;
+
+  /// Suelta [key] si sigue siendo el que se guarda: lo de una cuenta que ya salió no toca a la nueva.
+  void release(String key) {
+    if (ref.mounted && state == key) state = null;
+  }
 }
 
 final payingPaymentProvider = NotifierProvider<PayingPayment, String?>(PayingPayment.new);

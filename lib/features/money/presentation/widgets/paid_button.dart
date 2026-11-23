@@ -78,7 +78,7 @@ class PaidButton extends ConsumerWidget {
       } on Object catch (e) {
         onError(moneyErrorText(e, t));
       } finally {
-        busy.set(null);
+        busy.release(key);
       }
     }
 

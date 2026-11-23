@@ -14,9 +14,11 @@ import 'money_repository.dart';
 //  Solo para desarrollo y pruebas: Mi plata de una sesión demo. Cada lectura arma la RESPUESTA
 //  SINTÉTICA del contrato real y la lee con los mismos modelos que la API. Sale del mismo DemoState
 //  que la bienvenida y el Inicio, para que los tres digan lo mismo.
-//  - Escenarios fijos (planListo, teFaltan, negativo, sinPlan): cifras literales; nada se escribe
+//  - Escenarios fijos (planListo, teFaltan, negativo): cifras literales; nada se escribe
 //    (DEMO_NO_BACKEND), así el plan fijo del Inicio nunca contradice lo editado.
-//  - Recorridos (nuevo, movimientos): lo que se guarda queda en DemoState y el Inicio lo refleja.
+//  - Recorridos (nuevo, movimientos) y sinPlan: lo que se guarda queda en DemoState y el Inicio lo
+//    refleja. sinPlan no tiene plan fijo que contradecir: es quien omitió la bienvenida y lo configura
+//    después en Mi plata.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Lecturas y escrituras de Mi plata que se pueden hacer fallar desde el panel «DEMO».
@@ -61,8 +63,9 @@ class DemoMoneyRepository implements MoneyRepository {
 
   DemoScenario get scenario => DemoScenario.fromUserId(userId);
 
-  /// Recorrido: lo que se escribe queda guardado.
-  bool get _journey => scenario == DemoScenario.nuevo || scenario == DemoScenario.movimientos;
+  /// Recorrido (o sinPlan): lo que se escribe queda guardado.
+  bool get _journey =>
+      const {DemoScenario.nuevo, DemoScenario.movimientos, DemoScenario.sinPlan}.contains(scenario);
 
   @override
   bool get isDemo => true;

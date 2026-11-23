@@ -13,7 +13,7 @@ rama y a una PR hacia `main` **sin fusionar**: la fusión la decide David.
 | 4A — Mi plata y perfil financiero («Cómo te entra la plata») | Hecho, probado y subido (ver «Git» del bloque) |
 | 4B — Saldo, corregir saldo, plan y «¿De dónde sale?» | Hecho, probado y subido. Corregir saldo en solo lectura en cuentas reales hasta que el backend tenga versión |
 | 4C — Pagos recurrentes | Hecho, probado en el emulador y subido. «Tu sueldo» en solo lectura en cuentas reales hasta que el backend tenga versión |
-| 4D — Continuidad bienvenida → Mi plata → Inicio | Pendiente (el bloqueo por bienvenida a medias ya está en 4A) |
+| 4D — Continuidad bienvenida → Mi plata → Inicio | Hecho, probado en el emulador y subido |
 
 ---
 
@@ -562,6 +562,214 @@ En el escenario fijo «Plan listo»:
 - La pregunta 3 del plan sigue abierta: «Ya lo pagué» usa la fecha del teléfono, como la web; cerca de la medianoche o fuera de Colombia podría no coincidir con el «hoy» del servidor.
 - Los pagos creados en la app nacen sin aviso, porque no hay bloque «Avisarme» (pregunta 6 del plan).
 - No probado en iOS, con lector de pantalla real, en un teléfono físico ni contra QA.
+
+---
+
+## Bloque 4D — Continuidad bienvenida → Mi plata → Inicio
+
+Fecha: 23 de noviembre de 2026.
+
+### Qué ya estaba hecho en 4A–4C (verificado, sin cambios)
+
+| Pieza | Dónde | Estado |
+|---|---|---|
+| Rutas reales de Mi plata, Pagos del mes y Corregir saldo, fuera de «En desarrollo» | `lib/app/router.dart`, `pending_modules.dart` | Hecho. Las pruebas ya tenían el conjunto exacto |
+| Atrás sin historial: Mi plata → Inicio, Pagos → Planear, Corregir → Mi plata | `PushedFrame(fallback:)` | Hecho y probado en `router_test.dart` |
+| Refrescos después de escribir (Inicio, Mi plata, calendario, ajustes) | `afterMoneyChange`, `afterMovementChange` y `_refreshEntry` de la bienvenida | Hecho |
+| Bloqueo de escrituras con la bienvenida a medias | `MoneyWriter._welcomeDone` (`ApiCodes.welcomePending`) | Hecho, pero solo avisaba al tocar «Guardar» |
+| Quien omitió la bienvenida: «¿Cuánta plata tienes hoy?» lleva a Mi plata | `MoneySetupLink` | Hecho y probado en `home_screen_test.dart` |
+| Los pagos de la bienvenida tienen el mismo id en Mi plata, Pagos y «Lo próximo» | `withDemoIds` en la demo; el servidor en cuentas reales | Hecho |
+
+### Qué se agregó
+
+1. **Aviso de bienvenida a medias de entrada.** `WelcomePendingBanner` sale arriba en Mi plata, Pagos del
+   mes y Corregir saldo cuando `pendingSourcesProvider` es `true`.
+   - Dice «Primero terminemos de guardar tu bienvenida.», con la acción **«Terminar»** y en tono informativo.
+   - «Terminar» lleva a `/app/bienvenida/preguntas`, la ruta con que la entrada ya retoma la bienvenida.
+     Funciona aunque la persona haya dicho «después» en esta sesión.
+   - Las escrituras siguen bloqueadas como antes. En Corregir saldo, mientras tanto, no se abre el teclado
+     y «Guardar saldo» queda apagado. En las demás, el mismo mensaje sale junto al botón al tocarlo.
+   - Al terminar la bienvenida, `_refreshEntry` invalida `pendingSourcesProvider` y el aviso se va.
+2. **Demo «Sin plan» coherente con el servidor.** Antes, en ese escenario, «Configurar» respondía «Modo
+   demostración…», así que no se podía ver el recorrido «omití la bienvenida → la configuro en Mi plata».
+   - Ahora sus escrituras quedan guardadas, como en los recorridos.
+   - Su plan sale de lo guardado. Sin tipo de ingreso sigue en `ready:false`. Con tipo de ingreso, la
+     plata es la de los movimientos (700.000 − 287.700 = 412.300) menos los pagos.
+   - Es la regla del servidor: en `buildMoneyPlan`, sin `incomeType` o sin plata no hay plan. No se
+     inventa ninguna cifra. El Inicio pasa de «Mi plata» con el enlace a «Libre para gastar».
+   - Un saldo corregido gana sobre los movimientos y deja su ajuste, igual que en los recorridos.
+   - Los tres escenarios con cifras fijas (Plan listo, Te faltan y Negativo) siguen sin escribir.
+3. **`kCoachTourForRealAccounts`** sigue en `false`. Solo cambió su comentario: Mi plata ya existe, pero
+   `tour_steps.dart` promete pantallas que siguen «En desarrollo»:
+   - Ingresos y Gastos;
+   - Planear;
+   - Yo;
+   - y, «en Mi plata», por confirmar, consejos de la IA, renta y los próximos días.
+
+### Decisiones
+
+- El aviso usa el tono `info` y no el de error: no es un fallo, es algo pendiente.
+- «Terminar» siempre lleva a «solo las preguntas».
+  - Es la ruta que usa la entrada para una bienvenida guardada con las fuentes pendientes.
+  - El caso «sin bienvenida y sin movimientos» solo llega a Mi plata con un enlace directo, porque la
+    entrada lo manda a la bienvenida completa.
+- Mientras la bienvenida está a medias:
+  - En Corregir saldo, «Guardar saldo» y «Usar lo que dicen mis movimientos» quedan apagados y no hay
+    `autofocus`. El aviso está justo encima del campo, y así el mensaje no sale dos veces.
+  - En Pagos del mes, en el aviso de pendientes y en las hojas, los botones siguen activos. El mensaje
+    sale junto al botón: el aviso de arriba puede quedar fuera de la vista o detrás de la hoja.
+- No se tocaron el controlador de la bienvenida ni su borrador.
+
+### Texto nuevo que requiere aprobación
+
+| Español | Inglés | Portugués |
+|---|---|---|
+| Terminar | Finish | Concluir |
+
+«Primero terminemos de guardar tu bienvenida.» ya estaba en 4A.
+
+### Diferencias con la web y por qué
+
+| Diferencia | Por qué |
+|---|---|
+| El aviso de bienvenida a medias con «Terminar» no existe en la web | La web no reintenta una bienvenida a medias. La app sí, y ese reintento pisaría lo que se guarde en Mi plata |
+| Demo «Sin plan»: lo configurado en Mi plata queda guardado | Es solo de la demo; la web no tiene demo |
+
+### Revisión adversarial
+
+- Tres revisores independientes revisaron en solo lectura:
+  - continuidad;
+  - aislamiento y duplicados;
+  - interfaz y pruebas.
+- Otro agente comprobó cada hallazgo y corrigió lo confirmado.
+
+| # | Hallazgo | Resultado |
+|---|---|---|
+| 1 | Corregir saldo con la bienvenida a medias: se abría el teclado y, al guardar, el mismo mensaje salía dos veces | Corregido: sin `autofocus` y con los dos botones apagados, con prueba. El revisor de interfaz lo daba por aceptable; se siguió el plan («no deja escribir el saldo», un solo aviso). En las otras pantallas se descartó: el mensaje sale junto al botón y el aviso de arriba puede no estar a la vista |
+| 2 | (Venía de 4C) Un «Ya lo pagué» de A que tarda deja apagados los botones de B hasta un minuto | Corregido: `payingPaymentProvider` empieza vacío en cada cuenta y solo suelta su propia clave, con prueba |
+| 3 | (Venía de 4C; demo) Al borrar el último pago, el siguiente recibía su id y su aviso cerrado | Corregido: `DemoState.lastId` guarda el mayor id dado, con pruebas |
+| 4 | «Sin plan» por la interfaz sin prueba; el nombre de la prueba del repositorio decía «Configurar» | Corregido: prueba de integración nueva y prueba renombrada |
+| 5 | La integración «nuevo» no eliminaba el pago de la bienvenida | Corregido: lo elimina desde «Ver pagos» y el Inicio ya no lo tiene |
+
+### Pruebas
+
+| Comprobación | Resultado |
+|---|---|
+| `flutter analyze` | Sin hallazgos |
+| `flutter test` | 1218 de 1218 en verde tras la revisión (eran 1205 al cerrar 4C y 1216 antes de revisar) |
+| `dart format --line-length 110 lib test` | Sin cambios pendientes |
+| `save_model_test.dart` y `test/features/onboarding` | En verde (cambió `demo_onboarding_repository.dart`) |
+| `l10n_test.dart` | En verde |
+| `gitleaks` sobre `lib`, `test`, `docs`, `tool` y `assets/l10n` | Sin fugas |
+| Compilación Android con demo | Compila e instala |
+| Emulador Android 16 (API 36) | Recorridos completos, capturas 49 a 56 |
+
+Qué cubren las pruebas nuevas:
+
+- `test/features/money/continuity_test.dart` (9 pruebas):
+  - En Mi plata, Pagos del mes y Corregir saldo, el aviso sale de entrada y «Terminar» lleva a retomar.
+  - Al terminar la bienvenida, el aviso se va.
+  - Dos cuentas en Mi plata: B no ve los pagos de A, ni el aviso que A cerró, ni su bienvenida pendiente.
+    Cuando A vuelve, todo lo suyo sigue igual.
+  - Dos cuentas en Pagos del mes.
+  - Integración en la app real, con la demo «nuevo»:
+    1. la bienvenida con un pago;
+    2. el Inicio con el pago en «Lo próximo»;
+    3. Mi plata;
+    4. se edita ese pago (mismo id, `demo-c1`) y se agrega otro;
+    5. Atrás dos veces;
+    6. el Inicio muestra los dos pagos, una sola vez cada uno;
+    7. desde «Ver pagos» se elimina el de la bienvenida y, al volver, el Inicio ya no lo tiene.
+  - Integración en la app real con la demo «Sin plan»: Inicio → «¿Cuánta plata tienes hoy?» → «Configurar»
+    → sueldo de 700.000 el 30 → Atrás dos veces → el Inicio en «Libre para gastar» con 412.300.
+  - Integración en la app real con la bienvenida a medias:
+    1. la entrada la retoma;
+    2. la persona sale sin terminar;
+    3. el aviso de Mi plata la retoma;
+    4. la persona la termina y el aviso ya no sale.
+- `demo_home_repository_test.dart`: en «Sin plan», guardar las fuentes hace que el Inicio pase a «Libre
+  para gastar» con 412.300 y sin el enlace.
+- `demo_money_repository_test.dart`: «Sin plan» guarda fuentes, pagos y saldo, y el plan los usa. Un id
+  borrado no se repite, tampoco el de un pago de la bienvenida.
+- `money_writer_test.dart`: un «Ya lo pagué» de A que no termina no deja ocupados los botones de B.
+- `router_test.dart`: las rutas que recorren las pruebas son exactamente las pendientes, y Mi plata, Pagos y
+  Corregir saldo no están entre ellas.
+- Se ajustaron dos pruebas de 4A y 4B sobre la bienvenida a medias:
+  - en la hoja de fuentes salen el aviso, detrás, y el error;
+  - en Corregir saldo, un solo mensaje, sin teclado y con «Guardar saldo» apagado.
+
+Lo que ya cubrían 4A–4C y no se repitió:
+
+- «Ya lo pagué» con cambio de cuenta a mitad (`payments_test.dart`);
+- avisos cerrados por cuenta (`payments_test.dart`);
+- fuentes y perfil por cuenta (`money_writer_test.dart` y `fix_balance_test.dart`).
+
+### Lo que se vio en el emulador
+
+| Qué | Resultado |
+|---|---|
+| «Sin plan»: Inicio → «¿Cuánta plata tienes hoy?» → Mi plata → «Configurar» → sueldo fijo de $ 700.000 → Atrás | El Inicio pasa a «Libre para gastar · estimado $ 412.300» y la tarjeta que pedía la plata desaparece |
+| Bienvenida con la falla «Sin conexión» al guardar las fuentes | Se guardan el saldo y el pago, y la bienvenida dice «Tus respuestas quedaron guardadas en este dispositivo…» |
+| Mi plata y Corregir saldo con la bienvenida a medias | Sale el aviso con «Terminar». En Corregir saldo no se abre el teclado y «Guardar saldo» queda apagado |
+| «Terminar» | Retoma en «¿Qué pagas cada mes?», con Internet ya guardado. Al tocar «Ver mi plata» se termina |
+| Después de terminar | El Inicio muestra Internet una sola vez en «Lo próximo», la invitación «¿Ya tenías plata…?» desaparece, el aviso de Mi plata no sale y Pagos lista Internet una sola vez |
+| La bienvenida ahora manda `kind`, `frequency` y `month` en cada pago (por el cambio de `CommitmentItem` en 4C) | No es un problema: el validador de la bienvenida en `main` y en `develop` los acepta, y los valores que manda la app («fixed», «monthly», `null`) son los que el servidor pone por defecto |
+| «Tu sueldo» queda «Sin fecha fija» después de terminar | Es la regla del servidor (`legacyIncomeType`): un sueldo sin días de pago es «sin fecha fija». La demo la copia |
+
+### Capturas (`docs/etapa-04/`)
+
+| # | Qué muestra |
+|---|---|
+| [49](etapa-04/49-sin-plan-inicio.jpg) | «Sin plan»: «Mi plata · noviembre» y «¿Cuánta plata tienes hoy?» |
+| [50](etapa-04/50-sin-plan-mi-plata.jpg) | Mi plata con «Cómo te entra la plata» sin configurar |
+| [51](etapa-04/51-sin-plan-inicio-listo.jpg) | Después de configurar el sueldo: «Libre para gastar · estimado $ 412.300» |
+| [52](etapa-04/52-aviso-terminar-mi-plata.jpg) | Mi plata con la bienvenida a medias: «Primero terminemos de guardar tu bienvenida.» y «Terminar» |
+| [53](etapa-04/53-aviso-terminar-corregir.jpg) | Corregir saldo con el mismo aviso, sin teclado y con «Guardar saldo» apagado |
+| [54](etapa-04/54-terminar-retoma.jpg) | «Terminar» retoma en «¿Qué pagas cada mes?» |
+| [55](etapa-04/55-inicio-tras-terminar.jpg) | Inicio después de terminar: Internet una sola vez en «Lo próximo» |
+| [56](etapa-04/56-pagos-sin-duplicados.jpg) | Pagos: Internet una sola vez, y el Dominio de marzo en «En otros meses» |
+
+### Archivos
+
+Nuevos:
+
+- `lib/features/money/presentation/widgets/welcome_pending_banner.dart`
+- `test/features/money/continuity_test.dart`
+
+Modificados:
+
+- El aviso: `lib/features/money/presentation/{my_money_screen,payments_screen,fix_balance_screen}.dart`.
+- Demo «Sin plan»:
+  - `lib/features/money/data/demo_money_repository.dart`;
+  - `lib/features/home/data/demo_home_repository.dart`;
+  - `lib/features/onboarding/data/demo_onboarding_repository.dart`.
+- `lib/features/home/application/tour_controller.dart`: solo el comentario.
+- De la revisión: `lib/features/money/application/money_providers.dart` y
+  `lib/features/money/presentation/widgets/paid_button.dart`. `demo_onboarding_repository.dart` agrega
+  `lastId`.
+- `tool/l10n_mobile/{en,pt}.json` y `assets/l10n/{en,pt}.json`. Los de `assets` salen de `tool/export_l10n.mjs`.
+- Pruebas:
+  - `test/app/router_test.dart`;
+  - `test/features/home/demo_home_repository_test.dart`;
+  - `test/features/money/{demo_money_repository,fix_balance,my_money_screen,money_writer}_test.dart`.
+
+React y el backend no se tocaron.
+
+### Git
+
+- Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
+- Commit: PENDIENTE.
+- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A a 4C, **sin fusionar**.
+- Respaldo: PENDIENTE.
+
+### Lo que falta o no se comprobó en 4D
+
+- No se probó en un teléfono físico, en iOS, con lector de pantalla real ni contra QA.
+- El escenario de la demo «Sin plan» ahora deja guardar (antes respondía «Modo demostración…»). Fue a propósito, para poder mostrar el camino «omití la bienvenida → la configuro en Mi plata».
+- El aviso solo ve el borrador de **este** teléfono: no detecta una bienvenida a medias en otro
+  dispositivo. Es la pregunta 2 del plan; la resolvería la opción E de la propuesta de backend.
+- En cuentas reales, quien omitió la bienvenida ya puede configurar sus fuentes y sus pagos desde la app.
+  El saldo sigue en solo lectura hasta que el backend mande la versión del perfil.
 
 ---
 

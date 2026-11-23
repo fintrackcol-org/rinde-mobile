@@ -201,8 +201,8 @@ class DemoHomeRepository implements HomeRepository {
   Map<String, dynamic> _plan(DemoState state) {
     final m = state.fixed;
     return switch (scenario) {
-      DemoScenario.nuevo || DemoScenario.movimientos => _journeyPlan(state),
-      DemoScenario.sinPlan => {'ready': false},
+      // sinPlan: sin tipo de ingreso no hay plan; si lo configura en Mi plata, sale como en un recorrido.
+      DemoScenario.nuevo || DemoScenario.movimientos || DemoScenario.sinPlan => _journeyPlan(state),
       DemoScenario.planListo => {
         'ready': true,
         'money': m(412300),
@@ -257,7 +257,8 @@ class DemoHomeRepository implements HomeRepository {
     'dayStatus': 'ok',
   };
 
-  /// Plan de los recorridos «nuevo» y «movimientos», armado SOLO con lo que la bienvenida mandó: una
+  /// Plan de los recorridos «nuevo» y «movimientos» (y de «sinPlan» cuando ya configuró Mi plata),
+  /// armado SOLO con lo que la bienvenida o Mi plata mandaron: una
   /// suma y una resta simples, para que lo que la persona escribió se vea en el Inicio. NO es el
   /// algoritmo del servidor (que mira fechas de pago, lo ya pagado y el ritmo de gasto; además
   /// redondea a enteros) y nunca corre para una cuenta real. Por eso sale en modo `runway` y sin

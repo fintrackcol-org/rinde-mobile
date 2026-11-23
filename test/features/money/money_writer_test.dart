@@ -348,4 +348,21 @@ void main() {
     final shown = c.read(incomeOverviewProvider(beto));
     expect((shown.isLoading, shown.value), (true, null));
   });
+
+  test('aislamiento: un «Ya lo pagué» de A que no termina no deja ocupados los botones de B', () async {
+    final c = await open(FakeMoneyRepository());
+    c.listen(payingPaymentProvider, (_, _) {});
+    final ana = c.read(payingPaymentProvider.notifier)..set('c1-2026-11-28');
+    (c.read(sessionControllerProvider.notifier) as _Sessions).enter(_beto);
+    await pumpEventQueue();
+    expect(c.read(payingPaymentProvider), isNull);
+
+    // B guarda uno y el de A termina después: no le suelta el suyo.
+    final beto = c.read(payingPaymentProvider.notifier)..set('c2-2026-11-28');
+    ana.release('c1-2026-11-28');
+    beto.release('c1-2026-11-28');
+    expect(c.read(payingPaymentProvider), 'c2-2026-11-28');
+    beto.release('c2-2026-11-28');
+    expect(c.read(payingPaymentProvider), isNull);
+  });
 }

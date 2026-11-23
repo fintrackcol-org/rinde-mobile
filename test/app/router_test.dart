@@ -93,6 +93,22 @@ void main() {
     }
   });
 
+  test(
+    'estas pruebas recorren exactamente los pendientes; Mi plata, Pagos y Corregir saldo ya no lo son',
+    () {
+      expect(
+        {for (final m in pendingModules) m.path},
+        {
+          for (final route in [..._tabRoutes.keys, ..._pushedRoutes.keys])
+            if (route != Routes.movements) route == Routes.card('t1') ? Routes.card(':id') : route,
+        },
+      );
+      for (final route in [Routes.myMoney, Routes.payments, Routes.fixBalance]) {
+        expect(pendingModules.map((m) => m.path), isNot(contains(route)), reason: route);
+      }
+    },
+  );
+
   testWidgets('sin sesión, ninguna ruta de la app se abre: todas terminan en el login', (tester) async {
     final router = await _pumpApp(tester);
     for (final route in [

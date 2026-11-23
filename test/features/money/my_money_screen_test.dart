@@ -579,9 +579,10 @@ void main() {
       await _pump(tester, drafts: drafts);
       await _edit(tester);
       await _tap(tester, find.text('Guardar'));
+      // En la hoja y, detrás, el aviso de Mi plata con «Terminar» (bloque 4D).
       expect(
         find.widgetWithText(RindeBanner, 'Primero terminemos de guardar tu bienvenida.'),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       expect(repo.count('saveSources'), 0);
       expect(find.text('Guardar'), findsOneWidget);
