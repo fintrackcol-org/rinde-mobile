@@ -17,6 +17,7 @@ import 'package:rinde_mobile/features/money/application/money_providers.dart';
 import 'package:rinde_mobile/features/money/data/money_models.dart';
 import 'package:rinde_mobile/features/money/presentation/fix_balance_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
+import 'package:rinde_mobile/features/money/presentation/payments_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 
 const _session = Session(
@@ -34,7 +35,6 @@ const _tabRoutes = {
 /// Destinos que se abren encima de una pestaña, con el título que deben mostrar.
 final _pushedRoutes = {
   Routes.notifications: 'Notificaciones',
-  Routes.payments: 'Pagos del mes',
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
@@ -102,6 +102,7 @@ void main() {
       Routes.record,
       Routes.myMoney,
       Routes.fixBalance,
+      Routes.payments,
       Routes.movement('m1'),
     ]) {
       router.go(route);
@@ -220,6 +221,27 @@ void main() {
     expect(await tester.binding.handlePopRoute(), isTrue);
     await _settle(tester);
     expect(_location(router), Routes.myMoney);
+  });
+
+  testWidgets('Pagos del mes ya es pantalla real; por enlace directo, atrás va a Planear', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.myMoney);
+    await _settle(tester);
+    unawaited(router.push(Routes.payments));
+    await _settle(tester);
+    expect(find.byType(MoneyPaymentsScreen), findsOneWidget);
+    expect(find.text('En desarrollo'), findsNothing);
+    expect(find.byType(RindeTabScaffold), findsNothing);
+    await tester.tap(find.byTooltip('Volver'));
+    await _settle(tester);
+    expect(_location(router), Routes.myMoney);
+
+    // Sin pantalla anterior, atrás va a Planear (backPath de la web).
+    router.go(Routes.payments);
+    await _settle(tester);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+    expect(_location(router), Routes.plan);
   });
 
   testWidgets('un destino abierto por enlace directo no cierra la app con atrás: va al Inicio', (

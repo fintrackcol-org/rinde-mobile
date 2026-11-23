@@ -47,18 +47,29 @@ const _categories = <String, List<String>>{
 const _incomeCategories = {'salario', 'freelance', 'inversion_rendimientos', 'otros_ingresos'};
 
 /// Los pagos que faltan en el plan de cada escenario fijo. Mi plata lee de aquí los compromisos del
-/// perfil: los dos dicen lo mismo. [day] da la fecha a tantos días de hoy.
+/// perfil y el calendario del mes: los tres dicen lo mismo. [day] da la fecha a tantos días de hoy;
+/// a fin de mes no pasa del último día (el calendario del mes no trae fechas de otro).
+/// shortcut: como las fechas se corren con hoy, un aviso cerrado en la demo vuelve al día siguiente.
 List<Map<String, dynamic>> demoFixedPending(
   DemoScenario scenario,
   DemoState state,
   String Function(int) day,
 ) {
   final m = state.fixed;
+  final month = day(0).substring(0, 7);
+  String inMonth(int offset) {
+    var o = offset;
+    while (o > 0 && !day(o).startsWith(month)) {
+      o--;
+    }
+    return day(o);
+  }
+
   Map<String, dynamic> item(String id, String name, num amount, int offset) => {
     'id': id,
     'name': name,
     'amount': m(amount),
-    'date': day(offset),
+    'date': inMonth(offset),
   };
   return switch (scenario) {
     DemoScenario.planListo => [
@@ -73,6 +84,25 @@ List<Map<String, dynamic>> demoFixedPending(
     DemoScenario.negativo => [item('demo-celular', 'Plan celular', 45000, 4)],
     _ => const [],
   };
+}
+
+/// Los pagos de un recorrido que tocan el mes de [now], por fecha: los anuales solo en su mes y un día
+/// 31 en un mes de 30 cae el 30. El plan y el calendario de la demo salen de aquí (dicen lo mismo).
+List<Map<String, dynamic>> demoJourneyPending(DemoState state, DateTime now) {
+  final lastDay = DateTime(now.year, now.month + 1, 0).day;
+  return [
+    for (final c in state.commitmentsWithIds)
+      if (readMoney(c['amount']) != null &&
+          c['dayOfMonth'] is int &&
+          (c['frequency'] != 'yearly' || c['month'] == now.month))
+        {
+          'id': c['id'],
+          'name': '${c['name']}',
+          'amount': readMoney(c['amount']),
+          'date': isoDay(DateTime(now.year, now.month, math.min(c['dayOfMonth'] as int, lastDay))),
+          'subscription': c['kind'] == 'subscription',
+        },
+  ]..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
 }
 
 class DemoHomeRepository implements HomeRepository {
@@ -238,20 +268,8 @@ class DemoHomeRepository implements HomeRepository {
     final money = status.money;
     // Como el servidor: sin saber cómo le entra la plata o cuánta tiene, no hay plan.
     if (state.incomeType == null || money == null) return {'ready': false};
-    final now = clock();
-    final lastDay = DateTime(now.year, now.month + 1, 0).day;
     int cents(num value) => (value * 100).round();
-    final pending = [
-      for (final (i, c) in state.commitments.indexed)
-        if (readMoney(c['amount']) != null && c['dayOfMonth'] is int)
-          {
-            'id': 'demo-pago-$i',
-            'name': '${c['name']}',
-            'amount': readMoney(c['amount']),
-            // Este mes, en su día; un día 31 en un mes de 30 cae el 30.
-            'date': isoDay(DateTime(now.year, now.month, math.min(c['dayOfMonth'] as int, lastDay))),
-          },
-    ]..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
+    final pending = demoJourneyPending(state, clock());
     final pendingCents = pending.fold<int>(0, (sum, p) => sum + cents(p['amount'] as num));
     final freeCents = cents(money) - pendingCents;
     return {

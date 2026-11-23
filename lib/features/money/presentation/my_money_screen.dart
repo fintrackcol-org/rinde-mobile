@@ -13,6 +13,8 @@ import '../application/money_providers.dart';
 import 'widgets/income_overview_card.dart';
 import 'widgets/money_left_card.dart';
 import 'widgets/money_shortcuts.dart';
+import 'widgets/month_commitments.dart';
+import 'widgets/pending_payment_notice.dart';
 import 'widgets/top_budgets.dart';
 
 /// `/app/mi-plata` (MiPlata.jsx, variante de celular). Se abre encima, sin barra; sin pantalla
@@ -47,9 +49,8 @@ class MyMoneyScreen extends ConsumerWidget {
 
     final sections = <Widget>[
       MoneyLeftSection(onRetry: refresh),
-      // 4C: aquí va el aviso de pagos pendientes («Ya lo pagué»).
       const TopBudgets(),
-      // 4C: aquí van «Pagos fijos del mes».
+      const MonthCommitments(),
       const IncomeOverviewCard(),
       const MoneyShortcuts(),
     ];
@@ -74,6 +75,9 @@ class MyMoneyScreen extends ConsumerWidget {
                     for (final (i, section) in sections.indexed) ...[
                       if (i > 0) const SizedBox(height: RindeSpace.s5),
                       section,
+                      // El aviso de pagos pendientes, bajo «Ojo con el…» (los `children` de la web).
+                      // Sin aviso no ocupa nada: su espacio de arriba va dentro.
+                      if (i == 0) const PendingPaymentNotice(),
                     ],
                   ],
                 ),

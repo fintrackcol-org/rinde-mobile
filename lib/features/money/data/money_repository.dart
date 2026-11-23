@@ -22,8 +22,17 @@ abstract interface class MoneyRepository {
   /// PUT /money-profile/sources {sources}: reemplaza todas las fuentes.
   Future<void> saveSources(List<Map<String, dynamic>> sources);
 
+  /// GET /money-profile/calendar?month=AAAA-MM: solo los pagos fijos del mes.
+  Future<List<CalendarPayment>> calendar(String month);
+
   /// POST /money-profile/commitments. 409 COMMITMENT_EXISTS si el nombre ya está.
   Future<void> createCommitment(Map<String, dynamic> body);
+
+  /// PUT /money-profile/commitments/:id: reemplazo completo. 404 si ya no existe.
+  Future<void> updateCommitment(String id, Map<String, dynamic> body);
+
+  /// DELETE /money-profile/commitments/:id (204). 404 si ya no existe.
+  Future<void> deleteCommitment(String id);
 
   /// PUT /money-profile {incomeType, payDays, balance, resetBalance?, expectedVersion?}. Reemplazo
   /// total y no idempotente con `resetBalance`: solo lo llama `MoneyWriter.saveBalance`.
@@ -52,8 +61,21 @@ class ApiMoneyRepository implements MoneyRepository {
       ApiOnboardingRepository(_api).saveSources(sources);
 
   @override
+  Future<List<CalendarPayment>> calendar(String month) async =>
+      CalendarPayment.listFromJson(await _api.get('/money-profile/calendar', query: {'month': month}));
+
+  @override
   Future<void> createCommitment(Map<String, dynamic> body) =>
       _api.post('/money-profile/commitments', body: body, auth: true);
+
+  static String _commitment(String id) => '/money-profile/commitments/${Uri.encodeComponent(id)}';
+
+  @override
+  Future<void> updateCommitment(String id, Map<String, dynamic> body) =>
+      _api.put(_commitment(id), body: body);
+
+  @override
+  Future<void> deleteCommitment(String id) => _api.delete(_commitment(id));
 
   @override
   Future<void> saveProfile(Map<String, dynamic> body) => _api.put('/money-profile', body: body);

@@ -56,6 +56,21 @@ String sourceSummary(IncomeSource source, Tr t, FormatMoney money) {
   };
 }
 
+/// «Tu sueldo» en una línea (incomeSummary de lib/moneyProfile.js). La «y» del final pasa por la
+/// traducción (la web la deja en español).
+String incomeSummary(MoneyProfile profile, Tr t) {
+  if (profile.incomeType == 'sin_fecha') return t('Sin fecha fija');
+  if (profile.incomeType != 'fecha_fija') return t('Aún no nos has dicho');
+  final days = profile.payDays;
+  final joined = days.length < 2
+      ? days.join()
+      : '${days.sublist(0, days.length - 1).join(', ')} ${t('y')} ${days.last}';
+  return t('Con fecha fija, {v1} {days}', {
+    'v1': days.length == 1 ? t('el día') : t('los días'),
+    'days': joined,
+  });
+}
+
 /// ¿Lo guardado es lo que se envió? Para un PUT /sources que quedó en duda: los id cambian en cada
 /// envío, así que se compara el contenido (tipo, frecuencia, días, montos y días de trabajo).
 bool sameSources(List<Map<String, dynamic>> sent, List<IncomeSource> saved) {

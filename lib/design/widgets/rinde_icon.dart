@@ -38,6 +38,7 @@ enum RindeIcons {
   mail('mail'),
   mailCheck('mail-check'),
   mic('mic'),
+  pencil('pencil'),
   plus('plus'),
   rotateCcw('rotate-ccw'),
 

@@ -16,6 +16,7 @@
  "Hoy puedes gastar": "You can spend today",
  "Llegaste al tope de {max} pagos. Quita uno para agregar otro.": "You've reached the limit of {max} payments. Remove one to add another.",
  "Lo que ves puede estar desactualizado: es lo último que llegó.": "What you see may be out of date: it's the last thing we received.",
+ "Modo demostración: esta acción no llega a ningún servidor.": "Demo mode: this action doesn't reach any server.",
  "Monto oculto": "Amount hidden",
  "Movimientos (pestaña)": "Activity",
  "No encontramos ese país.": "We couldn't find that country.",
@@ -27,11 +28,13 @@
  "No se pudo cargar": "Couldn't load",
  "Pagos frecuentes": "Common payments",
  "Por ahora corrige tu saldo en la web de Rinde, con tu misma cuenta. En la app llega pronto.": "For now, fix your balance on the Rinde website, with the same account. It's coming to the app soon.",
+ "Por ahora cámbialo en la web de Rinde, con tu misma cuenta.": "For now, change it on the Rinde website, with the same account.",
  "Primero terminemos de guardar tu bienvenida.": "Let's finish saving your welcome first.",
  "Responder": "Answer",
  "Rinde tiene guardado {amount}. «Omitir» lo deja así; «Seguir» lo cambia por lo que escribas.": "Rinde has {amount} saved. “Skip” leaves it that way; “Continue” replaces it with what you type.",
  "Rinde, cargando": "Rinde, loading",
  "Se activa por cuenta: pídelo en Cuenta.": "It's turned on per account: ask for it in Account.",
+ "Se borra el pago y su aviso. Los gastos que ya anotaste no cambian.": "The payment and its reminder are deleted. Expenses you already recorded don't change.",
  "Semana": "Weekly",
  "Si guardas sin ninguna, dejamos de calcular cuánto tienes libre.": "If you save with none, we stop calculating how much you have free.",
  "Son menos de {amount}. ¿Faltan ceros?": "That's less than {amount}. Missing zeros?",
@@ -47,5 +50,6 @@
  "pasa el fin de mes": "past month-end",
  "{amount} cada quincena": "{amount} every two weeks",
  "{amount} cada semana": "{amount} a week",
- "¡Listo!": "All set!"
+ "¡Listo!": "All set!",
+ "¿Eliminar {name}?": "Delete {name}?"
 }

@@ -100,6 +100,10 @@ class RindePalette extends ThemeExtension<RindePalette> {
   /// contraste 5,6:1 frente a 2,9:1 si se usara el brand claro del modo oscuro).
   Color get brandSolid => RindeBrand.violet;
 
+  /// Rojo como fondo con texto blanco (botón de borrar): el del modo claro en los dos modos. Blanco
+  /// sobre él da 5,3:1; sobre el rojo claro del modo oscuro (#FF7A6B), solo 2,5:1.
+  Color get negativeSolid => const Color(0xFFC8321F);
+
   // En Rinde Web los textos y bordes secundarios son ink con opacidad, no tokens propios.
   Color get inkMuted => ink.withValues(alpha: 0.6); // text-ink/60, texto de apoyo
   Color get inkSubtle => ink.withValues(alpha: 0.5);

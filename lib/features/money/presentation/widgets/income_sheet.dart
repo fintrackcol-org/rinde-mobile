@@ -26,7 +26,9 @@ Future<void> showIncomeSheet(BuildContext context, {bool edit = false}) => showM
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
-  showDragHandle: true,
+  // Sin arrastre ni asa (que también se arrastra): cerrarían la hoja mientras guarda, saltándose
+  // PopScope, y el resultado no se vería.
+  enableDrag: false,
   backgroundColor: context.palette.surface,
   builder: (_) => IncomeSheet(edit: edit),
 );
@@ -187,7 +189,7 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(RindeSpace.s4, 0, RindeSpace.s4, RindeSpace.s6),
+          padding: const EdgeInsets.fromLTRB(RindeSpace.s4, RindeSpace.s6, RindeSpace.s4, RindeSpace.s6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

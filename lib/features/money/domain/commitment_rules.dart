@@ -1,3 +1,7 @@
+import '../../../core/i18n/tr.dart';
+import '../../../core/region/region.dart';
+import '../../home/data/home_models.dart' show readMoney;
+import '../../home/domain/home_dates.dart';
 import '../../home/domain/runway.dart';
 import '../data/money_models.dart';
 
@@ -27,3 +31,36 @@ Commitment? firstUncovered(List<Commitment> commitments, Runway? r, DateTime tod
   }
   return first;
 }
+
+/// Cuándo se cobra, en pocas palabras (commitmentWhen de lib/moneyProfile.js): «día 20», «cada año, el
+/// 5 de marzo». El mes, en el idioma de la app (la web lo tiene fijo en español).
+String commitmentWhen(Commitment c, Tr t, Region region) => c.frequency == 'yearly' && c.month != null
+    ? t('cada año, el {dayOfMonth} de {v2}', {'dayOfMonth': c.dayOfMonth, 'v2': monthName(c.month!, region)})
+    : t('día {dayOfMonth}', {'dayOfMonth': c.dayOfMonth});
+
+/// «Falta por pagar» (pendiente y atrasado) y «Ya pagaste» (paymentTotals de MoneyPayments.jsx).
+/// Excepción a «no se suman importes en el cliente» (pregunta 5 del plan): el servidor no los da solo
+/// de los pagos fijos (`totals` del calendario suma también tarjetas, vacas y cuentas). Se suma en
+/// centavos enteros, sin residuos de coma flotante. Solo llegan pagos fijos ([CalendarPayment]).
+({num pending, num paid}) paymentTotals(List<CalendarPayment> payments) {
+  var pending = 0;
+  var paid = 0;
+  for (final p in payments) {
+    final cents = (p.amount * 100).round();
+    if (p.paid) {
+      paid += cents;
+    } else {
+      pending += cents;
+    }
+  }
+  return (pending: readMoney(pending / 100)!, paid: readMoney(paid / 100)!);
+}
+
+/// ¿Se ofrece «Ya lo pagué»? Solo para lo del mes en curso: el gasto se anota hoy y solo da por pagado
+/// el pago de este mes. El del mes siguiente (que el plan trae con fecha fija) seguiría pendiente y se
+/// restaría dos veces (estudio react-pagos-saldo §11.1).
+bool payableNow(String date, DateTime today) => date.startsWith(isoMonth(today));
+
+/// Clave de un aviso cerrado (paymentKey de la web): lleva la fecha, así el del mes siguiente vuelve a
+/// avisar.
+String dismissKey(String id, String date) => '$id-$date';

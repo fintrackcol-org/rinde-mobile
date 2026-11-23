@@ -58,6 +58,58 @@ class Commitment {
   }
 }
 
+/// Un pago fijo en el calendario del mes (`events[]` de GET /money-profile/calendar con
+/// `kind == 'compromiso'`; tarjetas, vacas, cuentas e ingresos no se leen). Si está pagado o atrasado
+/// lo decide el servidor.
+class CalendarPayment {
+  const CalendarPayment({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.date,
+    required this.status,
+    this.subscription = false,
+  });
+
+  final String id;
+  final String name;
+  final num amount;
+
+  /// AAAA-MM-DD.
+  final String date;
+
+  /// `pendiente`, `atrasado`, `pagado` o `sin_registro` (meses pasados).
+  final String status;
+  final bool subscription;
+
+  bool get paid => status == 'pagado';
+
+  static final _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+  static CalendarPayment? tryParse(Object? raw) {
+    if (raw is! Map || raw['kind'] != 'compromiso') return null;
+    final name = raw['name'];
+    final amount = readMoney(raw['amount']);
+    final date = raw['date'];
+    final status = raw['status'];
+    if (raw['id'] == null || name is! String || amount == null || status is! String) return null;
+    if (date is! String || !_isoDate.hasMatch(date)) return null;
+    return CalendarPayment(
+      id: '${raw['id']}',
+      name: name,
+      amount: amount,
+      date: date,
+      status: status,
+      subscription: raw['subscription'] == true,
+    );
+  }
+
+  /// `{ events: [...] }`: solo los pagos fijos, en el orden del servidor (por fecha).
+  static List<CalendarPayment> listFromJson(Object? data) => [
+    for (final item in readList(readMap(data)['events'])) ?tryParse(item),
+  ];
+}
+
 /// GET /money-profile.
 class MoneyProfile {
   const MoneyProfile({

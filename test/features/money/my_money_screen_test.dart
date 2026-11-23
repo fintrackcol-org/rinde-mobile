@@ -909,8 +909,10 @@ void main() {
       ]) {
         await _pump(tester);
         expect(find.text('Más de tu plata'), findsOneWidget);
-        expect(find.text(hint), findsOneWidget, reason: label);
-        await _tap(tester, find.text(hint));
+        // «Pagos fijos del mes» también es el título de su sección (4C).
+        final shortcut = find.descendant(of: find.byType(MoneyShortcuts), matching: find.text(hint));
+        expect(shortcut, findsOneWidget, reason: label);
+        await _tap(tester, shortcut);
         expect(find.text('RUTA $route'), findsOneWidget, reason: label);
       }
     });

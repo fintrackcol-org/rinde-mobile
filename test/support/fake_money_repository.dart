@@ -9,11 +9,18 @@ class FakeMoneyRepository implements MoneyRepository {
   final sentCommitments = <Map<String, dynamic>>[];
   final sentProfiles = <Map<String, dynamic>>[];
 
+  /// (id, cuerpo) de cada PUT /commitments/:id.
+  final sentUpdates = <(String, Map<String, dynamic>)>[];
+  final deleted = <String>[];
+
   Future<MoneyProfile> Function() onProfile = () async => const MoneyProfile(welcomeDone: true);
   Future<IncomeOverview> Function() onIncome = () async => incomeOf();
   Future<void> Function(List<Map<String, dynamic>> sources) onSaveSources = (_) async {};
   Future<void> Function(Map<String, dynamic> body) onCreateCommitment = (_) async {};
   Future<void> Function(Map<String, dynamic> body) onSaveProfile = (_) async {};
+  Future<List<CalendarPayment>> Function(String month) onCalendar = (_) async => const [];
+  Future<void> Function(String id, Map<String, dynamic> body) onUpdateCommitment = (_, _) async {};
+  Future<void> Function(String id) onDeleteCommitment = (_) async {};
   Future<List<BalanceAdjustment>> Function(String from, String to) onAdjustments = (_, _) async => const [];
 
   int count(String call) => calls.where((c) => c == call || c.startsWith('$call ')).length;
@@ -45,6 +52,26 @@ class FakeMoneyRepository implements MoneyRepository {
     calls.add('createCommitment');
     sentCommitments.add(body);
     return onCreateCommitment(body);
+  }
+
+  @override
+  Future<List<CalendarPayment>> calendar(String month) {
+    calls.add('calendar $month');
+    return onCalendar(month);
+  }
+
+  @override
+  Future<void> updateCommitment(String id, Map<String, dynamic> body) {
+    calls.add('updateCommitment');
+    sentUpdates.add((id, body));
+    return onUpdateCommitment(id, body);
+  }
+
+  @override
+  Future<void> deleteCommitment(String id) {
+    calls.add('deleteCommitment');
+    deleted.add(id);
+    return onDeleteCommitment(id);
   }
 
   @override

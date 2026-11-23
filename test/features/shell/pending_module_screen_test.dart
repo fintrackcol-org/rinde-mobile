@@ -22,7 +22,6 @@ final _titles = {
   Routes.plan: 'Planear',
   Routes.account: 'Tu cuenta',
   Routes.notifications: 'Notificaciones',
-  Routes.payments: 'Pagos del mes',
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
@@ -101,7 +100,6 @@ void main() {
       Routes.plan,
       Routes.account,
       Routes.notifications,
-      Routes.payments,
       Routes.income,
       Routes.expenses,
       Routes.toConfirm,
@@ -167,7 +165,7 @@ void main() {
   testWidgets('abierto sin pantalla anterior, «Volver» y atrás llevan al Inicio en vez de cerrar la app', (
     tester,
   ) async {
-    await _pump(tester, initial: Routes.payments);
+    await _pump(tester, initial: Routes.notifications);
     await tester.tap(find.byTooltip('Volver'));
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);

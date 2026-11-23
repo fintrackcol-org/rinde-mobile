@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../home/application/home_providers.dart' show clockProvider;
-import '../../home/data/demo_home_repository.dart' show demoFixedPending;
+import '../../home/data/demo_home_repository.dart' show demoFixedPending, demoJourneyPending;
 import '../../home/data/home_models.dart' show readMoney;
 import '../../home/domain/home_dates.dart';
 import '../../onboarding/data/demo_onboarding_repository.dart';
@@ -30,7 +30,10 @@ enum DemoMoneyOperation {
   /// GET /money-profile/adjustments.
   adjustments,
 
-  /// PUT /money-profile/sources, POST /money-profile/commitments y PUT /money-profile.
+  /// GET /money-profile/calendar.
+  calendar,
+
+  /// PUT /money-profile/sources, POST, PUT y DELETE /money-profile/commitments y PUT /money-profile.
   write,
 }
 
@@ -90,17 +93,9 @@ class DemoMoneyRepository implements MoneyRepository {
     final status = demoWelcomeStatus(scenario, state);
     final List<Map<String, dynamic>> commitments = _journey
         ? [
-            // shortcut: el id sale de la posición (como en el plan del recorrido); al editar o borrar
-            // pagos (4C) tiene que ser fijo.
-            for (final (i, c) in state.commitments.indexed)
-              {
-                'id': 'demo-pago-$i',
-                'kind': 'fixed',
-                'frequency': 'monthly',
-                'month': null,
-                ...c,
-                'reminder': null,
-              },
+            // El id es fijo (el mismo del plan del recorrido): no cambia al renombrar.
+            for (final c in state.commitmentsWithIds)
+              {'kind': 'fixed', 'frequency': 'monthly', 'month': null, ...c, 'reminder': null},
           ]
         : [
             for (final p in demoFixedPending(scenario, state, _day))
@@ -115,9 +110,11 @@ class DemoMoneyRepository implements MoneyRepository {
                 'reminder': null,
               },
           ];
+    // Como subscriptionsSummary del servidor: las anuales cuentan su doceava parte.
     final subscriptions = [
       for (final c in commitments)
-        if (c['kind'] == 'subscription') readMoney(c['amount']) ?? 0,
+        if (c['kind'] == 'subscription')
+          (readMoney(c['amount']) ?? 0) / (c['frequency'] == 'yearly' ? 12 : 1),
     ];
     final now = clock();
     return MoneyProfile.fromJson({
@@ -135,7 +132,7 @@ class DemoMoneyRepository implements MoneyRepository {
       'commitments': commitments,
       'subscriptions': {
         'count': subscriptions.length,
-        'monthly': readMoney(subscriptions.fold<num>(0, (sum, v) => sum + v)),
+        'monthly': subscriptions.fold<num>(0, (sum, v) => sum + v).round(),
       },
     });
   }
@@ -318,17 +315,21 @@ class DemoMoneyRepository implements MoneyRepository {
   Future<void> saveProfile(Map<String, dynamic> body) async {
     await _write();
     final balance = readMoney(body['balance']);
-    if (balance == null) return;
     final now = clock();
-    await store.update(userId, (state) {
-      final before = demoWelcomeStatus(scenario, state).money;
-      final changed = body['resetBalance'] == true && before != null && before.round() != balance.round();
+    await store.update(userId, (before) {
+      // Reemplazo total: el tipo de ingreso y los días también («Tu sueldo»).
+      final state = before.withIncomeType(body['incomeType'] as String?, [
+        for (final d in body['payDays'] as List? ?? const []) d as int,
+      ]);
+      if (balance == null) return state;
+      final money = demoWelcomeStatus(scenario, state).money;
+      final changed = body['resetBalance'] == true && money != null && money.round() != balance.round();
       return state.withBalance(
         balance,
         adjustment: changed
             ? {
                 'id': 'demo-ajuste-${state.adjustments.length + 1}',
-                'before': before,
+                'before': money,
                 'after': balance,
                 'date': isoDay(now),
                 'createdAt': now.toUtc().toIso8601String(),
@@ -349,37 +350,89 @@ class DemoMoneyRepository implements MoneyRepository {
     });
   }
 
+  /// Escenarios fijos: las mismas ocurrencias (y fechas) del `pending` del plan, por pagar: «Falta por
+  /// pagar» da `pendingTotal`. Recorridos: los pagos de este mes, atrasados si su día ya pasó. La demo
+  /// nunca marca un pago como hecho (no imita la regla del nombre en los gastos). [month] no se mira:
+  /// la app solo pide el mes en curso.
+  @override
+  Future<List<CalendarPayment>> calendar(String month) async {
+    final state = await _read(DemoMoneyOperation.calendar);
+    final today = _day(0);
+    final pending = _journey ? demoJourneyPending(state, clock()) : demoFixedPending(scenario, state, _day);
+    return CalendarPayment.listFromJson({
+      'events': [
+        for (final p in pending)
+          {
+            'subscription': false,
+            ...p,
+            'kind': 'compromiso',
+            'status': (p['date'] as String).compareTo(today) < 0 ? 'atrasado' : 'pendiente',
+          },
+      ],
+    });
+  }
+
+  static const _exists = ApiException(
+    code: 'COMMITMENT_EXISTS',
+    status: 409,
+    serverMessage: 'Ya tienes un compromiso con ese nombre',
+  );
+
+  static const _notFound = ApiException(
+    code: 'NOT_FOUND',
+    status: 404,
+    serverMessage: 'Compromiso no encontrado',
+  );
+
+  /// Lo que guarda el servidor: sin `kind` ni `frequency` es un pago fijo de cada mes.
+  static Map<String, dynamic> _commitment(Map<String, dynamic> body) => {
+    'name': '${body['name']}'.trim(),
+    'amount': body['amount'],
+    'dayOfMonth': body['dayOfMonth'],
+    'kind': body['kind'] ?? 'fixed',
+    'frequency': body['frequency'] ?? 'monthly',
+    'month': body['frequency'] == 'yearly' ? body['month'] : null,
+  };
+
+  /// Como el servidor: el nombre no se repite (sin distinguir mayúsculas).
+  static bool _taken(List<Map<String, dynamic>> list, Object? name, {String? except}) =>
+      list.any((c) => c['id'] != except && '${c['name']}'.toLowerCase() == '$name'.trim().toLowerCase());
+
   @override
   Future<void> createCommitment(Map<String, dynamic> body) async {
     await _write();
     final state = await store.read(userId);
-    final name = '${body['name']}'.trim();
-    // Como el servidor: el nombre no se repite (sin distinguir mayúsculas) y hay un tope de 30.
-    if (state.commitments.any((c) => '${c['name']}'.toLowerCase() == name.toLowerCase())) {
-      throw const ApiException(
-        code: 'COMMITMENT_EXISTS',
-        status: 409,
-        serverMessage: 'Ya tienes un compromiso con ese nombre',
-      );
-    }
-    if (state.commitments.length >= 30) {
+    final list = state.commitmentsWithIds;
+    if (_taken(list, body['name'])) throw _exists;
+    // Tope del servidor (MAX_COMMITMENTS).
+    if (list.length >= 30) {
       throw const ApiException(
         code: 'COMMITMENT_LIMIT',
         status: 409,
         serverMessage: 'Puedes tener hasta 30 compromisos',
       );
     }
-    await store.write(
-      userId,
-      state.withCommitment({
-        'name': name,
-        'amount': body['amount'],
-        'dayOfMonth': body['dayOfMonth'],
-        'kind': body['kind'] ?? 'fixed',
-        'frequency': body['frequency'] ?? 'monthly',
-        'month': body['month'],
-      }),
-    );
+    await store.write(userId, state.withCommitments([...list, _commitment(body)]));
+  }
+
+  @override
+  Future<void> updateCommitment(String id, Map<String, dynamic> body) async {
+    await _write();
+    final state = await store.read(userId);
+    final list = state.commitmentsWithIds;
+    final i = list.indexWhere((c) => c['id'] == id);
+    if (i < 0) throw _notFound;
+    if (_taken(list, body['name'], except: id)) throw _exists;
+    await store.write(userId, state.withCommitments([...list]..[i] = {'id': id, ..._commitment(body)}));
+  }
+
+  @override
+  Future<void> deleteCommitment(String id) async {
+    await _write();
+    final state = await store.read(userId);
+    final list = state.commitmentsWithIds;
+    if (!list.any((c) => c['id'] == id)) throw _notFound;
+    await store.write(userId, state.withCommitments([...list.where((c) => c['id'] != id)]));
   }
 }
 

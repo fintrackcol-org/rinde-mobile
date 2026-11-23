@@ -217,7 +217,8 @@ class DemoState {
   /// El saldo que la persona dijo. null = no lo ha dicho.
   final num? balance;
 
-  /// Pagos fijos: `{name, amount, dayOfMonth}` (los de Mi plata traen además `kind`, `frequency` y `month`).
+  /// Pagos fijos: `{name, amount, dayOfMonth}` (los de Mi plata traen además `id`, `kind`, `frequency` y
+  /// `month`; ver [commitmentsWithIds]).
   final List<Map<String, dynamic>> commitments;
 
   /// `fecha_fija`, `sin_fecha` o null (sin fuentes de ingreso).
@@ -339,18 +340,49 @@ class DemoState {
     adjustments: [...adjustments, ?adjustment],
   );
 
-  /// POST /money-profile/commitments desde Mi plata (el nombre repetido ya lo descartó quien llama).
-  DemoState withCommitment(Map<String, dynamic> commitment) => DemoState(
+  /// PUT /money-profile: el tipo de ingreso y los días (solo con fecha fija), como los mandó.
+  DemoState withIncomeType(String? type, List<int> days) => DemoState(
     welcomeDone: welcomeDone,
     tutorialDone: tutorialDone,
     region: region,
     balance: balance,
-    commitments: [...commitments, commitment],
+    commitments: commitments,
+    incomeType: type,
+    payDays: type == 'fecha_fija' ? days : const [],
+    sources: sources,
+    adjustments: adjustments,
+  );
+
+  /// Los pagos con su id fijo (`demo-c<n>`). El que no lo tiene (los de la bienvenida o un estado de
+  /// antes) lo recibe al leerlo, después del mayor que ya exista: así no cambia al renombrar ni al
+  /// borrar otro, y Mi plata y el Inicio dicen el mismo id.
+  List<Map<String, dynamic>> get commitmentsWithIds => withDemoIds(commitments);
+
+  /// POST, PUT y DELETE /money-profile/commitments desde Mi plata: la lista completa, ya con ids (los
+  /// nombres repetidos ya los descartó quien llama).
+  DemoState withCommitments(List<Map<String, dynamic>> list) => DemoState(
+    welcomeDone: welcomeDone,
+    tutorialDone: tutorialDone,
+    region: region,
+    balance: balance,
+    commitments: withDemoIds(list),
     incomeType: incomeType,
     payDays: payDays,
     sources: sources,
     adjustments: adjustments,
   );
+}
+
+/// Pone `demo-c<n>` a los pagos que no tienen id, contando desde el mayor que ya exista.
+List<Map<String, dynamic>> withDemoIds(List<Map<String, dynamic>> list) {
+  var next = 1;
+  for (final c in list) {
+    final n = int.tryParse('${c['id']}'.replaceFirst('demo-c', '')) ?? 0;
+    if (n >= next) next = n + 1;
+  }
+  return [
+    for (final c in list) c['id'] is String ? c : {...c, 'id': 'demo-c${next++}'},
+  ];
 }
 
 /// Estado simulado que sobrevive a cerrar la app (para probar «ya la terminó» y el Inicio).

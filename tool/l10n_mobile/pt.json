@@ -16,6 +16,7 @@
  "Hasta {max} días.": "Até {max} dias.",
  "Llegaste al tope de {max} pagos. Quita uno para agregar otro.": "Você chegou ao limite de {max} pagamentos. Remova um para adicionar outro.",
  "Lo que ves puede estar desactualizado: es lo último que llegó.": "O que você vê pode estar desatualizado: é o último dado que chegou.",
+ "Modo demostración: esta acción no llega a ningún servidor.": "Modo de demonstração: esta ação não chega a nenhum servidor.",
  "Monto oculto": "Valor oculto",
  "Movimientos (pestaña)": "Extrato",
  "No encontramos ese país.": "Não encontramos esse país.",
@@ -27,12 +28,14 @@
  "No se pudo cargar": "Não foi possível carregar",
  "Pagos frecuentes": "Pagamentos comuns",
  "Por ahora corrige tu saldo en la web de Rinde, con tu misma cuenta. En la app llega pronto.": "Por enquanto, corrija seu saldo no site do Rinde, com a mesma conta. Em breve chega ao app.",
+ "Por ahora cámbialo en la web de Rinde, con tu misma cuenta.": "Por enquanto, mude no site do Rinde, com a mesma conta.",
  "Primero terminemos de guardar tu bienvenida.": "Primeiro vamos terminar de salvar suas boas-vindas.",
  "Que tu plata alcance": "Faça seu dinheiro durar",
  "Quincena": "Quinzenal",
  "Rinde tiene guardado {amount}. «Omitir» lo deja así; «Seguir» lo cambia por lo que escribas.": "O Rinde tem {amount} salvo. “Pular” deixa assim; “Continuar” troca pelo que você digitar.",
  "Rinde, cargando": "Rinde, carregando",
  "Se activa por cuenta: pídelo en Cuenta.": "É ativado por conta: peça em Conta.",
+ "Se borra el pago y su aviso. Los gastos que ya anotaste no cambian.": "O pagamento e o aviso dele são apagados. Os gastos que você já anotou não mudam.",
  "Semana": "Semanal",
  "Si guardas sin ninguna, dejamos de calcular cuánto tienes libre.": "Se salvar sem nenhuma, deixamos de calcular quanto você tem livre.",
  "Son menos de {amount}. ¿Faltan ceros?": "É menos de {amount}. Faltam zeros?",
@@ -48,5 +51,6 @@
  "pasa el fin de mes": "passa do fim do mês",
  "{amount} cada quincena": "{amount} por quinzena",
  "{amount} cada semana": "{amount} por semana",
- "¡Listo!": "Tudo pronto!"
+ "¡Listo!": "Tudo pronto!",
+ "¿Eliminar {name}?": "Excluir {name}?"
 }

@@ -288,7 +288,9 @@ void main() {
       final c = await open(scenario: 'planListo', now: DateTime(2026, 12, 31, 23, 50));
       final repo = c.read(homeRepositoryProvider);
       final plan = await repo.plan();
-      expect(plan.pending.map((p) => p.date), ['2027-01-03', '2027-01-06', '2027-01-10']);
+      // Los pagos no quedan en el pasado ni pasan al mes siguiente (el calendario del mes, que sale de
+      // aquí, no traería otro mes); el día de pago y la tarjeta, sí.
+      expect(plan.pending.map((p) => p.date), ['2026-12-31', '2026-12-31', '2026-12-31']);
       expect(plan.nextPay, '2027-01-12');
       expect((await repo.cards()).single.daysToPayment, 2);
     });

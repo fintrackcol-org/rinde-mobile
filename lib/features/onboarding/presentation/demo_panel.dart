@@ -125,10 +125,11 @@ class _DemoPanel extends ConsumerWidget {
     (DemoMoneyOperation.profile, 'Leer el perfil de Mi plata', 'GET /money-profile'),
     (DemoMoneyOperation.income, 'Leer cómo te entra la plata', 'GET /money-profile/income'),
     (DemoMoneyOperation.adjustments, 'Leer los ajustes de saldo', 'GET /money-profile/adjustments'),
+    (DemoMoneyOperation.calendar, 'Leer los pagos del mes', 'GET /money-profile/calendar'),
     (
       DemoMoneyOperation.write,
       'Guardar en Mi plata',
-      'PUT /money-profile/sources · POST /money-profile/commitments · PUT /money-profile',
+      'PUT /money-profile/sources · POST, PUT y DELETE /money-profile/commitments · PUT /money-profile',
     ),
   ];
 

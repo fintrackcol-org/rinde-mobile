@@ -30,7 +30,6 @@ final pendingModules = <PendingModule>[
     tab: RindeTab.account,
   ),
   PendingModule(path: Routes.notifications, title: (t, _) => t('Notificaciones'), web: 'Notifications.jsx'),
-  PendingModule(path: Routes.payments, title: (t, _) => t('Pagos del mes'), web: 'MoneyPayments.jsx'),
   PendingModule(path: Routes.income, title: (t, _) => t('Ingresos'), web: 'PeriodDetail.jsx (ingreso)'),
   PendingModule(path: Routes.expenses, title: (t, _) => t('Gastos'), web: 'PeriodDetail.jsx (gasto)'),
   PendingModule(path: Routes.toConfirm, title: (t, _) => t('Por confirmar'), web: 'PendingPayments.jsx'),

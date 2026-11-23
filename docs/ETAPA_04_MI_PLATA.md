@@ -12,7 +12,7 @@ rama y a una PR hacia `main` **sin fusionar**: la fusión la decide David.
 |---|---|
 | 4A — Mi plata y perfil financiero («Cómo te entra la plata») | Hecho, probado y subido (ver «Git» del bloque) |
 | 4B — Saldo, corregir saldo, plan y «¿De dónde sale?» | Hecho, probado y subido. Corregir saldo en solo lectura en cuentas reales hasta que el backend tenga versión |
-| 4C — Pagos recurrentes | Pendiente |
+| 4C — Pagos recurrentes | Código hecho, revisado y probado (1204 pruebas). **En pausa:** falta terminar la prueba en el emulador |
 | 4D — Continuidad bienvenida → Mi plata → Inicio | Pendiente (el bloqueo por bienvenida a medias ya está en 4A) |
 
 ---
@@ -409,6 +409,124 @@ React y el backend no se tocaron.
 - El acceso «Consejos · Tu semana y la IA» es el mismo de la web y lleva a «En desarrollo». No se implementó nada de IA.
 - La relectura del perfil después de un movimiento solo se ve con una cuenta real: en la demo la plata del perfil no cambia con los movimientos. Está cubierta con pruebas.
 - No probado en iOS, con lector de pantalla real, en un teléfono físico ni contra QA con sesión.
+
+---
+
+## Bloque 4C — Pagos recurrentes (en pausa)
+
+Fecha: 23 de noviembre de 2026. **Estado:**
+
+- El código está hecho, revisado y probado. Se subió para no perder el trabajo.
+- Falta terminar la prueba en el emulador (abajo) y cerrar esta sección.
+- Se pausó a pedido de David.
+
+### Qué se hizo
+
+- **Pagos del mes** (`/app/mi-plata/pagos`, como `MoneyPayments.jsx`). Deja de estar «En desarrollo»; sin historial, Atrás va a Planear.
+  - Lee `GET /money-profile/calendar?month=`, solo los eventos de compromisos.
+  - Totales «Falta por pagar», «Ya pagaste» y «Suscripciones».
+  - Grupos «Por pagar», «Pagados» y «En otros meses», y «· atrasado» con texto.
+- **Formulario del pago** (como `CommitmentDialog`):
+  - Pago fijo o suscripción, nombre, monto, día, cada mes o una vez al año y el mes del cobro.
+  - Valida con los cuatro mensajes de la web y lleva el foco al campo.
+  - Los dos 409 van a su lugar y un 404 al editar cierra la hoja.
+- **Escrituras** por `MoneyWriter`, con un envío a la vez, el bloqueo por bienvenida pendiente y el refresco del Inicio, Mi plata y el calendario:
+  - **Crear:** `POST` con `kind`, `frequency` y `month`.
+  - **Editar:** `PUT` completo, con comprobación previa.
+  - **Eliminar:** con confirmación; un 404 cuenta como éxito.
+  - **Nunca se manda `reminder`:** el aviso guardado se conserva.
+- **«Ya lo pagué»:**
+  - Anota un gasto con el nombre exacto y la fecha de hoy, con un `localId` por toque.
+  - Solo sale para lo del mes en curso (`payableNow`). Mientras guarda, todos los botones esperan.
+  - El botón no se suelta hasta que llegan el calendario y el plan nuevos.
+  - Sin conexión no deja anotar el mismo pago dos veces en el mes.
+  - En la demo responde «Modo demostración…».
+- **«Tu sueldo»** en Pagos:
+  - En cuentas reales queda en solo lectura con el texto nuevo.
+  - En la demo de recorrido se puede cambiar. Manda el saldo recién leído y sin `resetBalance`, así no reinicia nada.
+- **Mi plata:** el aviso de pagos pendientes con «Ya lo pagué» y la X (avisos cerrados por cuenta y solo en este teléfono), y «Pagos fijos del mes».
+- **Demo:**
+  - En los escenarios fijos, «Falta por pagar» es igual a lo apartado del plan, y las fechas ya no se salen del mes.
+  - En los recorridos, los pagos se guardan por cuenta y el Inicio cambia.
+
+### Textos nuevos que requieren aprobación
+
+| Español | Inglés | Portugués |
+|---|---|---|
+| ¿Eliminar {name}? | Delete {name}? | Excluir {name}? |
+| Se borra el pago y su aviso. Los gastos que ya anotaste no cambian. | The payment and its reminder are deleted. Expenses you already recorded don't change. | O pagamento e o aviso dele são apagados. Os gastos que você já anotou não mudam. |
+| Por ahora cámbialo en la web de Rinde, con tu misma cuenta. | For now, change it on the Rinde website, with the same account. | Por enquanto, mude no site do Rinde, com a mesma conta. |
+
+También se tradujo «Modo demostración: esta acción no llega a ningún servidor.», que ya existía solo en español.
+
+### Diferencias con la web y por qué
+
+- Eliminar pide confirmación; la web borra sin preguntar.
+- No hay bloque «Avisarme» (no hay notificaciones en la app): un pago creado en la app nace sin aviso.
+- «Ya lo pagué» no se puede anotar dos veces, ni sin conexión ni con la red lenta; en la web sí.
+- No se ofrece «Ya lo pagué» para un pago del mes siguiente; la web sí, y lo resta dos veces.
+- Los montos ocultos se respetan en Pagos; la web no lo hace.
+- «Eliminar» usa un rojo más oscuro en modo oscuro para que el texto blanco se lea (contraste de 5,3:1). Se corrigió igual en borrar movimiento.
+
+### Revisión adversarial
+
+- Un agente implementó y cuatro revisores independientes revisaron en solo lectura:
+  - paridad con la web y el backend;
+  - escrituras;
+  - consistencia de las cifras y la demo;
+  - interfaz y pruebas.
+- Otro agente corrigió lo confirmado.
+
+| # | Hallazgo | Resultado |
+|---|---|---|
+| 1 | Con la red lenta, «Ya lo pagué» se podía tocar otra vez mientras recargaba y anotaba dos gastos | Corregido, con pruebas |
+| 2 | Sin conexión más de un día, el mismo pago entraba dos veces a la cola | Corregido: se compara el mes, como el servidor |
+| 3 | Falso «Tu plata cambió en otro dispositivo» al reabrir un pago justo después de guardarlo | Corregido, con prueba |
+| 4 | Demo: el calendario de noviembre traía pagos de diciembre | Corregido: las fechas no se salen del mes. Se ajustó una prueba del Inicio |
+| 5 | «Ya lo pagué» no respetaba la bienvenida pendiente | Corregido, con prueba |
+| 6 | Un cambio de cuenta a mitad de «Ya lo pagué» anotaba el gasto en la otra cuenta | Corregido, con prueba |
+| 7 | Editar en duda: el reintento culpaba a «otro dispositivo» | Corregido, con prueba |
+| 8 | El error de un aviso se quedaba pegado al siguiente | Corregido, con prueba |
+| 9 | La hoja del pago se cerraba arrastrándola mientras guardaba | Corregido, con prueba. Mismo arreglo en la hoja de 4A |
+| 10 | «Tu sueldo» aceptaba cambios mientras guardaba | Corregido |
+| 11 | Contraste de 2,5:1 en «Eliminar pago» en modo oscuro | Corregido, con prueba |
+| 12 | La demo respondía en español en inglés y portugués | Corregido |
+| 13 | Demo: cerrar un aviso dura solo un día | Descartado: es solo de la demo, anotado en el código |
+| 14 | Pruebas débiles o faltantes | Reforzadas |
+
+### Pruebas
+
+| Comprobación | Resultado |
+|---|---|
+| `flutter analyze` | Sin hallazgos |
+| `flutter test` | 1204 de 1204 en verde (eran 1111 al cerrar 4B) |
+| `dart format --line-length 110` | Sin cambios pendientes |
+| `gitleaks` sobre `lib`, `test`, `docs`, `tool` y `assets/l10n` | Sin fugas |
+| `save_model_test.dart` | En verde (cambió `commitments.dart` de la bienvenida) |
+| Compilación Android con demo | Compila e instala |
+| Emulador | **A medias** (abajo) |
+
+### Capturas hechas (`docs/etapa-04/`)
+
+| # | Qué muestra |
+|---|---|
+| [28](etapa-04/28-pagos-fijos-vacio.jpg) | Mi plata en el recorrido: «Pagos fijos del mes» vacío con «Agregar» |
+| [29](etapa-04/29-pagos-del-mes-vacio.jpg) | Pagos del mes vacío: «Tu sueldo» con «Cambiar», totales y «Agregar pago» |
+| [30](etapa-04/30-nuevo-pago.jpg) | Hoja «Nuevo pago» |
+
+En el emulador ya se vio que guardar sin nombre muestra «Escribe el nombre del pago.» y lleva el foco al campo.
+
+### Falta para cerrar 4C
+
+- En el emulador, en el recorrido:
+  - guardar un pago y ver que aparece en Pagos, en Mi plata y en «Lo próximo» del Inicio;
+  - editarlo y eliminarlo con la confirmación;
+  - una suscripción anual con su mes;
+  - cambiar «Tu sueldo».
+- En un escenario fijo: el aviso de pendientes y «Ya lo pagué» con «Modo demostración…».
+- Tema oscuro y letra grande.
+- Actualizar la PR con el resumen del bloque.
+- No probado en iOS, con lector de pantalla real ni contra QA.
 
 ---
 
