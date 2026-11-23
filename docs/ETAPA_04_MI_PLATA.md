@@ -551,9 +551,9 @@ En el escenario fijo «Plan listo»:
 ### Git
 
 - Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
-- Commits: `0448eb5` (el bloque, subido al pausar) y PENDIENTE (botón de las filas, capturas e informe).
+- Commits: `0448eb5` (el bloque, subido al pausar) y `8d60a42` (botón de las filas, capturas e informe).
 - PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A y 4B, **sin fusionar**.
-- Respaldo: PENDIENTE.
+- Respaldo: verificado en GitHub. `git ls-remote` devuelve el mismo `8d60a42` que la rama local.
 
 ### Lo que falta o no se comprobó en 4C
 
