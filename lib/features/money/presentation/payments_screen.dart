@@ -232,7 +232,14 @@ class _MonthPayments extends ConsumerWidget {
           ? _PaidPill(t('Pagado'))
           // Solo lo de este mes (el calendario es del mes en curso; ver payableNow).
           : payableNow(e.date, today)
-          ? PaidButton(id: e.id, name: e.name, amount: e.amount, date: e.date, onError: onError)
+          ? PaidButton(
+              id: e.id,
+              name: e.name,
+              amount: e.amount,
+              date: e.date,
+              onError: onError,
+              compact: true,
+            )
           : null,
       onEdit: byId[e.id] == null ? null : edit(byId[e.id]!),
       editLabel: byId[e.id] == null ? null : t('Editar {name}', {'name': e.name}),

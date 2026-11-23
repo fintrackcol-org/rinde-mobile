@@ -12,7 +12,7 @@ rama y a una PR hacia `main` **sin fusionar**: la fusión la decide David.
 |---|---|
 | 4A — Mi plata y perfil financiero («Cómo te entra la plata») | Hecho, probado y subido (ver «Git» del bloque) |
 | 4B — Saldo, corregir saldo, plan y «¿De dónde sale?» | Hecho, probado y subido. Corregir saldo en solo lectura en cuentas reales hasta que el backend tenga versión |
-| 4C — Pagos recurrentes | Código hecho, revisado y probado (1204 pruebas). **En pausa:** falta terminar la prueba en el emulador |
+| 4C — Pagos recurrentes | Hecho, probado en el emulador y subido. «Tu sueldo» en solo lectura en cuentas reales hasta que el backend tenga versión |
 | 4D — Continuidad bienvenida → Mi plata → Inicio | Pendiente (el bloqueo por bienvenida a medias ya está en 4A) |
 
 ---
@@ -412,13 +412,12 @@ React y el backend no se tocaron.
 
 ---
 
-## Bloque 4C — Pagos recurrentes (en pausa)
+## Bloque 4C — Pagos recurrentes
 
-Fecha: 23 de noviembre de 2026. **Estado:**
+Fecha: 23 de noviembre de 2026.
 
-- El código está hecho, revisado y probado. Se subió para no perder el trabajo.
-- Falta terminar la prueba en el emulador (abajo) y cerrar esta sección.
-- Se pausó a pedido de David.
+- El código se subió primero en `0448eb5`, cuando David pidió pausar.
+- Al retomar se terminó la prueba en el emulador y se arregló el botón «Ya lo pagué» de las filas (ver «Lo que se encontró en el emulador»).
 
 ### Qué se hizo
 
@@ -499,34 +498,70 @@ También se tradujo «Modo demostración: esta acción no llega a ningún servid
 | Comprobación | Resultado |
 |---|---|
 | `flutter analyze` | Sin hallazgos |
-| `flutter test` | 1204 de 1204 en verde (eran 1111 al cerrar 4B) |
+| `flutter test` | 1205 de 1205 en verde (eran 1111 al cerrar 4B) |
 | `dart format --line-length 110` | Sin cambios pendientes |
 | `gitleaks` sobre `lib`, `test`, `docs`, `tool` y `assets/l10n` | Sin fugas |
 | `save_model_test.dart` | En verde (cambió `commitments.dart` de la bienvenida) |
 | Compilación Android con demo | Compila e instala |
-| Emulador | **A medias** (abajo) |
+| Emulador Android 16 (API 36) | Recorrido completo, capturas 28 a 48 |
 
-### Capturas hechas (`docs/etapa-04/`)
+### Lo que se encontró en el emulador
+
+| Qué | Resultado |
+|---|---|
+| En las filas de Pagos, «Ya lo pagué» se partía en dos líneas y se veía tosco | **Corregido:** la fila usa la letra y el relleno del botón pequeño, como el `size="sm"` de la web, y conserva los 44 px de alto para tocarlo. Con prueba. Las capturas 31 a 33 son de antes del arreglo; la 42 es de después |
+| El primer guardado tardó unos 5 s | Pasó justo después de despertar el emulador. Los siguientes tardaron menos de 2 s; no es del código |
+| Te quedan $ 480.000, el arriendo de $ 850.000 vence el 28 y no sale «Ojo con el…» | Es la regla de la web: solo avisa de pagos que caen **después** del día en que se acaba la plata según el ritmo, y ese día es el 28. El Inicio sí lo dice: «Te faltan $ 370.000» |
+| «Suscripciones: $ 5.000 al mes» sin «(1)» | Igual que la web: el número solo sale con más de una |
+| El texto de vacío sigue visible con una suscripción de marzo | Igual que la web: sale cuando no hay pagos en este mes |
+
+### Capturas (`docs/etapa-04/`)
+
+En el recorrido «movimientos»:
 
 | # | Qué muestra |
 |---|---|
-| [28](etapa-04/28-pagos-fijos-vacio.jpg) | Mi plata en el recorrido: «Pagos fijos del mes» vacío con «Agregar» |
+| [28](etapa-04/28-pagos-fijos-vacio.jpg) | Mi plata: «Pagos fijos del mes» vacío con «Agregar» |
 | [29](etapa-04/29-pagos-del-mes-vacio.jpg) | Pagos del mes vacío: «Tu sueldo» con «Cambiar», totales y «Agregar pago» |
-| [30](etapa-04/30-nuevo-pago.jpg) | Hoja «Nuevo pago» |
+| [30](etapa-04/30-nuevo-pago.jpg) | Hoja «Nuevo pago». Guardar sin nombre muestra «Escribe el nombre del pago.» y lleva el foco al campo |
+| [31](etapa-04/31-pago-guardado.jpg) | Arriendo de $ 800.000, día 5: «· atrasado» y «Falta por pagar $ 800.000» |
+| [32](etapa-04/32-ya-lo-pague-demo.jpg) | «Ya lo pagué» en la demo: «Modo demostración…», no resta nada |
+| [33](etapa-04/33-pago-editado.jpg) | Editado a $ 850.000, día 28: ya no está atrasado |
+| [34](etapa-04/34-mi-plata-aviso-y-pagos-fijos.jpg) | Mi plata: aviso «Arriendo vence el 28 de noviembre» y «Pagos fijos del mes» |
+| [35](etapa-04/35-inicio-con-el-pago.jpg) | Inicio: «Te faltan $ 370.000 para tus pagos. Tienes $ 480.000 y vencen $ 850.000.» y «Lo próximo» |
+| [36](etapa-04/36-confirmar-eliminar.jpg) | «¿Eliminar Arriendo?» con los textos nuevos |
+| [37](etapa-04/37-pago-eliminado.jpg) | Pago eliminado: vuelve el vacío |
+| [38](etapa-04/38-suscripcion-anual-sin-mes.jpg) | Suscripción anual sin mes: «Elige en qué mes se cobra Dominio.» |
+| [39](etapa-04/39-suscripcion-en-otros-meses.jpg) | «Dominio · cada año, el 10 de marzo · suscripción» en «En otros meses» y «Suscripciones: $ 5.000 al mes» |
+| [40](etapa-04/40-tu-sueldo-editar.jpg) | «Tu sueldo» en edición |
+| [41](etapa-04/41-tu-sueldo-guardado.jpg) | «Con fecha fija, los días 5, 15 y 30». El saldo siguió en $ 480.000, sin ajuste nuevo en Movimientos |
 
-En el emulador ya se vio que guardar sin nombre muestra «Escribe el nombre del pago.» y lleva el foco al campo.
+En el escenario fijo «Plan listo»:
 
-### Falta para cerrar 4C
+| # | Qué muestra |
+|---|---|
+| [42](etapa-04/42-pagos-plan-listo.jpg) | «Falta por pagar $ 338.000», igual a lo apartado del Inicio, con «Ya lo pagué» ya arreglado |
+| [43](etapa-04/43-aviso-plan-listo.jpg) | Mi plata: «1 de 3 · Plan celular vence el 26 de noviembre» |
+| [44](etapa-04/44-aviso-cerrado-siguiente.jpg) | Después de la X: «1 de 2 · PILA vence el 29 de noviembre» |
+| [45](etapa-04/45-pagos-oscuro-letra-grande.jpg) | Pagos en tema oscuro con la letra a 1,3× |
+| [46](etapa-04/46-eliminar-oscuro.jpg) | Confirmación en oscuro: el rojo se lee |
+| [47](etapa-04/47-eliminar-demo-fija.jpg) | Eliminar en un escenario fijo: «Modo demostración…» dentro de la confirmación |
+| [48](etapa-04/48-calendario-con-error.jpg) | Recarga fallida: lo último que llegó y «Lo que ves puede estar desactualizado…» |
 
-- En el emulador, en el recorrido:
-  - guardar un pago y ver que aparece en Pagos, en Mi plata y en «Lo próximo» del Inicio;
-  - editarlo y eliminarlo con la confirmación;
-  - una suscripción anual con su mes;
-  - cambiar «Tu sueldo».
-- En un escenario fijo: el aviso de pendientes y «Ya lo pagué» con «Modo demostración…».
-- Tema oscuro y letra grande.
-- Actualizar la PR con el resumen del bloque.
-- No probado en iOS, con lector de pantalla real ni contra QA.
+### Git
+
+- Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
+- Commits: `0448eb5` (el bloque, subido al pausar) y PENDIENTE (botón de las filas, capturas e informe).
+- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A y 4B, **sin fusionar**.
+- Respaldo: PENDIENTE.
+
+### Lo que falta o no se comprobó en 4C
+
+- En cuentas reales, «Tu sueldo» sigue en solo lectura hasta que el backend mande la versión del perfil (propuesta pendiente).
+- «Ya lo pagué» real (con servidor) solo está probado en pruebas: en la demo responde «Modo demostración…» a propósito.
+- La pregunta 3 del plan sigue abierta: «Ya lo pagué» usa la fecha del teléfono, como la web; cerca de la medianoche o fuera de Colombia podría no coincidir con el «hoy» del servidor.
+- Los pagos creados en la app nacen sin aviso, porque no hay bloque «Avisarme» (pregunta 6 del plan).
+- No probado en iOS, con lector de pantalla real, en un teléfono físico ni contra QA.
 
 ---
 

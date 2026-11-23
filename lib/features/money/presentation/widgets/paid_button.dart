@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../core/i18n/tr.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../design/tokens/rinde_colors.dart';
+import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
 import '../../../../design/widgets/rinde_button.dart';
 import '../../../home/application/home_providers.dart';
@@ -37,7 +38,11 @@ class PaidButton extends ConsumerWidget {
     required this.amount,
     required this.date,
     required this.onError,
+    this.compact = false,
   });
+
+  /// Letra y relleno del botón pequeño (el size="sm" de la fila en la web), con el mismo alto de toque.
+  final bool compact;
 
   final String id;
   final String name;
@@ -86,14 +91,17 @@ class PaidButton extends ConsumerWidget {
       label: '${t('Ya lo pagué')} $name',
       onTap: enabled ? pay : null,
       excludeSemantics: true,
-      child: RindeButton(
-        label: t('Ya lo pagué'),
-        variant: RindeButtonVariant.soft,
-        // 44 de alto, como el h-11 del aviso de la web.
-        size: RindeButtonSize.md,
-        expand: false,
-        loading: paying == key,
-        onPressed: enabled ? pay : null,
+      // 44 de alto siempre, como el h-11 del aviso de la web.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: RindeSize.button),
+        child: RindeButton(
+          label: t('Ya lo pagué'),
+          variant: RindeButtonVariant.soft,
+          size: compact ? RindeButtonSize.sm : RindeButtonSize.md,
+          expand: false,
+          loading: paying == key,
+          onPressed: enabled ? pay : null,
+        ),
       ),
     );
   }

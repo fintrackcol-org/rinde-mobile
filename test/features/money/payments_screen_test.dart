@@ -296,6 +296,15 @@ void main() {
       expect(find.text('${_m(1200000)} · cada año, el 5 de marzo · suscripción'), findsOneWidget);
     });
 
+    testWidgets('«Ya lo pagué» de la fila: el botón pequeño de la web, con 44 de alto para tocarlo', (
+      tester,
+    ) async {
+      await _pump(tester);
+      final button = find.ancestor(of: _paid.first, matching: find.byType(RindeButton));
+      expect(tester.widget<RindeButton>(button).size, RindeButtonSize.sm);
+      expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
+    });
+
     testWidgets('«Ya lo pagué»: un gasto con el nombre exacto; mientras guarda, todos esperan', (
       tester,
     ) async {
