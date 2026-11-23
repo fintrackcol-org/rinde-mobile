@@ -19,6 +19,8 @@ import '../domain/onboarding_flow.dart';
 import '../../home/application/home_providers.dart' show invalidateHome;
 import '../../home/data/home_models.dart' show readMoney;
 
+import 'dart:math' as math;
+
 /// Qué está guardando ahora (bloquea Atrás, Omitir y el botón principal).
 enum OnboardingBusy { region, finishing, later }
 
@@ -572,15 +574,20 @@ class OnboardingController extends Notifier<OnboardingState> {
         final sendsBalance = sent['balance'] != null;
         // Se anota ANTES de enviar: si la respuesta no llega (espera vencida, app cerrada), al reabrir
         // se sabe que pudo quedar guardada y las fuentes no se pierden.
+        // La llave va ligada a lo que se envía y a la marca: idéntico, la misma; si no, una nueva.
+        final what = fingerprint({'mark': mark, 'sent': sent});
+        final saved = draft.welcomeKey?.split(' ');
+        final key = saved != null && saved.length == 2 && saved[1] == what ? saved[0] : _newKey();
         draft = await _keep(
           draft.copyWith(
             sentWelcome: () => mark,
             welcomeConfirmed: balanceOnly,
             confirmedBalance: sendsBalance ? () => null : null,
+            welcomeKey: '$key $what',
           ),
         );
         inDoubt = !balanceOnly;
-        await repo.finishWelcome(sent);
+        await repo.finishWelcome(sent, idempotencyKey: draft.welcomeKey!.split(' ').first);
         inDoubt = false;
         // Etapa 1 confirmada: no se repite si la 2 falla. Sin los pagos en duda sigue sin confirmar.
         draft = await _keep(
@@ -601,7 +608,11 @@ class OnboardingController extends Notifier<OnboardingState> {
     } on Object catch (e) {
       final status = e is ApiException ? e.status ?? 0 : 0;
       final notSent = e is ApiException && e.code == ApiCodes.network;
-      final rejected = notSent || (status >= 400 && status < 500);
+      // 409 de llave reusada: la llave ya se usó con otro cuerpo (pudo aplicarse). Se suelta para que
+      // el próximo intento saque otra, y se trata como en duda, no como «seguro no se guardó».
+      final reused = e is ApiException && e.code == 'IDEMPOTENCY_KEY_REUSED';
+      if (reused) draft = await _keep(draft.copyWith(welcomeKey: ''));
+      final rejected = !reused && (notSent || (status >= 400 && status < 500));
       if (sendingSources && rejected && !sentSourcesBefore) {
         // Seguro no se aplicó: «Omitir» después no puede borrar fuentes que esta app no escribió.
         await _keep(draft.copyWith(sourcesSent: false));
@@ -718,6 +729,12 @@ class OnboardingController extends Notifier<OnboardingState> {
     }
     return const OnboardingMessage(ApiMessages.generic);
   }
+}
+
+/// 128 bits al azar en hexadecimal: la llave de idempotencia de un envío.
+String _newKey() {
+  final random = math.Random.secure();
+  return 'w-${[for (var i = 0; i < 16; i++) random.nextInt(256).toRadixString(16).padLeft(2, '0')].join()}';
 }
 
 /// ¿El servidor tiene ESTE envío de la etapa 1? `welcomeDone` solo no lo prueba: pudo hacerse por

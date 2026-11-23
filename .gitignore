@@ -61,3 +61,6 @@ GoogleService-Info.plist
 # Configuración por ambiente (URLs internas de QA). Solo se sube el ejemplo.
 /config/*.json
 !/config/example.json
+
+# Caché local de graphify (no se sube)
+graphify-out/

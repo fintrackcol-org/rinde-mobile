@@ -7,7 +7,6 @@ import '../../../../core/region/region_provider.dart';
 import '../../../../design/tokens/rinde_colors.dart';
 import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
-import '../../../rin/rin.dart';
 import '../../domain/onboarding_flow.dart';
 import '../../../../design/widgets/rinde_icon.dart';
 import '../tour/tour_scenes.dart';
@@ -40,13 +39,7 @@ class _TourStepState extends ConsumerState<TourStep> {
   var _drag = 0.0;
   var _dragging = false;
 
-  /// Escena 5: llegó la respuesta de Rinde (Rin asiente).
-  var _replied = false;
-
-  void _replay() => setState(() {
-    _run++;
-    _replied = false;
-  });
+  void _replay() => setState(() => _run++);
 
   void _endDrag() {
     final offset = _drag;
@@ -126,24 +119,12 @@ class _TourStepState extends ConsumerState<TourStep> {
           ),
         ),
         const SizedBox(height: RindeSpace.s6),
-        Row(
-          children: [
-            // Decisión del dueño: Rin acompaña cada paso, pequeño y tranquilo junto al contador.
-            SizedBox(
-              height: 32,
-              child: Rin(compact: true, gesture: last && _replied ? RinGesture.asentir : null),
-            ),
-            const SizedBox(width: RindeSpace.s2),
-            Expanded(
-              child: Text(
-                t('Cómo funciona · {step} de {total}', {
-                  'step': widget.index + 1,
-                  'total': OnboardingSteps.tourLength,
-                }),
-                style: RindeType.small.w(FontWeight.w500).copyWith(color: p.brand),
-              ),
-            ),
-          ],
+        Text(
+          t('Cómo funciona · {step} de {total}', {
+            'step': widget.index + 1,
+            'total': OnboardingSteps.tourLength,
+          }),
+          style: RindeType.small.w(FontWeight.w500).copyWith(color: p.brand),
         ),
         const SizedBox(height: RindeSpace.s1),
         StepTitle(title, subtitle: text),
@@ -222,12 +203,7 @@ class _TourStepState extends ConsumerState<TourStep> {
       _ => (
         t('También por WhatsApp'),
         t('Escríbele a Rinde desde WhatsApp para anotar o preguntar cómo vas, sin abrir la app.'),
-        WhatsappScene(
-          example: example,
-          onReplied: () {
-            if (mounted) setState(() => _replied = true);
-          },
-        ),
+        WhatsappScene(example: example),
       ),
     };
   }

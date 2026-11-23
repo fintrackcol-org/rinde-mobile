@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -9,7 +7,6 @@ import '../../../../core/region/region_provider.dart';
 import '../../../../design/tokens/rinde_colors.dart';
 import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
-import '../../../rin/rin.dart';
 import '../../application/onboarding_controller.dart';
 import '../../domain/commitments.dart';
 import '../../domain/onboarding_flow.dart';
@@ -30,36 +27,16 @@ class PaymentsStep extends ConsumerStatefulWidget {
 
 class _PaymentsStepState extends ConsumerState<PaymentsStep> {
   final _cards = <String, GlobalKey<PaymentCardState>>{};
-  RinGesture? _gesture;
-  Timer? _nodTimer;
 
   OnboardingController get _controller => ref.read(onboardingControllerProvider(widget.mode).notifier);
 
-  @override
-  void dispose() {
-    _nodTimer?.cancel();
-    super.dispose();
-  }
-
-  /// Rin asiente al agregar un pago. Vuelve a null para poder repetirlo con el siguiente.
-  void _nod() {
-    if (MediaQuery.disableAnimationsOf(context)) return;
-    _nodTimer?.cancel();
-    setState(() => _gesture = RinGesture.asentir);
-    _nodTimer = Timer(const Duration(milliseconds: 900), () {
-      if (mounted) setState(() => _gesture = null);
-    });
-  }
-
   void _toggle(String name, {required bool selected}) {
     _controller.toggleSuggestion(name);
-    if (!selected) _nod();
   }
 
   void _addCustom() {
     final key = _controller.addCustom();
     if (key == null) return;
-    _nod();
     WidgetsBinding.instance.addPostFrameCallback((_) => _cards[key]?.currentState?.focusName());
   }
 
@@ -97,10 +74,7 @@ class _PaymentsStepState extends ConsumerState<PaymentsStep> {
       children: [
         StepTitle(t('¿Qué pagas cada mes?')),
         const SizedBox(height: RindeSpace.s3),
-        RinNote(
-          rin: Rin(compact: true, emotion: RinEmotion.curioso, gesture: _gesture),
-          text: t('Apartamos esa plata antes de decirte cuánto puedes gastar. Toca los que tengas.'),
-        ),
+        RinNote(text: t('Apartamos esa plata antes de decirte cuánto puedes gastar. Toca los que tengas.')),
         if (state.paymentsLocked) ...[
           const SizedBox(height: RindeSpace.s3),
           // TEXTO NUEVO: la etapa 1 ya salió; el servidor no pisa ni borra pagos con el mismo nombre.

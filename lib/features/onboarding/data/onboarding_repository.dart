@@ -75,7 +75,8 @@ abstract interface class OnboardingRepository {
   Future<Region> saveRegion({required String country, required String language});
 
   /// POST /money-profile/welcome.
-  Future<void> finishWelcome(Map<String, dynamic> body);
+  /// [idempotencyKey]: la misma en los reintentos del mismo envío; el servidor no lo aplica dos veces.
+  Future<void> finishWelcome(Map<String, dynamic> body, {String? idempotencyKey});
 
   /// PUT /money-profile/sources {sources}. Reemplaza las fuentes anteriores.
   Future<void> saveSources(List<Map<String, dynamic>> sources);
@@ -142,8 +143,12 @@ class ApiOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<void> finishWelcome(Map<String, dynamic> body) =>
-      _api.post('/money-profile/welcome', body: body, auth: true);
+  Future<void> finishWelcome(Map<String, dynamic> body, {String? idempotencyKey}) => _api.post(
+    '/money-profile/welcome',
+    body: body,
+    auth: true,
+    headers: {'Idempotency-Key': ?idempotencyKey},
+  );
 
   @override
   Future<void> saveSources(List<Map<String, dynamic>> sources) =>

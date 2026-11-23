@@ -247,8 +247,10 @@ class _StepTitleState extends State<StepTitle> {
 /// Caja de Rin que explica por qué se pregunta algo (Why de Welcome.jsx): fondo brand-soft al 60 %,
 /// Rin pequeño a la izquierda y el texto. `rin` se pasa ya construido (para elegir emoción/gesto).
 class RinNote extends StatelessWidget {
-  const RinNote({super.key, required this.rin, required this.text});
-  final Widget rin;
+  const RinNote({super.key, this.rin, required this.text});
+
+  /// Rin solo donde lo aprobó la marca (opción B: saludo, ingresos y final). Sin él, la nota queda.
+  final Widget? rin;
   final String text;
 
   @override
@@ -262,8 +264,10 @@ class RinNote extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: 40, height: 44, child: rin),
-          const SizedBox(width: RindeSpace.s3),
+          if (rin case final rin?) ...[
+            SizedBox(width: 40, height: 44, child: rin),
+            const SizedBox(width: RindeSpace.s3),
+          ],
           Expanded(
             child: Text(text, style: RindeType.small.copyWith(color: p.ink.withValues(alpha: 0.8))),
           ),

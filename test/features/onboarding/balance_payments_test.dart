@@ -16,6 +16,8 @@ import 'package:rinde_mobile/design/theme/rinde_theme.dart';
 import 'package:rinde_mobile/design/widgets/rinde_money_field.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
+import 'package:rinde_mobile/features/onboarding/presentation/widgets/onboarding_shell.dart';
+import 'package:rinde_mobile/features/rin/rin.dart';
 import 'package:rinde_mobile/features/onboarding/application/onboarding_controller.dart';
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
@@ -42,7 +44,7 @@ class _PendingRepo implements OnboardingRepository {
   bool get isDemo => false;
 
   @override
-  Future<void> finishWelcome(Map<String, dynamic> body) {
+  Future<void> finishWelcome(Map<String, dynamic> body, {String? idempotencyKey}) {
     bodies.add(body);
     return reply.future;
   }
@@ -154,6 +156,15 @@ Future<void> _end(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('opción B de marca: Rin no está en Saldo ni en Pagos, y la nota sí', (tester) async {
+    for (final position in [OnboardingSteps.balance, OnboardingSteps.payments]) {
+      await _pump(tester, position: position);
+      expect(find.byType(Rin), findsNothing, reason: '$position');
+      expect(find.byType(RinNote), findsOneWidget, reason: '$position');
+      await _end(tester);
+    }
+  });
+
   group('Saldo', () {
     testWidgets('lo escrito llega crudo al borrador y vacío queda vacío', (tester) async {
       final c = await _pump(tester, position: OnboardingSteps.balance);

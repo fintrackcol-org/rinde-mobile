@@ -29,9 +29,6 @@ const _tabRoutes = {
 
 /// Destinos que se abren encima de una pestaña, con el título que deben mostrar.
 final _pushedRoutes = {
-  Routes.record: 'Anotar un gasto',
-  Routes.recordExpense: 'Anotar un gasto',
-  Routes.recordIncome: 'Anotar un ingreso',
   Routes.notifications: 'Notificaciones',
   Routes.myMoney: 'Mi plata',
   Routes.payments: 'Pagos del mes',
@@ -86,7 +83,13 @@ void main() {
 
   testWidgets('sin sesión, ninguna ruta de la app se abre: todas terminan en el login', (tester) async {
     final router = await _pumpApp(tester);
-    for (final route in [Routes.app, ..._tabRoutes.keys, ..._pushedRoutes.keys]) {
+    for (final route in [
+      Routes.app,
+      ..._tabRoutes.keys,
+      ..._pushedRoutes.keys,
+      Routes.record,
+      Routes.movement('m1'),
+    ]) {
       router.go(route);
       await _settle(tester);
       expect(_location(router), Routes.login, reason: route);
@@ -105,7 +108,12 @@ void main() {
       await _settle(tester);
       expect(_location(router), route);
       expect(tester.widget<RindeTabScaffold>(find.byType(RindeTabScaffold)).current, tab, reason: route);
-      expect(find.text('En desarrollo'), findsOneWidget, reason: route);
+      // Movimientos ya es pantalla real (etapa 3); Planear y Yo siguen pendientes.
+      expect(
+        find.text('En desarrollo'),
+        route == Routes.movements ? findsNothing : findsOneWidget,
+        reason: route,
+      );
       expect(find.byType(EntryScreen), findsNothing, reason: route);
     }
   });
@@ -129,7 +137,7 @@ void main() {
   ) async {
     final router = await _pumpApp(tester, session: _session);
     for (final MapEntry(key: route, value: title) in _pushedRoutes.entries) {
-      router.go(Routes.movements);
+      router.go(Routes.plan);
       await _settle(tester);
       unawaited(router.push(route));
       await _settle(tester);
@@ -139,8 +147,8 @@ void main() {
 
       await tester.tap(find.byTooltip('Volver'));
       await _settle(tester);
-      expect(_location(router), Routes.movements, reason: route);
-      expect(tester.widget<RindeTabScaffold>(find.byType(RindeTabScaffold)).current, RindeTab.movements);
+      expect(_location(router), Routes.plan, reason: route);
+      expect(tester.widget<RindeTabScaffold>(find.byType(RindeTabScaffold)).current, RindeTab.plan);
     }
   });
 

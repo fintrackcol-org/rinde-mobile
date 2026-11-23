@@ -11,7 +11,6 @@ import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
 import '../../../../design/widgets/rinde_icon.dart';
 import '../../../../design/widgets/rinde_segmented.dart';
-import '../../../rin/rin.dart';
 import '../../application/onboarding_controller.dart';
 import '../../domain/onboarding_flow.dart';
 import '../widgets/onboarding_shell.dart';
@@ -31,22 +30,6 @@ class CountryStep extends ConsumerStatefulWidget {
 }
 
 class _CountryStepState extends ConsumerState<CountryStep> {
-  RinGesture? _nod;
-  Timer? _nodTimer;
-
-  /// Rin asiente cuando cambia el país o el idioma (decisión del dueño). Un asentimiento a la vez.
-  void _acknowledge() {
-    if (_nod != null || MediaQuery.disableAnimationsOf(context)) return;
-    setState(() => _nod = RinGesture.asentir);
-    _nodTimer = Timer(const Duration(milliseconds: 900), () => setState(() => _nod = null));
-  }
-
-  @override
-  void dispose() {
-    _nodTimer?.cancel();
-    super.dispose();
-  }
-
   Future<void> _openCountries(String selected, String language) async {
     final code = await showCountrySheet(context, selected: selected, language: language);
     if (code == null || !mounted) return;
@@ -61,9 +44,6 @@ class _CountryStepState extends ConsumerState<CountryStep> {
     final controller = ref.read(provider.notifier);
     final t = ref.watch(trProvider);
     final p = context.palette;
-    ref.listen(provider.select((s) => (s.draft.country, s.draft.language)), (before, now) {
-      if (before != now) _acknowledge();
-    });
 
     final country = findCountry(draft.country) ?? findCountry(kDefaultRegion.country)!;
     final language = draft.language;
@@ -72,23 +52,9 @@ class _CountryStepState extends ConsumerState<CountryStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: StepTitle(
-                t('Hagamos que Rinde hable tu idioma.'),
-                subtitle: t('Elige tu país y ajustamos la moneda por ti.'),
-              ),
-            ),
-            const SizedBox(width: RindeSpace.s3),
-            // Rin pequeño y decorativo, al lado del título: no tapa texto ni controles.
-            SizedBox(
-              width: 44,
-              height: 50,
-              child: Rin(emotion: RinEmotion.curioso, gesture: _nod, compact: true),
-            ),
-          ],
+        StepTitle(
+          t('Hagamos que Rinde hable tu idioma.'),
+          subtitle: t('Elige tu país y ajustamos la moneda por ti.'),
         ),
         const SizedBox(height: RindeSpace.s6),
         ExcludeSemantics(

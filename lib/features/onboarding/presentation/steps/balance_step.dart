@@ -9,7 +9,6 @@ import '../../../../design/tokens/rinde_colors.dart';
 import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
 import '../../../../design/widgets/rinde_money_field.dart';
-import '../../../rin/rin.dart';
 import '../../application/onboarding_controller.dart';
 import '../../data/onboarding_repository.dart';
 import '../../domain/onboarding_flow.dart';
@@ -56,10 +55,7 @@ class BalanceStep extends ConsumerWidget {
       children: [
         StepTitle(t('¿Cuánta plata tienes hoy, más o menos?')),
         const SizedBox(height: RindeSpace.s3),
-        RinNote(
-          rin: const Rin(compact: true, emotion: RinEmotion.pensativo),
-          text: t('Desde ese número sumamos y restamos lo que anotes: así tu saldo es el de verdad.'),
-        ),
+        RinNote(text: t('Desde ese número sumamos y restamos lo que anotes: así tu saldo es el de verdad.')),
         if (savedOther != null) ...[
           const SizedBox(height: RindeSpace.s3),
           Semantics(

@@ -21,6 +21,7 @@ class OnboardingDraft {
     this.welcomeConfirmed = false,
     this.sourcesSent = false,
     this.confirmedBalance,
+    this.welcomeKey,
   });
 
   /// Borrador nuevo: país sugerido y su idioma (el controlador lo cambia por el idioma que ya se ve).
@@ -72,6 +73,7 @@ class OnboardingDraft {
       welcomeConfirmed: json['sentWelcome'] is String && json['welcomeConfirmed'] == true,
       sourcesSent: json['sourcesSent'] == true,
       confirmedBalance: json['confirmedBalance'] is num ? json['confirmedBalance'] as num : null,
+      welcomeKey: json['welcomeKey'] is String ? json['welcomeKey'] as String : null,
     );
   }
 
@@ -108,6 +110,10 @@ class OnboardingDraft {
   /// corrija después en Mi plata.
   final num? confirmedBalance;
 
+  /// Llave de idempotencia del último envío de la etapa 1 y lo que se envió con ella
+  /// (`<llave> <huella>`): un reintento idéntico la repite; uno distinto saca otra.
+  final String? welcomeKey;
+
   /// Los pagos que salieron en la etapa 1, o null si no salió ninguno. Desde entonces no se editan y
   /// un reenvío los repite desde aquí, no desde la pantalla: el servidor no pisa ni borra pagos, así
   /// que otra lista los duplicaría. Si se omitieron, no hay nada que bloquear.
@@ -139,6 +145,7 @@ class OnboardingDraft {
     bool? welcomeConfirmed,
     bool? sourcesSent,
     num? Function()? confirmedBalance,
+    String? welcomeKey,
   }) => OnboardingDraft(
     position: position ?? this.position,
     country: country ?? this.country,
@@ -151,6 +158,7 @@ class OnboardingDraft {
     welcomeConfirmed: welcomeConfirmed ?? this.welcomeConfirmed,
     sourcesSent: sourcesSent ?? this.sourcesSent,
     confirmedBalance: confirmedBalance != null ? confirmedBalance() : this.confirmedBalance,
+    welcomeKey: welcomeKey ?? this.welcomeKey,
   );
 
   Map<String, dynamic> toJson() => {
@@ -166,6 +174,7 @@ class OnboardingDraft {
     if (welcomeConfirmed) 'welcomeConfirmed': true,
     if (sourcesSent) 'sourcesSent': true,
     'confirmedBalance': ?confirmedBalance,
+    'welcomeKey': ?welcomeKey,
   };
 }
 

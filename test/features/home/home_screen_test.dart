@@ -78,7 +78,7 @@ class _Answers implements OnboardingRepository {
   bool get isDemo => false;
 
   @override
-  Future<void> finishWelcome(Map<String, dynamic> body) => server.answer();
+  Future<void> finishWelcome(Map<String, dynamic> body, {String? idempotencyKey}) => server.answer();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('${invocation.memberName}');

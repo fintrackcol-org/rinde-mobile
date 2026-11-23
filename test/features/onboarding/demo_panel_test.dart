@@ -2,6 +2,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:rinde_mobile/features/movements/application/movement_saver.dart' show pendingStoreProvider;
+import 'package:rinde_mobile/features/movements/data/demo_movements_repository.dart'
+    show demoMovementsStoreProvider;
+import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
 import 'package:rinde_mobile/app/app.dart';
 import 'package:rinde_mobile/app/router.dart';
 import 'package:rinde_mobile/app/routes.dart';
@@ -111,6 +115,8 @@ void main() {
           demoControlsProvider.overrideWith(_FastControls.new),
           draftStoreProvider.overrideWithValue(drafts),
           tourSeenStoreProvider.overrideWithValue(seen),
+          demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
+          pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
           regionStoreProvider.overrideWithValue(regions),
           systemLocalesProvider.overrideWithValue(const [Locale('es', 'CO')]),
           clockProvider.overrideWithValue(() => DateTime(2026, 11, 22, 10)),

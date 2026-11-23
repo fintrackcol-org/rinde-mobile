@@ -22,24 +22,12 @@ class PendingModule {
 }
 
 final pendingModules = <PendingModule>[
-  PendingModule(
-    path: Routes.movements,
-    title: (t, _) => t('Movimientos'),
-    web: 'Movements.jsx',
-    tab: RindeTab.movements,
-  ),
   PendingModule(path: Routes.plan, title: (t, _) => t('Planear'), web: 'Planear.jsx', tab: RindeTab.plan),
   PendingModule(
     path: Routes.account,
     title: (t, _) => t('Tu cuenta'),
     web: 'Account.jsx',
     tab: RindeTab.account,
-  ),
-  PendingModule(
-    path: Routes.record,
-    // Como Anotar.jsx: sin `?tipo=ingreso` es un gasto.
-    title: (t, query) => query['tipo'] == 'ingreso' ? t('Anotar un ingreso') : t('Anotar un gasto'),
-    web: 'Anotar.jsx',
   ),
   PendingModule(path: Routes.notifications, title: (t, _) => t('Notificaciones'), web: 'Notifications.jsx'),
   PendingModule(path: Routes.myMoney, title: (t, _) => t('Mi plata'), web: 'MiPlata.jsx'),

@@ -3,7 +3,19 @@
 Propuesta de excepción para la app móvil. **No cambia el manual visual de Rinde Web**
 (`fintrack/docs/manual-visual.md`), que sigue siendo el documento oficial de marca.
 
-Estado: **pendiente de aprobación de marca** (ver «Decisión que falta»).
+Estado: **decidido el 22 de noviembre de 2026: opción B**, aplicada en el código de Rinde Mobile.
+
+## Decisión vigente (opción B)
+
+- **Bienvenida:** Rin aparece solo en el **saludo**, en la nota de **ingresos** y en la **celebración
+  final**. No aparece en País, en las cinco escenas de «Cómo funciona», en Saldo ni en Pagos. Las notas
+  de Saldo y Pagos se conservan sin el dibujo.
+- **Inicio:** solo en el estado vacío.
+- **Siempre:** dibujo oficial, gesto breve y quieto con «reducir movimiento».
+- El manual visual de Rinde Web no se modificó: esta decisión vale para Rinde Mobile.
+- Pruebas que la fijan: `tour_test`, `hello_country_test` y `balance_payments_test`.
+
+El resto de este documento es la evaluación que llevó a la decisión.
 
 ## Qué dice el manual
 

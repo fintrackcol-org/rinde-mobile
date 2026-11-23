@@ -19,6 +19,7 @@ import 'package:rinde_mobile/features/onboarding/data/onboarding_repository.dart
 import 'package:rinde_mobile/features/onboarding/domain/onboarding_flow.dart';
 import 'package:rinde_mobile/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:rinde_mobile/features/onboarding/presentation/widgets/onboarding_shell.dart';
+import 'package:rinde_mobile/features/rin/rin.dart';
 import 'package:rinde_mobile/features/welcome/presentation/welcome_screen.dart';
 
 const _mode = OnboardingMode.full;
@@ -241,6 +242,8 @@ void main() {
     testWidgets('los idiomas van en fila si caben', (tester) async {
       // La letra de las pruebas es cuadrada (más ancha que Inter Tight): se achica para que quepan.
       await _pumpOnboarding(tester, drafts: _atCountry(), textScale: 0.7);
+      // Opción B de marca: Rin no está en País.
+      expect(find.byType(Rin), findsNothing);
       final tops = [for (final l in kLanguages) tester.getRect(find.text(l.name)).top];
       expect(tops.toSet(), hasLength(1));
       expect(

@@ -27,6 +27,7 @@ import 'widgets/home_tap.dart';
 import 'widgets/load_error_notice.dart';
 import 'widgets/month_totals.dart';
 import 'widgets/next_payments.dart';
+import '../../movements/application/movement_saver.dart' show pendingMovementsProvider;
 
 /// Inicio (MobileHome.jsx de Rinde Web): la cifra de lo que puedes gastar, lo próximo que hay que
 /// pagar y cómo va el mes. Dibuja lo que decide `homeViewProvider`: no pide datos ni hace cuentas.
@@ -67,6 +68,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     if (!mounted) return;
     final account = ref.read(accountProvider);
     if (account == null) return;
+    // Al abrir la app, al entrar al Inicio y al volver: lo anotado sin conexión se reenvía con el
+    // mismo localId, así el servidor no lo duplica.
+    unawaited(ref.read(pendingMovementsProvider.notifier).retryPending());
     // Si ya es otro día, lo que depende de hoy se vuelve a pedir solo.
     ref.read(todayProvider.notifier).sync();
     final at = ref.read(homeFreshnessProvider).of(account);

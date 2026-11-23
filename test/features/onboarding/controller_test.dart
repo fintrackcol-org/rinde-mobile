@@ -106,8 +106,13 @@ class _FakeRepo implements OnboardingRepository {
     return Region(country: country, currency: regionForCountry(country).currency, language: language);
   }
 
+  final keys = <String?>[];
+
   @override
-  Future<void> finishWelcome(Map<String, dynamic> body) => _call('welcome', body);
+  Future<void> finishWelcome(Map<String, dynamic> body, {String? idempotencyKey}) {
+    keys.add(idempotencyKey);
+    return _call('welcome', body);
+  }
 
   @override
   Future<void> saveSources(List<Map<String, dynamic>> sources) => _call('sources', sources);
@@ -982,6 +987,30 @@ void main() {
       repo.failNext('welcome', const ApiException(code: 'INTERNAL_ERROR', status: 500));
       await n.finish();
       expect(stateOf(c).paymentsLocked, isFalse);
+    });
+
+    test('409 de llave reusada: no se da por «no guardado» y el siguiente intento usa otra llave', () async {
+      final (_, n) = await atPayments();
+      repo.failNext('welcome', const ApiException(code: 'IDEMPOTENCY_KEY_REUSED', status: 409));
+      await n.finish();
+      await n.finish();
+      expect(repo.keys, hasLength(2));
+      expect(repo.keys[1], isNot(repo.keys[0]));
+    });
+
+    test('llave de idempotencia: la misma al reintentar el mismo envío, otra si cambia', () async {
+      final (_, n) = await atPayments();
+      repo.failNext('welcome', const ApiException(code: ApiCodes.timeout));
+      await n.finish();
+      repo.failNext('welcome', const ApiException(code: ApiCodes.timeout));
+      await n.finish();
+      expect(repo.keys, hasLength(2));
+      expect(repo.keys[0], matches(RegExp(r'^w-[0-9a-f]{32}$')));
+      expect(repo.keys[1], repo.keys[0], reason: 'reintento del mismo envío');
+
+      n.setBalance('700000');
+      await n.finish();
+      expect(repo.keys.last, isNot(repo.keys[0]), reason: 'otro saldo es otro envío');
     });
 
     test('welcome sin red: mensaje de sin conexión', () async {

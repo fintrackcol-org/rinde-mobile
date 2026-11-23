@@ -8,6 +8,9 @@ import '../application/home_providers.dart' show clockProvider;
 import '../domain/home_dates.dart';
 import 'home_models.dart';
 import 'home_repository.dart';
+import '../../movements/data/demo_movements_repository.dart'
+    show demoMovementTotals, demoMovementsStoreProvider;
+import '../../movements/data/json_list_store.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODO DEMOSTRACIÓN / SIN BACKEND
@@ -50,7 +53,12 @@ class DemoHomeRepository implements HomeRepository {
     required this.controls,
     required this.clock,
     required this.language,
+    this.movements,
   });
+
+  /// Movimientos anotados en la demo (suman en «Este mes»). El plan y el saldo no se recalculan:
+  /// son del servidor, y la demostración no los imita.
+  final JsonListStore? movements;
 
   final String userId;
   final DemoStateStore store;
@@ -80,8 +88,17 @@ class DemoHomeRepository implements HomeRepository {
   Future<MoneyPlan> plan() async => MoneyPlan.fromJson(_plan(await _read(DemoHomeOperation.plan)));
 
   @override
-  Future<MonthTotals> monthTotals(String date) async =>
-      MonthTotals.fromJson(_summary(date, await _read(DemoHomeOperation.summary)));
+  Future<MonthTotals> monthTotals(String date) async {
+    final scenario = MonthTotals.fromJson(_summary(date, await _read(DemoHomeOperation.summary)));
+    final store = movements;
+    if (store == null) return scenario;
+    final noted = await demoMovementTotals(store, userId, date);
+    return MonthTotals(
+      month: scenario.month,
+      income: readMoney(scenario.income + noted.income)!,
+      expense: readMoney(scenario.expense + noted.expense)!,
+    );
+  }
 
   @override
   Future<List<BudgetStatus>> budgets(String month) async => [
@@ -399,5 +416,6 @@ final demoHomeRepositoryProvider = Provider.family<DemoHomeRepository, String>(
     controls: ref.read(demoControlsProvider.notifier),
     clock: ref.watch(clockProvider),
     language: () => ref.read(displayLanguageProvider),
+    movements: ref.watch(demoMovementsStoreProvider),
   ),
 );

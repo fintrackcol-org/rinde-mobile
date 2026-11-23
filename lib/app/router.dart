@@ -8,6 +8,10 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/entry/presentation/boot_screen.dart';
 import '../features/entry/presentation/entry_screen.dart';
+import '../features/movements/domain/movement.dart';
+import '../features/movements/presentation/detail/movement_detail_screen.dart';
+import '../features/movements/presentation/list/movements_screen.dart';
+import '../features/movements/presentation/record/record_screen.dart';
 import '../features/onboarding/domain/onboarding_flow.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/shell/presentation/pending_module_screen.dart';
@@ -61,6 +65,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.onboardingQuestions,
         builder: (_, _) => const OnboardingScreen(mode: OnboardingMode.questions),
+      ),
+      GoRoute(
+        path: Routes.movements,
+        pageBuilder: (_, state) => NoTransitionPage(key: state.pageKey, child: const MovementsScreen()),
+      ),
+      GoRoute(
+        path: Routes.record,
+        // Como Anotar.jsx: sin `?tipo=ingreso` es un gasto.
+        builder: (_, state) => RecordScreen(
+          initialType: state.uri.queryParameters['tipo'] == 'ingreso'
+              ? MovementType.income
+              : MovementType.expense,
+        ),
+      ),
+      GoRoute(
+        path: '/app/transacciones/:id',
+        builder: (_, state) => MovementDetailScreen(movementId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/app/transacciones/:id/editar',
+        builder: (_, state) => EditMovementScreen(movementId: state.pathParameters['id']!),
       ),
       // Destinos de Rinde Web que aún no tienen pantalla: «En desarrollo». Todos bajo /app (con sesión).
       for (final module in pendingModules)

@@ -4,6 +4,10 @@ import 'dart:ui' show Locale;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rinde_mobile/features/movements/application/movement_saver.dart' show pendingStoreProvider;
+import 'package:rinde_mobile/features/movements/data/demo_movements_repository.dart'
+    show demoMovementsStoreProvider;
+import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
 import 'package:rinde_mobile/core/config/app_config.dart';
 import 'package:rinde_mobile/core/network/api_client.dart';
 import 'package:rinde_mobile/core/network/api_exception.dart';
@@ -131,6 +135,8 @@ void main() {
         demoStateStoreProvider.overrideWithValue(store),
         draftStoreProvider.overrideWithValue(drafts),
         tourSeenStoreProvider.overrideWithValue(seen),
+        demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
+        pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
         regionStoreProvider.overrideWithValue(regions),
         initialRegionProvider.overrideWithValue(initial),
         systemLocalesProvider.overrideWithValue(const [Locale('es', 'CO')]),

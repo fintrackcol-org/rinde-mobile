@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rinde_mobile/features/movements/application/movement_saver.dart' show pendingStoreProvider;
+import 'package:rinde_mobile/features/movements/data/demo_movements_repository.dart'
+    show demoMovementsStoreProvider;
+import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
 import 'package:rinde_mobile/core/config/app_config.dart';
 import 'package:rinde_mobile/core/network/api_exception.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
@@ -45,6 +49,8 @@ void main() {
         ),
         homeRepositoryProvider.overrideWithValue(repo),
         tourSeenStoreProvider.overrideWithValue(seen),
+        demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
+        pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
         welcomeStatusProvider.overrideWith((ref, _) {
           statusLoads++;
           return (status ?? () async => _status())();

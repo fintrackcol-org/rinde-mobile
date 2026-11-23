@@ -108,7 +108,7 @@ class _Server implements OnboardingRepository {
   Future<Region> saveRegion({required String country, required String language}) async => kDefaultRegion;
 
   @override
-  Future<void> finishWelcome(Map<String, dynamic> body) => _answer(welcome, () {
+  Future<void> finishWelcome(Map<String, dynamic> body, {String? idempotencyKey}) => _answer(welcome, () {
     state = state.withWelcome(body);
     appWelcomed = true;
   });

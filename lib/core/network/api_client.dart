@@ -45,8 +45,15 @@ class ApiClient {
   late final Dio public;
   late final Dio authed;
 
-  Future<dynamic> post(String path, {Object? body, bool auth = false}) =>
-      _send(() => (auth ? authed : public).post<dynamic>(path, data: body));
+  Future<dynamic> post(String path, {Object? body, bool auth = false, Map<String, String>? headers}) => _send(
+    () => (auth ? authed : public).post<dynamic>(
+      path,
+      data: body,
+      options: Options(headers: headers),
+    ),
+  );
+
+  Future<dynamic> delete(String path) => _send(() => authed.delete<dynamic>(path));
 
   Future<dynamic> get(String path, {bool auth = true, Map<String, dynamic>? query}) =>
       _send(() => (auth ? authed : public).get<dynamic>(path, queryParameters: query));

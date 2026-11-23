@@ -35,4 +35,8 @@ abstract final class Routes {
   static const budgets = '/app/presupuestos';
   static const cards = '/app/tarjetas';
   static String card(String id) => '/app/tarjetas/$id';
+
+  /// Detalle y edición de un movimiento (como la web).
+  static String movement(String id) => '/app/transacciones/${Uri.encodeComponent(id)}';
+  static String editMovement(String id) => '${movement(id)}/editar';
 }

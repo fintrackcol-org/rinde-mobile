@@ -5,6 +5,7 @@ import 'package:rinde_mobile/core/region/region.dart';
 import 'package:rinde_mobile/core/region/region_provider.dart';
 import 'package:rinde_mobile/design/theme/rinde_theme.dart';
 import 'package:rinde_mobile/features/onboarding/presentation/steps/tour_step.dart';
+import 'package:rinde_mobile/features/rin/rin.dart';
 
 const _usd = Region(country: 'US', currency: 'USD', language: 'es');
 
@@ -83,6 +84,8 @@ void main() {
       expect(find.text('Cómo funciona · ${i + 1} de 5'), findsOneWidget);
       expect(find.text(_titles[i]), findsOneWidget);
       expect(find.text('Ejemplo'), findsOneWidget);
+      // Opción B de marca: Rin no acompaña las escenas.
+      expect(find.byType(Rin), findsNothing);
       expect(tester.takeException(), isNull);
     }
     expect(

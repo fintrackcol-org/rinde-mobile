@@ -11,6 +11,9 @@ import '../../auth/application/session_controller.dart';
 import '../../home/application/tour_controller.dart' show tourSeenStoreProvider;
 import '../../home/data/home_models.dart' show readMoney;
 import 'onboarding_repository.dart';
+import '../../movements/application/movement_saver.dart' show pendingStoreProvider;
+import '../../movements/data/demo_movements_repository.dart'
+    show demoHasMovements, demoMovementsStoreProvider;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODO DEMOSTRACIÓN / SIN BACKEND
@@ -383,7 +386,16 @@ WelcomeStatus demoWelcomeStatus(DemoScenario scenario, DemoState state) {
 }
 
 class DemoOnboardingRepository implements OnboardingRepository {
-  DemoOnboardingRepository({required this.userId, required this.store, required this.controls, this.onReset});
+  DemoOnboardingRepository({
+    required this.userId,
+    required this.store,
+    required this.controls,
+    this.onReset,
+    this.hasMovements,
+  });
+
+  /// La demo ya tiene movimientos anotados (una cuenta nueva deja de verse «sin movimientos»).
+  final Future<bool> Function()? hasMovements;
 
   final String userId;
   final DemoStateStore store;
@@ -409,7 +421,21 @@ class DemoOnboardingRepository implements OnboardingRepository {
   @override
   Future<WelcomeStatus> status() async {
     await _simulate(DemoOperation.status, null);
-    return demoWelcomeStatus(scenario, await store.read(userId));
+    final status = demoWelcomeStatus(scenario, await store.read(userId));
+    if (status.hasTransactions || !(await hasMovements?.call() ?? false)) return status;
+    return WelcomeStatus(
+      welcomeDone: status.welcomeDone,
+      tutorialDone: status.tutorialDone,
+      hasTransactions: true,
+      income: status.income,
+      expense: status.expense,
+      money: status.money,
+      balanceSet: status.balanceSet,
+      balance: status.balance,
+      incomeType: status.incomeType,
+      payDays: status.payDays,
+      commitmentNames: status.commitmentNames,
+    );
   }
 
   @override
@@ -425,7 +451,7 @@ class DemoOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<void> finishWelcome(Map<String, dynamic> body) async {
+  Future<void> finishWelcome(Map<String, dynamic> body, {String? idempotencyKey}) async {
     final run = _run;
     await _simulate(DemoOperation.welcome, body);
     if (run != _run) return;
@@ -462,6 +488,10 @@ final demoOnboardingRepositoryProvider = Provider.family<DemoOnboardingRepositor
       ref.invalidate(profileProvider);
       // La marca local del tutorial es de este usuario, que es el mismo en cada reinicio.
       unawaited(ref.read(tourSeenStoreProvider).clear(userId));
+      // Lo anotado y lo pendiente de esta cuenta demo también se borran.
+      unawaited(ref.read(demoMovementsStoreProvider).write(userId, const []));
+      unawaited(ref.read(pendingStoreProvider).write(userId, const []));
     },
+    hasMovements: () => demoHasMovements(ref.read(demoMovementsStoreProvider), userId),
   ),
 );

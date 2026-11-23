@@ -19,12 +19,8 @@ const _honest = 'Esta parte todavía no está en la app. Ya funciona en la web d
 
 /// Título esperado de cada destino (los de Rinde Web), por la ruta con que se abre.
 final _titles = {
-  Routes.movements: 'Movimientos',
   Routes.plan: 'Planear',
   Routes.account: 'Tu cuenta',
-  Routes.record: 'Anotar un gasto',
-  Routes.recordExpense: 'Anotar un gasto',
-  Routes.recordIncome: 'Anotar un ingreso',
   Routes.notifications: 'Notificaciones',
   Routes.myMoney: 'Mi plata',
   Routes.payments: 'Pagos del mes',
@@ -36,11 +32,7 @@ final _titles = {
   Routes.cards: 'Tarjetas',
   Routes.card('t1'): 'Tarjeta',
 };
-const _tabs = {
-  Routes.movements: RindeTab.movements,
-  Routes.plan: RindeTab.plan,
-  Routes.account: RindeTab.account,
-};
+const _tabs = {Routes.plan: RindeTab.plan, Routes.account: RindeTab.account};
 
 /// Los destinos pendientes con un router mínimo; el Inicio es un marcador.
 Future<GoRouter> _pump(
@@ -101,10 +93,8 @@ void main() {
     final paths = pendingModules.map((m) => m.path).toList();
     expect(paths.toSet().length, paths.length);
     expect(paths.toSet(), {
-      Routes.movements,
       Routes.plan,
       Routes.account,
-      Routes.record,
       Routes.notifications,
       Routes.myMoney,
       Routes.payments,
@@ -116,7 +106,7 @@ void main() {
       Routes.cards,
       '/app/tarjetas/:id',
     });
-    expect({for (final m in pendingModules) ?m.tab}, {RindeTab.movements, RindeTab.plan, RindeTab.account});
+    expect({for (final m in pendingModules) ?m.tab}, {RindeTab.plan, RindeTab.account});
   });
 
   testWidgets('cada destino dice «En desarrollo» con su título y sin datos ni acciones de mentira', (
@@ -157,9 +147,9 @@ void main() {
     expect(find.text('INICIO'), findsOneWidget);
     expect(find.text('En desarrollo'), findsNothing);
 
-    unawaited(router.push(Routes.recordIncome));
+    unawaited(router.push(Routes.income));
     await tester.pumpAndSettle();
-    expect(find.text('Anotar un ingreso'), findsOneWidget);
+    expect(find.text('Ingresos'), findsOneWidget);
     expect(await tester.binding.handlePopRoute(), isTrue);
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
@@ -201,7 +191,7 @@ void main() {
 
   for (final (name, theme) in [('claro', RindeTheme.light), ('oscuro', RindeTheme.dark)]) {
     testWidgets('320 de ancho y letra al doble, tema $name: nada se desborda', (tester) async {
-      for (final route in [Routes.account, Routes.movements, Routes.fixBalance, Routes.recordIncome]) {
+      for (final route in [Routes.account, Routes.plan, Routes.fixBalance, Routes.income]) {
         await _pump(tester, initial: route, size: const Size(320, 568), textScale: 2, theme: theme);
         expect(tester.takeException(), isNull, reason: route);
         expect(find.text('En desarrollo'), findsOneWidget, reason: route);
