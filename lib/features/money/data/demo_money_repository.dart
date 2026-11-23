@@ -27,7 +27,10 @@ enum DemoMoneyOperation {
   /// GET /money-profile/income.
   income,
 
-  /// PUT /money-profile/sources y POST /money-profile/commitments.
+  /// GET /money-profile/adjustments.
+  adjustments,
+
+  /// PUT /money-profile/sources, POST /money-profile/commitments y PUT /money-profile.
   write,
 }
 
@@ -121,8 +124,10 @@ class DemoMoneyRepository implements MoneyRepository {
       'incomeType': status.incomeType,
       'payDays': status.payDays,
       'balance': status.balance,
-      // Fijo en el mes: no cambia en cada lectura.
-      'balanceAt': status.balance == null ? null : DateTime.utc(now.year, now.month).toIso8601String(),
+      // La de la última corrección; si no, fija en el mes: no cambia en cada lectura.
+      'balanceAt': status.balance == null
+          ? null
+          : state.adjustments.lastOrNull?['createdAt'] ?? DateTime.utc(now.year, now.month).toIso8601String(),
       'money': status.money,
       'totals': {'income': status.income, 'expense': status.expense},
       'welcomeDone': status.welcomeDone,
@@ -305,6 +310,43 @@ class DemoMoneyRepository implements MoneyRepository {
   Future<void> saveSources(List<Map<String, dynamic>> sources) async {
     await _write();
     await store.update(userId, (state) => state.withSources(sources));
+  }
+
+  /// Como el servidor: el saldo dicho reemplaza al anterior y, si la plata cambió (en pesos
+  /// enteros), queda un ajuste con la de antes. Los fijos no escriben (DEMO_NO_BACKEND).
+  @override
+  Future<void> saveProfile(Map<String, dynamic> body) async {
+    await _write();
+    final balance = readMoney(body['balance']);
+    if (balance == null) return;
+    final now = clock();
+    await store.update(userId, (state) {
+      final before = demoWelcomeStatus(scenario, state).money;
+      final changed = body['resetBalance'] == true && before != null && before.round() != balance.round();
+      return state.withBalance(
+        balance,
+        adjustment: changed
+            ? {
+                'id': 'demo-ajuste-${state.adjustments.length + 1}',
+                'before': before,
+                'after': balance,
+                'date': isoDay(now),
+                'createdAt': now.toUtc().toIso8601String(),
+              }
+            : null,
+      );
+    });
+  }
+
+  @override
+  Future<List<BalanceAdjustment>> adjustments({required String from, required String to}) async {
+    final state = await _read(DemoMoneyOperation.adjustments);
+    return BalanceAdjustment.listFromJson({
+      'data': [
+        for (final a in state.adjustments.reversed)
+          if ('${a['date']}'.compareTo(from) >= 0 && '${a['date']}'.compareTo(to) <= 0) a,
+      ],
+    });
   }
 
   @override

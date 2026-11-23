@@ -1,13 +1,17 @@
 // Mi plata, bloque 4A: la tarjeta «Cómo te entra la plata» y su hoja (vista y edición), con todos
 // sus estados, errores por campo, la PILA, montos ocultos y letra al doble en 320 de ancho.
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart' show SynchronousFuture;
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:rinde_mobile/app/routes.dart';
+import 'package:rinde_mobile/core/i18n/tr.dart';
 import 'package:rinde_mobile/core/network/api_exception.dart';
 import 'package:rinde_mobile/core/region/region.dart';
 import 'package:rinde_mobile/core/region/region_provider.dart';
@@ -18,11 +22,17 @@ import 'package:rinde_mobile/design/widgets/rinde_skeleton.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/home/application/home_providers.dart';
+import 'package:rinde_mobile/features/home/data/home_models.dart';
 import 'package:rinde_mobile/features/home/data/home_repository.dart';
 import 'package:rinde_mobile/features/money/application/money_providers.dart';
 import 'package:rinde_mobile/features/money/data/money_models.dart';
 import 'package:rinde_mobile/features/money/data/money_repository.dart';
 import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
+import 'package:rinde_mobile/features/money/presentation/widgets/income_overview_card.dart';
+import 'package:rinde_mobile/features/money/presentation/widgets/money_shortcuts.dart';
+import 'package:rinde_mobile/features/money/presentation/widgets/money_left_card.dart';
+import 'package:rinde_mobile/features/money/presentation/widgets/top_budgets.dart';
+import 'package:rinde_mobile/features/movements/application/movement_saver.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
 import 'package:rinde_mobile/features/onboarding/domain/income_sources.dart';
 import 'package:rinde_mobile/features/onboarding/domain/onboarding_draft.dart';
@@ -54,6 +64,20 @@ const _stale = 'Lo que ves puede estar desactualizado: es lo último que llegó.
 late FakeMoneyRepository repo;
 late FakeHomeRepository home;
 
+const _destinations = [
+  Routes.fixBalance,
+  Routes.expenses,
+  Routes.budgets,
+  Routes.calendar,
+  Routes.debts,
+  Routes.cards,
+  Routes.toConfirm,
+  Routes.insights,
+  Routes.export,
+  Routes.renta,
+  Routes.liquidity,
+];
+
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
   Size size = const Size(390, 844),
@@ -74,6 +98,12 @@ Future<ProviderContainer> _pump(
         builder: (_, _) => const Scaffold(body: Text('INICIO')),
       ),
       GoRoute(path: Routes.myMoney, builder: (_, _) => const MyMoneyScreen()),
+      // Los demás destinos: un marcador con su ruta.
+      for (final path in _destinations)
+        GoRoute(
+          path: path,
+          builder: (_, _) => Scaffold(body: Text('RUTA $path')),
+        ),
     ],
   );
   addTearDown(router.dispose);
@@ -88,6 +118,7 @@ Future<ProviderContainer> _pump(
         clockProvider.overrideWithValue(() => DateTime(2026, 11, 22, 10)),
         initialHiddenAmountsProvider.overrideWithValue(hidden),
         initialRegionProvider.overrideWithValue(region),
+        translationsProvider.overrideWithValue(_translations()),
         draftStoreProvider.overrideWithValue(drafts ?? MemoryDraftStore()),
       ],
       child: MaterialApp.router(
@@ -106,6 +137,17 @@ Future<ProviderContainer> _pump(
   await tester.pumpAndSettle();
   return ProviderScope.containerOf(tester.element(find.text('INICIO', skipOffstage: false)));
 }
+
+/// Las traducciones que lleva la app (assets/l10n).
+Translations _translations() => Translations({
+  for (final language in const ['en', 'pt'])
+    language: (jsonDecode(File('assets/l10n/$language.json').readAsStringSync()) as Map).map(
+      (k, v) => MapEntry('$k', '$v'),
+    ),
+});
+
+/// Solo dentro de «Cómo te entra la plata»: arriba están la plata y los presupuestos.
+Finder _inCard(Finder finder) => find.descendant(of: find.byType(IncomeOverviewCard), matching: finder);
 
 Future<void> _tap(WidgetTester tester, Finder target) async {
   await tester.ensureVisible(target);
@@ -137,8 +179,8 @@ void main() {
       await _pump(tester);
       expect(find.text('Mi plata'), findsOneWidget);
       expect(find.byType(RindeSkeleton), findsWidgets);
-      expect(find.bySemanticsLabel('Cargando…'), findsOneWidget);
-      expect(find.textContaining(r'$'), findsNothing);
+      expect(_inCard(find.bySemanticsLabel('Cargando…')), findsOneWidget);
+      expect(_inCard(find.textContaining(r'$')), findsNothing);
       handle.dispose();
     });
 
@@ -550,7 +592,7 @@ void main() {
     final handle = tester.ensureSemantics();
     await _pump(tester, hidden: true);
     expect(find.textContaining('700'), findsNothing);
-    expect(find.textContaining('••••••'), findsOneWidget);
+    expect(_inCard(find.textContaining('••••••')), findsOneWidget);
     await _tap(tester, find.text('Ver más'));
     for (final digits in ['700', '650', '600', '2.250', '499']) {
       expect(find.textContaining(digits), findsNothing, reason: digits);
@@ -593,4 +635,370 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('¿Hasta cuándo te alcanza? (bloque 4B)', () {
+    final money = find.byType(MoneyLeftSection);
+    Finder inMoney(Finder finder) => find.descendant(of: money, matching: finder);
+
+    testWidgets('plan listo: lo que te queda del plan (no del perfil), alcance, ritmo, ingresos y gastos', (
+      tester,
+    ) async {
+      home.onPlan = () async => planOf(money: 412300);
+      repo.onProfile = () async => const MoneyProfile(welcomeDone: true, money: 400000);
+      await _pump(tester);
+      expect(find.text('¿Hasta cuándo te alcanza?'), findsOneWidget);
+      expect(find.text('LO QUE TE QUEDA · NOVIEMBRE'), findsOneWidget);
+      expect(inMoney(find.text(_m(412300))), findsOneWidget);
+      expect(find.text(_m(400000)), findsNothing);
+      expect(find.text('Alcanza todo el mes'), findsOneWidget);
+      expect(find.text('1 nov'), findsOneWidget);
+      expect(find.text('30 nov'), findsOneWidget);
+      // 287.700 gastados al día 22: 13.077 al día.
+      expect(
+        find.text('Gastas en promedio ${_m(13077)} al día. Ingresos ${_m(700000)} · Gastos ${_m(287700)}.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Ojo con el'), findsNothing);
+      await _tap(tester, find.text('¿No es tu plata real? Corrígela'));
+      expect(find.text('RUTA ${Routes.fixBalance}'), findsOneWidget);
+    });
+
+    testWidgets('sin plan, o con el plan fallando: la plata del perfil, sin aviso de error', (tester) async {
+      repo.onProfile = () async => const MoneyProfile(welcomeDone: true, money: 400000);
+      for (final plan in <Future<MoneyPlan> Function()>[
+        () async => const MoneyPlan.notReady(),
+        () async => throw serverError,
+      ]) {
+        home.onPlan = plan;
+        await _pump(tester);
+        expect(inMoney(find.text(_m(400000))), findsOneWidget);
+        expect(find.text('No pudimos traer todos tus datos.'), findsNothing);
+      }
+    });
+
+    testWidgets('sin plan, tras anotar un movimiento: la plata del perfil se vuelve a pedir', (tester) async {
+      home.onPlan = () async => const MoneyPlan.notReady();
+      repo.onProfile = () async => const MoneyProfile(welcomeDone: true, money: 400000);
+      final c = await _pump(tester);
+      expect(inMoney(find.text(_m(400000))), findsOneWidget);
+      repo.onProfile = () async => const MoneyProfile(welcomeDone: true, money: 350000);
+      afterMovementChange(c);
+      await tester.pumpAndSettle();
+      expect(inMoney(find.text(_m(350000))), findsOneWidget);
+    });
+
+    for (final (region, question, more, budgets, fix, enough) in const [
+      (
+        Region(country: 'US', currency: 'USD', language: 'en'),
+        'How long will your money last?',
+        'More of your money',
+        'Budgets',
+        'Not your real money? Fix it',
+        'Enough for the whole month',
+      ),
+      (
+        Region(country: 'BR', currency: 'BRL', language: 'pt'),
+        'Até quando o dinheiro dá?',
+        'Mais do seu dinheiro',
+        'Orçamentos',
+        'Não é seu dinheiro real? Corrija',
+        'Dá para o mês todo',
+      ),
+    ]) {
+      testWidgets('en ${region.language} con ${region.currency}: sus textos y la plata en su formato', (
+        tester,
+      ) async {
+        home.onPlan = () async => planOf(money: 412300);
+        await _pump(tester, region: region);
+        expect(find.text(question), findsOneWidget);
+        expect(inMoney(find.text(formatFor(region).money(412300))), findsOneWidget);
+        expect(find.text(enough), findsOneWidget);
+        expect(find.text(fix), findsOneWidget);
+        await tester.ensureVisible(find.text(more));
+        expect(
+          find.descendant(of: find.byType(MoneyShortcuts), matching: find.text(budgets)),
+          findsOneWidget,
+        );
+        expect(find.text('¿Hasta cuándo te alcanza?'), findsNothing);
+      });
+    }
+
+    testWidgets('sin ingresos ni gastos del mes: la cifra sin alcance ni línea', (tester) async {
+      home.onPlan = () async => planOf(money: 412300);
+      home.onTotals = (_) async => throw serverError;
+      await _pump(tester);
+      expect(inMoney(find.text(_m(412300))), findsOneWidget);
+      expect(find.textContaining('Alcanza'), findsNothing);
+      expect(find.textContaining('Gastas en promedio'), findsNothing);
+    });
+
+    testWidgets('plata desconocida: «—» y por qué, nunca un cero', (tester) async {
+      home.onPlan = () async => const MoneyPlan.notReady();
+      await _pump(tester);
+      expect(inMoney(find.text('—')), findsOneWidget);
+      expect(find.text('Anota tu primer ingreso para saber hasta cuándo te alcanza.'), findsOneWidget);
+      expect(inMoney(find.text(_m(0))), findsNothing);
+    });
+
+    testWidgets('mientras carga: esqueleto que dice «Cargando…», sin cifras', (tester) async {
+      final handle = tester.ensureSemantics();
+      repo.onProfile = () => Completer<MoneyProfile>().future;
+      home.onPlan = () => Completer<MoneyPlan>().future;
+      await _pump(tester);
+      expect(inMoney(find.bySemanticsLabel('Cargando…')), findsOneWidget);
+      expect(inMoney(find.textContaining(r'$')), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('si el perfil falla: «—», «No pudimos traer tu plata.» y «Reintentar» lo vuelve a pedir', (
+      tester,
+    ) async {
+      var fail = true;
+      home.onPlan = () async => const MoneyPlan.notReady();
+      repo.onProfile = () async {
+        if (fail) throw serverError;
+        return const MoneyProfile(welcomeDone: true, money: 400000);
+      };
+      await _pump(tester);
+      expect(inMoney(find.text('—')), findsOneWidget);
+      expect(find.text('No pudimos traer tu plata.'), findsOneWidget);
+      expect(inMoney(find.text('No pudimos traer todos tus datos.')), findsOneWidget);
+      fail = false;
+      await _tap(tester, inMoney(find.text('Reintentar')));
+      expect(inMoney(find.text(_m(400000))), findsOneWidget);
+      expect(find.text('No pudimos traer todos tus datos.'), findsNothing);
+    });
+
+    testWidgets('sin conexión: lo dice, sin cifra', (tester) async {
+      home.onPlan = () async => throw offlineError;
+      repo.onProfile = () async => throw offlineError;
+      await _pump(tester);
+      expect(find.text('No pudimos traer tu plata porque no hay conexión.'), findsOneWidget);
+    });
+
+    testWidgets('negativa: la cifra con su signo y la nota que lleva a revisar los gastos', (tester) async {
+      home.onPlan = () async => planOf(money: -35000);
+      await _pump(tester);
+      expect(inMoney(find.text(_m(-35000))), findsOneWidget);
+      await _tap(tester, find.textContaining('Tus gastos superan lo que tienes. ¿Anotaste algo mal?'));
+      expect(find.text('RUTA ${Routes.expenses}'), findsOneWidget);
+    });
+
+    testWidgets('«Ojo con el…»: el primer pago que a este ritmo no alcanza, con su día y su monto', (
+      tester,
+    ) async {
+      home.onPlan = () async => planOf(money: 50000);
+      repo.onProfile = () async => const MoneyProfile(
+        welcomeDone: true,
+        money: 50000,
+        commitments: [
+          Commitment(id: '1', name: 'Arriendo', amount: 900000, dayOfMonth: 5),
+          Commitment(id: '2', name: 'Seguro', amount: 1200000, dayOfMonth: 27, frequency: 'yearly', month: 3),
+          Commitment(id: '3', name: 'Internet', amount: 65000, dayOfMonth: 28),
+        ],
+      );
+      await _pump(tester);
+      expect(find.text('Alcanza hasta el 25 nov'), findsOneWidget);
+      expect(
+        find.text(
+          'Ojo con el 28 de noviembre. Vence Internet (${_m(65000)}) y a este ritmo no alcanza. Anota los '
+          'ingresos que esperas o baja algún presupuesto.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('un refresco que falla deja lo último y avisa que puede estar desactualizado', (
+      tester,
+    ) async {
+      home.onPlan = () async => const MoneyPlan.notReady();
+      repo.onProfile = () async => const MoneyProfile(welcomeDone: true, money: 400000);
+      final c = await _pump(tester);
+      repo.onProfile = () async => throw offlineError;
+      c.invalidate(moneyProfileProvider);
+      await tester.pumpAndSettle();
+      expect(inMoney(find.text(_m(400000))), findsOneWidget);
+      expect(inMoney(find.text(_stale)), findsOneWidget);
+    });
+
+    testWidgets('halar para recargar vuelve a pedir todo lo de la pantalla', (tester) async {
+      await _pump(tester);
+      (int, int, int, int, int) counts() => (
+        repo.count('profile'),
+        home.count('plan'),
+        home.count('monthTotals'),
+        home.count('budgets'),
+        repo.count('income'),
+      );
+      expect(counts(), (1, 1, 1, 1, 1));
+      await tester.fling(find.byType(ListView).first, const Offset(0, 400), 1200);
+      await tester.pumpAndSettle();
+      expect(counts(), (2, 2, 2, 2, 2));
+    });
+  });
+
+  group('presupuestos y «Más de tu plata» (bloque 4B)', () {
+    const names = {
+      'vivienda': 'Vivienda',
+      'alimentacion': 'Alimentación',
+      'transporte': 'Transporte',
+      'salud': 'Salud',
+    };
+    final four = [
+      budgetOf(BudgetLevel.warning, percentage: 89),
+      budgetOf(
+        BudgetLevel.exceeded,
+        category: 'alimentacion',
+        amount: 200000,
+        consumed: 248000,
+        percentage: 124,
+      ),
+      budgetOf(BudgetLevel.none, category: 'transporte', amount: 300000, consumed: 90000, percentage: 30),
+      budgetOf(BudgetLevel.warning, category: 'salud', amount: 100000, consumed: 95000, percentage: 95),
+    ];
+
+    testWidgets('los 3 con más consumo, de más a menos, y «+ 1 presupuesto más»', (tester) async {
+      home.onBudgets = () async => four;
+      home.onCategoryNames = () async => names;
+      await _pump(tester);
+      final rows = [
+        for (final name in ['Alimentación', 'Salud', 'Vivienda']) tester.getTopLeft(find.text(name)).dy,
+      ];
+      expect(rows, orderedEquals([...rows]..sort()));
+      expect(find.text('Transporte'), findsNothing);
+      expect(find.text('${_m(248000)} de ${_m(200000)} · 124 %'), findsOneWidget);
+      expect(find.text('+ 1 presupuesto más'), findsOneWidget);
+      await _tap(tester, find.text('Ver y editar'));
+      expect(find.text('RUTA ${Routes.budgets}'), findsOneWidget);
+    });
+
+    testWidgets('sin presupuestos: la invitación; si fallan: el aviso con «Reintentar», nunca «Cargando…»', (
+      tester,
+    ) async {
+      await _pump(tester);
+      expect(find.text('Aún no tienes presupuestos. Ponle un tope a lo que más gastas.'), findsOneWidget);
+
+      var fail = true;
+      home.onBudgets = () async {
+        if (fail) throw serverError;
+        return four;
+      };
+      await _pump(tester);
+      final section = find.byType(TopBudgets);
+      expect(
+        find.descendant(of: section, matching: find.text('No pudimos traer todos tus datos.')),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: section, matching: find.bySemanticsLabel('Cargando…')), findsNothing);
+      fail = false;
+      await _tap(tester, find.descendant(of: section, matching: find.text('Reintentar')));
+      expect(find.text('+ 1 presupuesto más'), findsOneWidget);
+    });
+
+    testWidgets('«Más de tu plata»: los 9 accesos de la web, cada uno a su ruta', (tester) async {
+      for (final (label, hint, route) in [
+        ('Presupuestos', 'Topes por categoría', Routes.budgets),
+        ('Calendario', 'Pagos fijos del mes', Routes.calendar),
+        ('Cuentas', 'Lo que te deben y debes', Routes.debts),
+        ('Tarjetas', 'Cupo y fechas de pago', Routes.cards),
+        ('Por confirmar', 'Gastos que llegaron solos', Routes.toConfirm),
+        ('Consejos', 'Tu semana y la IA', Routes.insights),
+        ('Exportar', 'Excel o PDF', Routes.export),
+        ('Renta y DIAN', 'Si te toca declarar', Routes.renta),
+        ('Próximos días', 'Lo que entra y sale', Routes.liquidity),
+      ]) {
+        await _pump(tester);
+        expect(find.text('Más de tu plata'), findsOneWidget);
+        expect(find.text(hint), findsOneWidget, reason: label);
+        await _tap(tester, find.text(hint));
+        expect(find.text('RUTA $route'), findsOneWidget, reason: label);
+      }
+    });
+
+    testWidgets('«Más de tu plata»: dos columnas solo si cada palabra cabe entera; ninguna se parte', (
+      tester,
+    ) async {
+      final grid = find.byType(MoneyShortcuts);
+      for (final (size, scale, twoColumns) in [
+        (const Size(800, 1200), 1.0, true),
+        (const Size(800, 1200), 1.3, false),
+        (const Size(320, 568), 1.0, null),
+        (const Size(360, 640), 1.3, null),
+        (const Size(390, 844), 1.15, null),
+      ]) {
+        final at = '$size ×$scale';
+        await _pump(tester, size: size, textScale: scale);
+        await tester.ensureVisible(find.text('Más de tu plata'));
+        await tester.pumpAndSettle();
+        if (twoColumns != null) {
+          double top(String label) =>
+              tester.getTopLeft(find.descendant(of: grid, matching: find.text(label))).dy;
+          expect(top('Calendario') == top('Presupuestos'), twoColumns, reason: at);
+        }
+        for (final element in find.descendant(of: grid, matching: find.byType(RichText)).evaluate()) {
+          final text = element.renderObject! as RenderParagraph;
+          expect(
+            text.getMinIntrinsicWidth(double.infinity),
+            lessThanOrEqualTo(text.constraints.maxWidth + 0.01),
+            reason: '$at: ${text.text.toPlainText()}',
+          );
+        }
+      }
+    });
+
+    testWidgets('montos ocultos: la plata, el ritmo y los presupuestos sin un dígito', (tester) async {
+      final handle = tester.ensureSemantics();
+      home.onBudgets = () async => four;
+      home.onCategoryNames = () async => names;
+      await _pump(tester, hidden: true);
+      for (final digits in ['412', '13.077', '287', '248', '200.000']) {
+        expect(find.textContaining(digits), findsNothing, reason: digits);
+      }
+      // El porcentaje no es un monto: se ve.
+      expect(find.textContaining('124 %'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Alimentación, .*Monto oculto')), findsOneWidget);
+      handle.dispose();
+    });
+
+    for (final (name, theme) in [('claro', RindeTheme.light), ('oscuro', RindeTheme.dark)]) {
+      testWidgets('320 de ancho y letra al doble con todo lleno, tema $name: nada se desborda', (
+        tester,
+      ) async {
+        home.onPlan = () async => planOf(money: -9999999999);
+        home.onTotals = (date) async => totalsOf(income: 9999999999, expense: 9999999999);
+        home.onBudgets = () async => [
+          for (final b in four)
+            budgetOf(
+              b.level,
+              category: b.category,
+              amount: 9999999999,
+              consumed: 9999999999,
+              percentage: 100,
+            ),
+        ];
+        home.onCategoryNames = () async => {
+          for (final key in names.keys) key: 'Una categoría con un nombre larguísimo de verdad $key',
+        };
+        repo.onProfile = () async => MoneyProfile(
+          welcomeDone: true,
+          money: -9999999999,
+          commitments: [
+            Commitment(
+              id: '1',
+              name: 'Un pago con un nombre larguísimo ' * 2,
+              amount: 9999999999,
+              dayOfMonth: 31,
+            ),
+          ],
+        );
+        await _pump(tester, size: const Size(320, 568), textScale: 2, theme: theme);
+        expect(find.textContaining('Ojo con el 30 de noviembre.'), findsOneWidget);
+        for (final target in [find.text('Más de tu plata'), find.text('Excel o PDF')]) {
+          await tester.ensureVisible(target);
+          await tester.pumpAndSettle();
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
 }

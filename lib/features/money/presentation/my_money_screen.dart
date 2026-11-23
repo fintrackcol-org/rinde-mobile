@@ -1,18 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/i18n/tr.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
 import '../../auth/application/session_controller.dart';
+import '../../auth/data/auth_models.dart';
 import '../../home/application/home_providers.dart';
 import '../../shell/presentation/pushed_frame.dart';
 import '../application/money_providers.dart';
 import 'widgets/income_overview_card.dart';
+import 'widgets/money_left_card.dart';
+import 'widgets/money_shortcuts.dart';
+import 'widgets/top_budgets.dart';
 
 /// `/app/mi-plata` (MiPlata.jsx, variante de celular). Se abre encima, sin barra; sin pantalla
-/// anterior, atrás va al Inicio (backPath de la web). Cada parte es su propia sección: la plata y los
-/// accesos (4B) van arriba de «Cómo te entra la plata» y los pagos del mes (4C) aparte.
+/// anterior, atrás va al Inicio (backPath de la web). Cada parte es su propia sección, en el orden de
+/// la web; cada una muestra su propio estado de carga y error.
 class MyMoneyScreen extends ConsumerWidget {
   const MyMoneyScreen({super.key});
 
@@ -20,14 +25,34 @@ class MyMoneyScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(trProvider);
     final p = context.palette;
-    final account = ref.watch(accountProvider);
-    const sections = <Widget>[IncomeOverviewCard()];
 
-    // Termina cuando todo respondió, bien o mal: cada sección muestra su propio estado.
+    // Todo lo de la pantalla. Termina cuando todo respondió, bien o mal.
     Future<void> refresh() {
       ref.read(todayProvider.notifier).sync();
-      return ref.refresh(incomeOverviewProvider(account).future).then<void>((_) {}, onError: (_) {});
+      // Que el día nuevo llegue antes de refrescar: así se suelta lo del mes pasado.
+      ref.read(todayProvider);
+      final account = ref.read(accountProvider);
+      Future<void> again<T>(FutureProviderFamily<T, Session?> provider) =>
+          ref.refresh(provider(account).future).then<void>((_) {}, onError: (_) {});
+      // Los nombres no se esperan (como en el Inicio).
+      ref.invalidate(homeCategoryNamesProvider(account));
+      return Future.wait([
+        again(moneyProfileProvider),
+        again(homePlanProvider),
+        again(homeTotalsProvider),
+        again(homeBudgetsProvider),
+        again(incomeOverviewProvider),
+      ]);
     }
+
+    final sections = <Widget>[
+      MoneyLeftSection(onRetry: refresh),
+      // 4C: aquí va el aviso de pagos pendientes («Ya lo pagué»).
+      const TopBudgets(),
+      // 4C: aquí van «Pagos fijos del mes».
+      const IncomeOverviewCard(),
+      const MoneyShortcuts(),
+    ];
 
     return PushedFrame(
       title: t('Mi plata'),
@@ -47,7 +72,7 @@ class MyMoneyScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final (i, section) in sections.indexed) ...[
-                      if (i > 0) const SizedBox(height: RindeSpace.s4),
+                      if (i > 0) const SizedBox(height: RindeSpace.s5),
                       section,
                     ],
                   ],

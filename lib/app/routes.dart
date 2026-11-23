@@ -36,6 +36,14 @@ abstract final class Routes {
   static const cards = '/app/tarjetas';
   static String card(String id) => '/app/tarjetas/$id';
 
+  // Accesos de «Más de tu plata» (MiPlata.jsx).
+  static const calendar = '/app/calendario';
+  static const debts = '/app/cuentas';
+  static const insights = '/app/insights';
+  static const export = '/app/transacciones/exportar';
+  static const renta = '/app/renta';
+  static const liquidity = '/app/liquidez';
+
   /// Detalle y edición de un movimiento (como la web).
   static String movement(String id) => '/app/transacciones/${Uri.encodeComponent(id)}';
   static String editMovement(String id) => '${movement(id)}/editar';

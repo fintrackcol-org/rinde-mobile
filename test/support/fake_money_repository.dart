@@ -7,13 +7,16 @@ class FakeMoneyRepository implements MoneyRepository {
   final calls = <String>[];
   final sentSources = <List<Map<String, dynamic>>>[];
   final sentCommitments = <Map<String, dynamic>>[];
+  final sentProfiles = <Map<String, dynamic>>[];
 
   Future<MoneyProfile> Function() onProfile = () async => const MoneyProfile(welcomeDone: true);
   Future<IncomeOverview> Function() onIncome = () async => incomeOf();
   Future<void> Function(List<Map<String, dynamic>> sources) onSaveSources = (_) async {};
   Future<void> Function(Map<String, dynamic> body) onCreateCommitment = (_) async {};
+  Future<void> Function(Map<String, dynamic> body) onSaveProfile = (_) async {};
+  Future<List<BalanceAdjustment>> Function(String from, String to) onAdjustments = (_, _) async => const [];
 
-  int count(String call) => calls.where((c) => c == call).length;
+  int count(String call) => calls.where((c) => c == call || c.startsWith('$call ')).length;
 
   @override
   bool get isDemo => false;
@@ -42,6 +45,19 @@ class FakeMoneyRepository implements MoneyRepository {
     calls.add('createCommitment');
     sentCommitments.add(body);
     return onCreateCommitment(body);
+  }
+
+  @override
+  Future<void> saveProfile(Map<String, dynamic> body) {
+    calls.add('saveProfile');
+    sentProfiles.add(body);
+    return onSaveProfile(body);
+  }
+
+  @override
+  Future<List<BalanceAdjustment>> adjustments({required String from, required String to}) {
+    calls.add('adjustments $from $to');
+    return onAdjustments(from, to);
   }
 }
 

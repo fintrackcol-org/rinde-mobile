@@ -8,6 +8,7 @@ import 'package:rinde_mobile/core/network/api_exception.dart';
 import 'package:rinde_mobile/core/network/session_holder.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
+import 'package:rinde_mobile/features/home/data/home_repository.dart';
 import 'package:rinde_mobile/features/money/data/money_models.dart';
 import 'package:rinde_mobile/features/money/data/money_repository.dart';
 import 'package:rinde_mobile/features/money/domain/income_rules.dart';
@@ -322,6 +323,118 @@ void main() {
         const IncomeSource(id: 'x', kind: IncomeKind.diario, frequency: 'diario', amount: 50000, workDays: 2),
       );
       expect((form.workDays, form.frequency, form.amount), ('6', 'mensual', '50000'));
+    });
+  });
+
+  group('bloque 4B', () {
+    test('GET /money-profile/plan trae `ledger`; sin plan queda null, nunca 0', () async {
+      final ready = await ApiHomeRepository(
+        ApiClient(
+          config: _qa,
+          session: holder,
+          adapter: FakeHttpAdapter(
+            (_) => jsonBody(200, {
+              'ready': true,
+              'money': 412300,
+              'ledger': 405000.5,
+              'pendingTotal': 338000,
+              'free': 74300,
+              'shortfall': 0,
+              'pace': 13700,
+              'hasCommitments': true,
+              'pending': const <Object>[],
+              'saveAdvice': 0,
+              'mode': 'runway',
+              'runwayDays': null,
+            }),
+          ),
+        ),
+      ).plan();
+      expect(ready.ledger, 405000.5);
+      final notReady = await ApiHomeRepository(
+        ApiClient(
+          config: _qa,
+          session: holder,
+          adapter: FakeHttpAdapter((_) => jsonBody(200, {'ready': false})),
+        ),
+      ).plan();
+      expect(notReady.ledger, isNull);
+    });
+
+    test(
+      'GET /money-profile/adjustments pide el periodo y lee cada ajuste; lo mal formado se descarta',
+      () async {
+        final adapter = FakeHttpAdapter(
+          (_) => jsonBody(200, {
+            'data': [
+              {
+                'id': 'aj2',
+                'before': 650000,
+                'after': 500000.25,
+                'date': '2026-11-20',
+                'createdAt': '2026-11-20T15:00:00Z',
+              },
+              {
+                'id': 'aj1',
+                'before': 0,
+                'after': 120000,
+                'date': '2026-11-03',
+                'createdAt': '2026-11-03T12:00:00Z',
+              },
+              {'id': 'malo', 'before': 1, 'after': 2, 'date': '20/11/2026'},
+              {'id': 'sin-monto', 'before': null, 'after': 2, 'date': '2026-11-01'},
+            ],
+          }),
+        );
+        final list = await repo(adapter).adjustments(from: '2026-11-01', to: '2026-11-30');
+        final request = adapter.requests.single;
+        expect(
+          '${request.method} ${request.uri}',
+          'GET $_base/money-profile/adjustments?from=2026-11-01&to=2026-11-30',
+        );
+        expect(request.headers['Authorization'], 'Bearer acceso');
+        expect(
+          [for (final a in list) (a.id, a.before, a.after, a.date)],
+          [('aj2', 650000, 500000.25, '2026-11-20'), ('aj1', 0, 120000, '2026-11-03')],
+        );
+        expect(list.first.difference, -149999.75);
+      },
+    );
+
+    test('GET /money-profile/adjustments con una fecha mal escrita: el 422 con su campo', () async {
+      final adapter = FakeHttpAdapter(
+        (_) => errorBody(
+          422,
+          'VALIDATION_ERROR',
+          'Datos inválidos',
+          details: [
+            {'field': 'from', 'problem': 'Debe ser una fecha AAAA-MM-DD'},
+          ],
+        ),
+      );
+      await expectLater(
+        repo(adapter).adjustments(from: '2026-13-01', to: '2026-11-30'),
+        throwsA(
+          isA<ApiException>().having((e) => e.status, 'status', 422).having((e) => e.fields, 'campos', {
+            'from': 'Debe ser una fecha AAAA-MM-DD',
+          }),
+        ),
+      );
+    });
+
+    test('PUT /money-profile manda el cuerpo tal cual, con token', () async {
+      final adapter = FakeHttpAdapter((_) => jsonBody(200, _profile));
+      const body = {
+        'incomeType': 'fecha_fija',
+        'payDays': [15, 30],
+        'balance': 500000.5,
+        'resetBalance': true,
+      };
+      await repo(adapter).saveProfile(body);
+      final request = adapter.requests.single;
+      expect('${request.method} ${request.uri}', 'PUT $_base/money-profile');
+      expect(request.headers['Authorization'], 'Bearer acceso');
+      expect(request.data, body);
     });
   });
 }

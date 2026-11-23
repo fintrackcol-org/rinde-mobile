@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_models.dart' show ContractException;
-import '../../home/application/home_providers.dart' show clockProvider, invalidateHome;
+import '../../home/application/home_providers.dart' show clockProvider;
+import '../../money/application/money_providers.dart' show afterMoneyChange;
 import '../data/json_list_store.dart';
 import '../data/movements_repository.dart';
 import '../domain/movement.dart';
@@ -215,13 +216,14 @@ class PendingMovements extends AsyncNotifier<PendingState> {
 
 final pendingMovementsProvider = AsyncNotifierProvider<PendingMovements, PendingState>(PendingMovements.new);
 
-/// Lo que cambia tras guardar, editar o borrar: la lista, el detalle y todo el Inicio.
+/// Lo que cambia tras guardar, editar o borrar: la lista, el detalle, todo el Inicio y Mi plata (la plata
+/// del perfil sale de los movimientos).
 void afterMovementChange(ProviderContainer container) {
   if (container.read(movementsControllerProvider.exists)) {
     unawaited(container.read(movementsControllerProvider.notifier).refresh());
   }
   container.invalidate(movementDetailProvider);
-  invalidateHome(container.invalidate);
+  afterMoneyChange(container);
 }
 
 /// Guarda, edita y borra movimientos.

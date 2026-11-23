@@ -176,6 +176,7 @@ class DemoState {
     this.incomeType,
     this.payDays = const [],
     this.sources = const [],
+    this.adjustments = const [],
   });
 
   factory DemoState.fromJson(Object? raw) {
@@ -197,6 +198,11 @@ class DemoState {
       sources: [
         if (raw['sources'] case final List<dynamic> sources)
           for (final item in sources)
+            if (item is Map) Map<String, dynamic>.from(item),
+      ],
+      adjustments: [
+        if (raw['adjustments'] case final List<dynamic> adjustments)
+          for (final item in adjustments)
             if (item is Map) Map<String, dynamic>.from(item),
       ],
     );
@@ -221,6 +227,9 @@ class DemoState {
   /// Las fuentes de ingreso tal como las recibió PUT /money-profile/sources.
   final List<Map<String, dynamic>> sources;
 
+  /// Correcciones de saldo `{id, before, after, date, createdAt}`, de la más vieja a la más nueva.
+  final List<Map<String, dynamic>> adjustments;
+
   Map<String, dynamic> toJson() => {
     'welcomeDone': welcomeDone,
     'tutorialDone': tutorialDone,
@@ -230,6 +239,7 @@ class DemoState {
     'incomeType': incomeType,
     'payDays': payDays,
     'sources': sources,
+    'adjustments': adjustments,
   };
 
   /// Los montos fijos de los escenarios están pensados en pesos colombianos. Con otra moneda se
@@ -247,6 +257,7 @@ class DemoState {
     incomeType: incomeType,
     payDays: payDays,
     sources: sources,
+    adjustments: adjustments,
   );
 
   /// POST /money-profile/tutorial.
@@ -259,6 +270,7 @@ class DemoState {
     incomeType: incomeType,
     payDays: payDays,
     sources: sources,
+    adjustments: adjustments,
   );
 
   /// POST /money-profile/welcome.
@@ -277,6 +289,7 @@ class DemoState {
       incomeType: answered ? body['incomeType'] as String? : incomeType,
       payDays: answered ? _ints(body['payDays']) : payDays,
       sources: sources,
+      adjustments: adjustments,
       commitments: [
         ...commitments,
         // ON CONFLICT (lower(nombre)) DO NOTHING: un nombre que ya está no cambia de monto ni se repite.
@@ -309,8 +322,22 @@ class DemoState {
           : 'fecha_fija',
       payDays: days.take(4).toList(),
       sources: sources,
+      adjustments: adjustments,
     );
   }
+
+  /// PUT /money-profile con `resetBalance` (Corregir saldo): el saldo nuevo y, si cambió, su ajuste.
+  DemoState withBalance(num balance, {Map<String, dynamic>? adjustment}) => DemoState(
+    welcomeDone: welcomeDone,
+    tutorialDone: tutorialDone,
+    region: region,
+    balance: balance,
+    commitments: commitments,
+    incomeType: incomeType,
+    payDays: payDays,
+    sources: sources,
+    adjustments: [...adjustments, ?adjustment],
+  );
 
   /// POST /money-profile/commitments desde Mi plata (el nombre repetido ya lo descartó quien llama).
   DemoState withCommitment(Map<String, dynamic> commitment) => DemoState(
@@ -322,6 +349,7 @@ class DemoState {
     incomeType: incomeType,
     payDays: payDays,
     sources: sources,
+    adjustments: adjustments,
   );
 }
 

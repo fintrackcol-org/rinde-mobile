@@ -320,4 +320,58 @@ void main() {
       expect((await repo.income()).sources, isEmpty);
     });
   });
+
+  group('Corregir saldo en la demostración (bloque 4B)', () {
+    test('escenarios fijos: «Modo demostración…», el saldo no cambia y no hay ajustes', () async {
+      for (final scenario in _expected.keys) {
+        final c = await open(scenario.name);
+        final repo = c.read(moneyRepositoryProvider);
+        final opened = await repo.profile();
+        await expectLater(
+          c.read(moneyWriterProvider).saveBalance(opened, 1),
+          throwsA(isA<ApiException>().having((e) => e.code, 'code', ApiCodes.demoNoBackend)),
+          reason: scenario.name,
+        );
+        expect((await repo.profile()).money, opened.money, reason: scenario.name);
+        expect(await repo.adjustments(from: '2026-11-01', to: '2026-11-30'), isEmpty);
+      }
+    });
+
+    test('recorrido: el saldo queda, deja su ajuste en Movimientos y el plan del Inicio cambia', () async {
+      // Con movimientos (2.500.000 − 1.850.000 = 650.000) y ya con fecha de pago.
+      await store.write(
+        'demo-movimientos',
+        const DemoState(welcomeDone: true, incomeType: 'fecha_fija', payDays: [30]),
+      );
+      final c = await open('movimientos');
+      final account = c.read(accountProvider);
+      final repo = c.read(moneyRepositoryProvider);
+      c.listen(homePlanProvider(account), (_, _) {});
+      expect((await c.read(homePlanProvider(account).future)).money, 650000);
+      final opened = await repo.profile();
+      expect((opened.money, opened.balance, opened.version), (650000, null, null));
+
+      await c.read(moneyWriterProvider).saveBalance(opened, 500000.5);
+      final profile = await repo.profile();
+      expect((profile.money, profile.balance), (500000.5, 500000.5));
+      expect(profile.balanceAt, _now.toUtc().toIso8601String());
+      expect((await c.read(homePlanProvider(account).future)).money, 500000.5);
+      final adjustments = await repo.adjustments(from: '2026-11-01', to: '2026-11-30');
+      expect([for (final a in adjustments) (a.before, a.after, a.date)], [(650000, 500000.5, '2026-11-22')]);
+      expect(await repo.adjustments(from: '2026-12-01', to: '2026-12-31'), isEmpty);
+
+      // El mismo saldo otra vez: sin ajuste nuevo (como el servidor, en pesos enteros).
+      await c.read(moneyWriterProvider).saveBalance(profile, 500000.5);
+      expect(await repo.adjustments(from: '2026-11-01', to: '2026-11-30'), hasLength(1));
+    });
+
+    test('las fallas del panel llegan a los ajustes', () async {
+      final c = await open('nuevo');
+      c.read(demoControlsProvider.notifier).failNext(DemoMoneyOperation.adjustments, DemoFailure.server);
+      await expectLater(
+        c.read(moneyRepositoryProvider).adjustments(from: '2026-11-01', to: '2026-11-30'),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 500)),
+      );
+    });
+  });
 }

@@ -24,6 +24,13 @@ abstract interface class MoneyRepository {
 
   /// POST /money-profile/commitments. 409 COMMITMENT_EXISTS si el nombre ya está.
   Future<void> createCommitment(Map<String, dynamic> body);
+
+  /// PUT /money-profile {incomeType, payDays, balance, resetBalance?, expectedVersion?}. Reemplazo
+  /// total y no idempotente con `resetBalance`: solo lo llama `MoneyWriter.saveBalance`.
+  Future<void> saveProfile(Map<String, dynamic> body);
+
+  /// GET /money-profile/adjustments?from=&to= (AAAA-MM-DD): las correcciones de saldo del periodo.
+  Future<List<BalanceAdjustment>> adjustments({required String from, required String to});
 }
 
 class ApiMoneyRepository implements MoneyRepository {
@@ -47,6 +54,15 @@ class ApiMoneyRepository implements MoneyRepository {
   @override
   Future<void> createCommitment(Map<String, dynamic> body) =>
       _api.post('/money-profile/commitments', body: body, auth: true);
+
+  @override
+  Future<void> saveProfile(Map<String, dynamic> body) => _api.put('/money-profile', body: body);
+
+  @override
+  Future<List<BalanceAdjustment>> adjustments({required String from, required String to}) async =>
+      BalanceAdjustment.listFromJson(
+        await _api.get('/money-profile/adjustments', query: {'from': from, 'to': to}),
+      );
 }
 
 /// Elige la implementación según la sesión: una sesión demo nunca usa la API.

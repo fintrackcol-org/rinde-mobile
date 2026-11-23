@@ -15,6 +15,7 @@ import 'package:rinde_mobile/features/auth/presentation/login_screen.dart';
 import 'package:rinde_mobile/features/entry/presentation/entry_screen.dart';
 import 'package:rinde_mobile/features/money/application/money_providers.dart';
 import 'package:rinde_mobile/features/money/data/money_models.dart';
+import 'package:rinde_mobile/features/money/presentation/fix_balance_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 
@@ -34,13 +35,19 @@ const _tabRoutes = {
 final _pushedRoutes = {
   Routes.notifications: 'Notificaciones',
   Routes.payments: 'Pagos del mes',
-  Routes.fixBalance: 'Corregir saldo',
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
   Routes.budgets: 'Presupuestos',
   Routes.cards: 'Tarjetas',
   Routes.card('t1'): 'Tarjeta',
+  Routes.calendar: 'Calendario',
+  Routes.debts: 'Cuentas',
+  Routes.insights: 'Consejos',
+  // Antes que /app/transacciones/:id: no es el movimiento «exportar».
+  Routes.export: 'Exportar movimientos',
+  Routes.renta: 'Renta y DIAN',
+  Routes.liquidity: 'Tu plata en los próximos días',
 };
 
 // Sin pumpAndSettle: la entrada deja un spinner girando mientras «espera» el perfil.
@@ -63,6 +70,7 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
         profileProvider.overrideWith((ref, _) => Completer<UserProfile>().future),
         // Mi plata se queda cargando: estas pruebas son de rutas, no de sus datos.
         incomeOverviewProvider.overrideWith((ref, _) => Completer<IncomeOverview>().future),
+        moneyProfileProvider.overrideWith((ref, _) => Completer<MoneyProfile>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -93,6 +101,7 @@ void main() {
       ..._pushedRoutes.keys,
       Routes.record,
       Routes.myMoney,
+      Routes.fixBalance,
       Routes.movement('m1'),
     ]) {
       router.go(route);
@@ -190,6 +199,27 @@ void main() {
     expect(await tester.binding.handlePopRoute(), isTrue);
     await _settle(tester);
     expect(_location(router), Routes.app);
+  });
+
+  testWidgets('Corregir saldo ya es pantalla real; por enlace directo, atrás va a Mi plata', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.plan);
+    await _settle(tester);
+    unawaited(router.push(Routes.fixBalance));
+    await _settle(tester);
+    expect(find.byType(FixBalanceScreen), findsOneWidget);
+    expect(find.text('En desarrollo'), findsNothing);
+    expect(find.byType(RindeTabScaffold), findsNothing);
+    await tester.tap(find.byTooltip('Volver'));
+    await _settle(tester);
+    expect(_location(router), Routes.plan);
+
+    // Sin pantalla anterior, atrás va a Mi plata (backPath de la web).
+    router.go(Routes.fixBalance);
+    await _settle(tester);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+    expect(_location(router), Routes.myMoney);
   });
 
   testWidgets('un destino abierto por enlace directo no cierra la app con atrás: va al Inicio', (

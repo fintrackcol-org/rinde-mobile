@@ -15,6 +15,9 @@ import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/home/application/home_providers.dart';
 import 'package:rinde_mobile/features/home/data/home_repository.dart';
+import 'package:rinde_mobile/features/money/application/money_providers.dart';
+import 'package:rinde_mobile/features/money/data/money_models.dart';
+import 'package:rinde_mobile/features/money/data/money_repository.dart';
 import 'package:rinde_mobile/features/onboarding/application/onboarding_controller.dart';
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
@@ -25,6 +28,7 @@ import 'package:rinde_mobile/features/onboarding/domain/onboarding_draft.dart';
 import 'package:rinde_mobile/features/onboarding/domain/onboarding_flow.dart';
 
 import '../../support/fake_home_repository.dart';
+import '../../support/fake_money_repository.dart';
 
 const _user = AuthUser(id: 'u1', email: 'ana.maria@rinde.co', name: 'Ana María');
 const _session = Session(user: _user, accessToken: 'acceso', refreshToken: 'refresh');
@@ -816,6 +820,30 @@ void main() {
       await n.finish();
       await c.read(homePlanProvider(account).future);
       expect(home.count('plan'), greaterThan(1));
+    });
+
+    test('al terminar, Mi plata vuelve a pedir el perfil sin mostrar la plata de antes', () async {
+      final money = FakeMoneyRepository()
+        ..onProfile = () async => const MoneyProfile(welcomeDone: false, money: 650000);
+      await store.write('u1', _draftJson(position: 9, balance: '300000', items: const [_arriendo]));
+      final c = await boot(
+        overrides: [
+          onboardingRepositoryProvider.overrideWithValue(repo),
+          homeRepositoryProvider.overrideWithValue(FakeHomeRepository()),
+          moneyRepositoryProvider.overrideWithValue(money),
+        ],
+      );
+      final n = await open(c);
+      final account = c.read(accountProvider);
+      c.listen(moneyProfileProvider(account), (_, _) {});
+      await c.read(moneyProfileProvider(account).future);
+
+      money.onProfile = () => Completer<MoneyProfile>().future;
+      await n.finish();
+      // asReload: lo de antes de la bienvenida ya no se presenta como vigente.
+      final now = c.read(moneyProfileProvider(account));
+      expect((now.isReloading, blockOf(now).value), (true, null));
+      expect(money.count('profile'), greaterThan(1));
     });
 
     test(

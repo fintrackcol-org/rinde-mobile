@@ -16,8 +16,8 @@ import '../domain/commitments.dart';
 import '../domain/income_sources.dart';
 import '../domain/onboarding_draft.dart';
 import '../domain/onboarding_flow.dart';
-import '../../home/application/home_providers.dart' show invalidateHome;
 import '../../home/data/home_models.dart' show readMoney;
+import '../../money/application/money_providers.dart' show afterMoneyChange;
 
 import 'dart:math' as math;
 
@@ -680,9 +680,9 @@ class OnboardingController extends Notifier<OnboardingState> {
   void _refreshEntry() {
     try {
       _container.invalidate(pendingSourcesProvider);
-      // Todo el Inicio, y como carga nueva: lo de antes de responder ya no es cierto ni para mostrarlo
-      // mientras llega lo nuevo.
-      invalidateHome((provider) => _container.invalidate(provider, asReload: true));
+      // Todo el Inicio y Mi plata (la bienvenida fija el saldo y los ingresos), y como carga nueva: lo de
+      // antes de responder ya no es cierto ni para mostrarlo mientras llega lo nuevo.
+      afterMoneyChange(_container, money: true);
     } on StateError {
       // La app entera ya se cerró: no queda nadie a quien avisar.
     }

@@ -127,6 +127,40 @@ class MoneyProfile {
   final int? version;
 }
 
+/// Una corrección de saldo (`data[]` de GET /money-profile/adjustments). No es ingreso ni gasto y no
+/// se edita ni se borra.
+class BalanceAdjustment {
+  const BalanceAdjustment({required this.id, required this.before, required this.after, required this.date});
+
+  final String id;
+  final num before;
+  final num after;
+
+  /// AAAA-MM-DD, en la zona del usuario.
+  final String date;
+
+  /// En centavos enteros: sin residuos de coma flotante.
+  num get difference => readMoney(((after * 100).round() - (before * 100).round()) / 100)!;
+
+  static final _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+  static BalanceAdjustment? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    final before = readMoney(raw['before']);
+    final after = readMoney(raw['after']);
+    final date = raw['date'];
+    if (raw['id'] == null || before == null || after == null || date is! String || !_isoDate.hasMatch(date)) {
+      return null;
+    }
+    return BalanceAdjustment(id: '${raw['id']}', before: before, after: after, date: date);
+  }
+
+  /// `{ data: [...] }`, de la más reciente a la más antigua (así lo ordena el servidor).
+  static List<BalanceAdjustment> listFromJson(Object? data) => [
+    for (final item in readList(readMap(data)['data'])) ?tryParse(item),
+  ];
+}
+
 /// Una fuente de ingreso guardada (`sources[]` de GET /money-profile/income).
 class IncomeSource {
   const IncomeSource({
