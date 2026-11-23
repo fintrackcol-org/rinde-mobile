@@ -93,6 +93,7 @@ const kCountries = <Country>[
     format: MoneyFormat(
       prefix: '\$',
       suffix: '',
+      negativePrefix: '\$-',
       group: '.',
       decimal: ',',
       inputGroup: '.',
@@ -183,6 +184,7 @@ const kCountries = <Country>[
     format: MoneyFormat(
       prefix: '\$',
       suffix: '',
+      negativePrefix: '\$-',
       group: '.',
       decimal: ',',
       inputGroup: '.',
@@ -309,6 +311,7 @@ const kCountries = <Country>[
     format: MoneyFormat(
       prefix: 'Gs. ',
       suffix: '',
+      negativePrefix: 'Gs. -',
       group: '.',
       decimal: ',',
       inputGroup: '.',
@@ -381,6 +384,7 @@ const kCountries = <Country>[
     format: MoneyFormat(
       prefix: 'Bs.S ',
       suffix: '',
+      negativePrefix: 'Bs.S-',
       group: '.',
       decimal: ',',
       inputGroup: '.',
@@ -430,11 +434,7 @@ const kCountries = <Country>[
     language: 'en',
     timeZone: 'America/Port_of_Spain',
     names: {'es': 'Trinidad y Tobago', 'en': 'Trinidad & Tobago', 'pt': 'Trinidad e Tobago'},
-    currencyNames: {
-      'es': 'Dólar de Trinidad y Tobago',
-      'en': 'Trinidad & Tobago Dollar',
-      'pt': 'Dólar de Trinidad e Tobago',
-    },
+    currencyNames: {'es': 'Dólar de Trinidad y Tobago', 'en': 'Trinidad & Tobago Dollar', 'pt': 'Dólar de Trinidad e Tobago'},
     sample: '\$1,250.50',
     format: MoneyFormat(
       prefix: '\$',
@@ -673,6 +673,7 @@ const kCountries = <Country>[
     format: MoneyFormat(
       prefix: 'CHF ',
       suffix: '',
+      negativePrefix: 'CHF-',
       group: '’',
       decimal: '.',
       inputGroup: '’',
@@ -1083,11 +1084,7 @@ const kCountries = <Country>[
     language: 'en',
     timeZone: 'Asia/Dubai',
     names: {'es': 'Emiratos Árabes Unidos', 'en': 'United Arab Emirates', 'pt': 'Emirados Árabes Unidos'},
-    currencyNames: {
-      'es': 'Dírham de los Emiratos Árabes Unidos',
-      'en': 'United Arab Emirates Dirham',
-      'pt': 'Dirham dos Emirados Árabes Unidos',
-    },
+    currencyNames: {'es': 'Dírham de los Emiratos Árabes Unidos', 'en': 'United Arab Emirates Dirham', 'pt': 'Dirham dos Emirados Árabes Unidos'},
     sample: 'AED 1,250.50',
     format: MoneyFormat(
       prefix: 'AED ',
@@ -1303,11 +1300,7 @@ const kCountries = <Country>[
     language: 'es',
     timeZone: 'Africa/Malabo',
     names: {'es': 'Guinea Ecuatorial', 'en': 'Equatorial Guinea', 'pt': 'Guiné Equatorial'},
-    currencyNames: {
-      'es': 'Franco CFA de África Central',
-      'en': 'Central African CFA Franc',
-      'pt': 'Franco CFA de BEAC',
-    },
+    currencyNames: {'es': 'Franco CFA de África Central', 'en': 'Central African CFA Franc', 'pt': 'Franco CFA de BEAC'},
     sample: 'FCFA 1251',
     format: MoneyFormat(
       prefix: 'FCFA ',

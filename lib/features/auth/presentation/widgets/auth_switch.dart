@@ -1,7 +1,9 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../app/routes.dart';
+import '../../../../core/i18n/tr.dart';
 import '../../../../design/tokens/rinde_colors.dart';
 import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
@@ -10,7 +12,7 @@ enum AuthMode { login, register }
 
 /// Selector "Iniciar sesión | Crear cuenta" (AuthSwitch de AuthLayout.jsx): dos opciones de 44,
 /// indicador blanco/15 que se desliza en 240 ms. Reemplaza la pantalla para no apilar historial.
-class AuthSwitch extends StatelessWidget {
+class AuthSwitch extends ConsumerWidget {
   const AuthSwitch({super.key, required this.mode});
   final AuthMode mode;
 
@@ -18,11 +20,12 @@ class AuthSwitch extends StatelessWidget {
   static const switched = 'auth-switch';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(trProvider);
     final slide = GoRouterState.of(context).extra == switched && !MediaQuery.disableAnimationsOf(context);
     return Semantics(
       container: true,
-      label: 'Entrar o crear cuenta',
+      label: t('Entrar o crear cuenta'),
       child: Container(
         padding: const EdgeInsets.all(RindeSpace.s1),
         decoration: BoxDecoration(
@@ -56,12 +59,12 @@ class AuthSwitch extends StatelessWidget {
             Row(
               children: [
                 _Option(
-                  label: 'Iniciar sesión',
+                  label: t('Iniciar sesión'),
                   selected: mode == AuthMode.login,
                   onTap: () => context.pushReplacement(Routes.login, extra: switched),
                 ),
                 _Option(
-                  label: 'Crear cuenta',
+                  label: t('Crear cuenta'),
                   selected: mode == AuthMode.register,
                   onTap: () => context.pushReplacement(Routes.register, extra: switched),
                 ),

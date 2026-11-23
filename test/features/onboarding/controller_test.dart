@@ -13,6 +13,8 @@ import 'package:rinde_mobile/core/region/region_provider.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
+import 'package:rinde_mobile/features/home/application/home_providers.dart';
+import 'package:rinde_mobile/features/home/data/home_repository.dart';
 import 'package:rinde_mobile/features/onboarding/application/onboarding_controller.dart';
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
@@ -21,6 +23,8 @@ import 'package:rinde_mobile/features/onboarding/domain/commitments.dart';
 import 'package:rinde_mobile/features/onboarding/domain/income_sources.dart';
 import 'package:rinde_mobile/features/onboarding/domain/onboarding_draft.dart';
 import 'package:rinde_mobile/features/onboarding/domain/onboarding_flow.dart';
+
+import '../../support/fake_home_repository.dart';
 
 const _user = AuthUser(id: 'u1', email: 'ana.maria@rinde.co', name: 'Ana María');
 const _session = Session(user: _user, accessToken: 'acceso', refreshToken: 'refresh');
@@ -35,8 +39,30 @@ const _noStatus = WelcomeStatus(welcomeDone: false, tutorialDone: false, hasTran
 
 /// Doble del repositorio: anota cada llamada (sin contar status), falla a demanda y puede quedarse
 /// esperando en [gate] para simular una petición en curso.
+/// El servidor ya tiene lo que envían estas pruebas: el saldo y el pago de Arriendo.
+const _landedStatus = WelcomeStatus(
+  welcomeDone: true,
+  tutorialDone: false,
+  hasTransactions: false,
+  balanceSet: true,
+  balance: 650000,
+  commitmentNames: ['Arriendo'],
+);
+
+/// El llavero guarda, pero esta vez no deja leer (teléfono bloqueado).
+class _UnreadableDrafts extends MemoryDraftStore {
+  @override
+  Future<Object?> read(String userId) async => draftUnreadable;
+}
+
 class _FakeRepo implements OnboardingRepository {
   WelcomeStatus statusValue = _noStatus;
+
+  /// GET /money-profile no responde.
+  bool statusDown = false;
+
+  /// Se cae justo al enviar la bienvenida: antes de enviarla sí respondió.
+  bool downOnWelcome = false;
   int statusCalls = 0;
   final calls = <(String, Object?)>[];
   final _failures = <String, Object>{};
@@ -55,6 +81,10 @@ class _FakeRepo implements OnboardingRepository {
 
   Future<void> _call(String op, Object? body) async {
     calls.add((op, body));
+    if (op == 'welcome' && downOnWelcome) {
+      statusDown = true;
+      downOnWelcome = false;
+    }
     if (gates.remove(op) case final g?) await g.future;
     if (gate case final g?) await g.future;
     if (_failures.remove(op) case final e?) throw e;
@@ -66,6 +96,7 @@ class _FakeRepo implements OnboardingRepository {
   @override
   Future<WelcomeStatus> status() async {
     statusCalls++;
+    if (statusDown) throw const ApiException(code: ApiCodes.timeout);
     return statusValue;
   }
 
@@ -129,11 +160,12 @@ void main() {
     Session session = _session,
     List<Override> overrides = const [],
     bool strict = true,
+    List<Locale> locales = const [Locale('es', 'CO')],
   }) async {
     final all = [
       sessionStorageProvider.overrideWithValue(MemorySessionStorage(session)),
       draftStoreProvider.overrideWithValue(store),
-      systemLocalesProvider.overrideWithValue(const [Locale('es', 'CO')]),
+      systemLocalesProvider.overrideWithValue(locales),
       regionStoreProvider.overrideWithValue(regions),
       ...overrides,
     ];
@@ -155,8 +187,19 @@ void main() {
     return c;
   }
 
-  Future<ProviderContainer> bootFake({bool strict = false}) =>
-      boot(strict: strict, overrides: [onboardingRepositoryProvider.overrideWithValue(repo)]);
+  /// [en] = traducciones al inglés (para probar que las sugerencias se renombran).
+  Future<ProviderContainer> bootFake({
+    bool strict = false,
+    Map<String, String>? en,
+    List<Locale> locales = const [Locale('es', 'CO')],
+  }) => boot(
+    strict: strict,
+    locales: locales,
+    overrides: [
+      onboardingRepositoryProvider.overrideWithValue(repo),
+      if (en != null) translationsProvider.overrideWithValue(Translations({'en': en})),
+    ],
+  );
 
   /// Abre la bienvenida y espera a que lea el borrador y el estado del servidor.
   Future<OnboardingController> open(ProviderContainer c, [OnboardingMode mode = OnboardingMode.full]) async {
@@ -241,6 +284,44 @@ void main() {
       expect(c.read(displayLanguageProvider), 'pt');
     });
 
+    test('borrador nuevo: empieza en el idioma en que ya se ve la app, no en el del país sugerido', () async {
+      final c = await bootFake(locales: const [Locale('en', 'US')]);
+      final n = await open(c);
+      expect(stateOf(c).draft.country, 'US');
+      expect(stateOf(c).draft.language, 'es');
+      expect(stateOf(c).draft.languagePicked, isFalse);
+      expect(c.read(displayLanguageProvider), 'es');
+      // Elegir un país sí propone su idioma.
+      n.pickCountry('BR');
+      expect(stateOf(c).draft.language, 'pt');
+      expect(c.read(displayLanguageProvider), 'pt');
+    });
+
+    test(
+      '«solo las preguntas» con un borrador en otro idioma: las sugerencias pasan al de la cuenta',
+      () async {
+        await store.write(
+          'u1',
+          _draftJson(
+            position: 9,
+            language: 'en',
+            items: const [
+              CommitmentItem(key: 'k1', name: 'Rent', amount: '800000', dayOfMonth: '5'),
+              CommitmentItem(key: 'k2', name: 'Rent', custom: true),
+            ],
+          ),
+        );
+        final c = await bootFake(en: const {'Arriendo': 'Rent'});
+        final n = await open(c, OnboardingMode.questions);
+        const m = OnboardingMode.questions;
+        expect(stateOf(c, m).draft.language, 'es');
+        expect(stateOf(c, m).draft.items.map((i) => i.name), ['Arriendo', 'Rent']);
+        // La pastilla «Arriendo» ya está marcada: tocarla la quita en vez de crear un segundo pago.
+        n.toggleSuggestion('Arriendo');
+        expect(stateOf(c, m).draft.items.map((i) => i.name), ['Rent']);
+      },
+    );
+
     test('la propuesta de saldo rellena solo si está vacío', () async {
       repo.statusValue = const WelcomeStatus(
         welcomeDone: false,
@@ -266,6 +347,20 @@ void main() {
       final c = await bootFake();
       await open(c);
       expect(stateOf(c).draft.balance, '100');
+    });
+
+    test('un saldo omitido no lo rellena la propuesta: viajaría sin que nadie la viera', () async {
+      repo.statusValue = const WelcomeStatus(
+        welcomeDone: false,
+        tutorialDone: false,
+        hasTransactions: true,
+        income: 2500000,
+        expense: 1850000,
+      );
+      await store.write('u1', _draftJson(position: 9));
+      final c = await bootFake();
+      await open(c);
+      expect(stateOf(c).draft.balance, '');
     });
 
     test('sin propuesta si gastó más de lo que entró', () async {
@@ -567,9 +662,326 @@ void main() {
       expect(s.outcome, isNull);
       expect(s.busy, isNull);
       expect(s.error?.text, 'Error interno del servidor');
-      expect(s.draft.sentWelcome, isNull);
       expect(saved('u1')?['position'], 9);
       expect(saved('u1')?['balance'], '650000');
+      // Un 500 no dice si quedó guardada: se le pregunta al servidor y, si dice que no, la marca se
+      // quita y los pagos siguen editables.
+      expect(s.draft.sentWelcome, isNull);
+      expect(saved('u1')!.containsKey('sentWelcome'), isFalse);
+      // Al abrir, antes de enviar un saldo (el tipo de ingreso que hay) y tras el fallo.
+      expect(repo.statusCalls, 3);
+      expect(s.paymentsLocked, isFalse);
+    });
+
+    test('welcome rechazada por el servidor (4xx): seguro no quedó, la marca se quita', () async {
+      final (c, n) = await atPayments();
+      repo.failNext(
+        'welcome',
+        const ApiException(code: ApiCodes.validation, serverMessage: 'Datos inválidos', status: 422),
+      );
+      await n.finish();
+      expect(stateOf(c).error?.text, 'Datos inválidos');
+      expect(stateOf(c).draft.sentWelcome, isNull);
+      expect(saved('u1')!.containsKey('sentWelcome'), isFalse);
+      expect(repo.statusCalls, 2, reason: 'al abrir y antes de enviar: tras un 4xx no hace falta preguntar');
+    });
+
+    test('la etapa 1 se anota en el dispositivo ANTES de enviarla y se confirma al responder', () async {
+      final (c, n) = await atPayments();
+      final welcome = repo.gates['welcome'] = Completer();
+      final pending = n.finish();
+      await _settle();
+      expect(repo.ops, ['welcome']);
+      expect(saved('u1')?['sentWelcome'], isNotNull);
+      expect(saved('u1')!.containsKey('welcomeConfirmed'), isFalse);
+      // Desde que sale no se editan, pero no se dice que quedaron guardados.
+      expect((stateOf(c).paymentsLocked, stateOf(c).paymentsSaved), (true, false));
+
+      repo.failNext('sources', const ApiException(code: ApiCodes.network));
+      welcome.complete();
+      await pending;
+      expect(saved('u1')?['welcomeConfirmed'], isTrue);
+      expect(stateOf(c).paymentsLocked, isTrue);
+    });
+
+    test('espera vencida pero el servidor sí la guardó: bloquea los pagos y el reintento manda solo '
+        'las fuentes', () async {
+      final (c, n) = await atPayments();
+      repo.failNext('welcome', const ApiException(code: ApiCodes.timeout));
+      repo.statusValue = _landedStatus;
+      await n.finish();
+      expect(stateOf(c).outcome, isNull);
+      expect(stateOf(c).error?.text, ApiMessages.network);
+      expect(stateOf(c).paymentsLocked, isTrue);
+      expect(saved('u1')?['welcomeConfirmed'], isTrue);
+      // Ya no se puede corregir un pago que el servidor no cambiaría.
+      n.updateItem('k1', amount: '1');
+      expect(stateOf(c).draft.items.single.amount, '800000');
+
+      await n.finish();
+      expect(repo.ops, ['welcome', 'sources']);
+      expect(stateOf(c).outcome, OnboardingOutcome.saved);
+    });
+
+    test('la app se cerró mientras enviaba la etapa 1: al reabrir (welcomeDone) no borra el borrador y '
+        'manda las fuentes', () async {
+      final (first, n) = await atPayments();
+      // La respuesta nunca llega: el proceso murió en «Guardando…».
+      repo.gates['welcome'] = Completer();
+      unawaited(n.finish());
+      await _settle();
+      first.dispose();
+
+      repo.statusValue = _landedStatus;
+      final again = await bootFake();
+      // La entrada sabe que hay una bienvenida a medias en este dispositivo.
+      expect(await again.read(pendingSourcesProvider(again.read(accountProvider)).future), isTrue);
+      final reopened = await open(again);
+      expect(stateOf(again).alreadyDone, isFalse);
+      expect(stateOf(again).position, OnboardingSteps.payments);
+      expect(stateOf(again).paymentsLocked, isTrue);
+      expect(stateOf(again).draft.sources.keys, [IncomeKind.sueldo]);
+
+      await reopened.finish();
+      expect(repo.ops, ['welcome', 'sources']);
+      expect(repo.bodies('sources').single, [_sueldo.toApi()]);
+      expect(stateOf(again).outcome, OnboardingOutcome.saved);
+      expect(store.data['u1'], isNull);
+    });
+
+    test(
+      'la app se cerró enviando la etapa 1 y el servidor NO la tiene: se reenvía idéntica, sin editar',
+      () async {
+        final (first, n) = await atPayments();
+        repo.gates['welcome'] = Completer();
+        unawaited(n.finish());
+        await _settle();
+        first.dispose();
+
+        final again = await bootFake();
+        final reopened = await open(again);
+        // Puede llegar tarde: editar y reenviar duplicaría los pagos en el servidor.
+        expect((stateOf(again).paymentsLocked, stateOf(again).paymentsSaved), (true, false));
+        reopened.updateItem('k1', amount: '900000');
+        await reopened.finish();
+        expect(repo.ops, ['welcome', 'welcome', 'sources']);
+        expect(repo.bodies('welcome').last, repo.bodies('welcome').first);
+        expect(stateOf(again).outcome, OnboardingOutcome.saved);
+      },
+    );
+
+    test('bienvenida hecha por otro camino: no prueba que lo enviado quedó, se reenvía igual', () async {
+      final (first, n) = await atPayments();
+      repo.gates['welcome'] = Completer();
+      unawaited(n.finish());
+      await _settle();
+      first.dispose();
+
+      // «Ahora no» en otro dispositivo: welcomeDone, sin el saldo ni los pagos de este borrador.
+      repo.statusValue = const WelcomeStatus(welcomeDone: true, tutorialDone: false, hasTransactions: false);
+      final again = await bootFake();
+      final reopened = await open(again);
+      expect((stateOf(again).paymentsLocked, stateOf(again).paymentsSaved), (true, false));
+      await reopened.finish();
+      expect(repo.ops, ['welcome', 'welcome', 'sources']);
+    });
+
+    test('sin conexión la etapa 1 no salió: los pagos se pueden corregir', () async {
+      final (c, n) = await atPayments();
+      repo.failNext('welcome', const ApiException(code: ApiCodes.network));
+      await n.finish();
+      expect((stateOf(c).paymentsLocked, stateOf(c).draft.sentWelcome), (false, null));
+    });
+
+    test('al terminar, el Inicio vuelve a pedir el plan que tenía guardado', () async {
+      final home = FakeHomeRepository();
+      await store.write('u1', _draftJson(position: 9, balance: '650000', items: const [_arriendo]));
+      final c = await boot(
+        overrides: [
+          onboardingRepositoryProvider.overrideWithValue(repo),
+          homeRepositoryProvider.overrideWithValue(home),
+        ],
+      );
+      final n = await open(c);
+      final account = c.read(accountProvider);
+      c.listen(homePlanProvider(account), (_, _) {});
+      await c.read(homePlanProvider(account).future);
+      expect(home.count('plan'), 1);
+
+      await n.finish();
+      await c.read(homePlanProvider(account).future);
+      expect(home.count('plan'), greaterThan(1));
+    });
+
+    test(
+      'saldo editado con la etapa 1 en duda: la prueba del intento anterior no lo da por guardado',
+      () async {
+        final (c, n) = await atPayments();
+        repo
+          ..failNext('welcome', const ApiException(code: ApiCodes.timeout))
+          ..downOnWelcome = true;
+        await n.finish();
+
+        n.setBalance('900000');
+        repo
+          ..failNext('welcome', const ApiException(code: 'INTERNAL_ERROR', status: 500))
+          ..statusDown = false
+          ..statusValue = _landedStatus;
+        await n.finish();
+        expect(stateOf(c).outcome, isNull);
+
+        await n.finish();
+        expect(repo.ops, ['welcome', 'welcome', 'welcome', 'sources']);
+        expect((repo.bodies('welcome').last! as Map)['balance'], 900000);
+        expect(stateOf(c).outcome, OnboardingOutcome.saved);
+      },
+    );
+
+    test('con los pagos guardados, reenviar el saldo no revive pagos borrados en Mi plata', () async {
+      final (_, n) = await atPayments();
+      repo.failNext('sources', const ApiException(code: ApiCodes.timeout));
+      await n.finish();
+      n.setBalance('900000');
+      await n.finish();
+      final resent = repo.bodies('welcome').last! as Map;
+      expect((resent['balance'], resent.containsKey('commitments')), (900000, false));
+    });
+
+    test('Omitir en Pagos no bloquea ni dice guardados unos pagos que no salieron', () async {
+      final (c, n) = await atPayments(items: [_arriendo.copyWith(amount: '')]);
+      repo.failNext('sources', const ApiException(code: ApiCodes.timeout));
+      await n.skip();
+      expect((stateOf(c).paymentsLocked, stateOf(c).paymentsSaved), (false, false));
+      n.updateItem('k1', amount: '700000');
+      expect(stateOf(c).draft.items.single.amount, '700000');
+    });
+
+    test('Omitir con pagos en duda no los repite (pudo cambiarlos en la web)', () async {
+      final (_, n) = await atPayments();
+      repo.failNext('welcome', const ApiException(code: ApiCodes.timeout));
+      await n.finish();
+      await n.skip();
+      expect((repo.bodies('welcome').last! as Map).containsKey('commitments'), isFalse);
+    });
+
+    test('un corte después de enviar deja la marca', () async {
+      final (c, n) = await atPayments();
+      repo
+        ..failNext('welcome', const ApiException(code: ApiCodes.timeout))
+        ..downOnWelcome = true;
+      await n.finish();
+      expect((stateOf(c).paymentsLocked, saved('u1')?['sentWelcome'] != null), (true, true));
+    });
+
+    test('en duda sin fuentes también se retoma: faltan su saldo y sus pagos', () async {
+      final (first, n) = await atPayments(sources: const {});
+      repo.gates['welcome'] = Completer();
+      unawaited(n.finish());
+      await _settle();
+      first.dispose();
+      final again = await bootFake();
+      expect(await again.read(pendingSourcesProvider(again.read(accountProvider)).future), isTrue);
+    });
+
+    test('quitar todas las fuentes tras enviarlas las borra en el servidor', () async {
+      final (c, n) = await atPayments();
+      repo.failNext('sources', const ApiException(code: ApiCodes.timeout));
+      await n.finish();
+      n.toggleSource(IncomeKind.sueldo);
+      await n.finish();
+      expect(repo.bodies('sources').last, isEmpty);
+      expect(stateOf(c).outcome, OnboardingOutcome.saved);
+    });
+
+    test('si el llavero no dejó leer el borrador, no se borra ni se vuelve aquí en bucle', () async {
+      store = _UnreadableDrafts();
+      await store.write('u1', _draftJson(position: 9, items: const [_arriendo]));
+      final kept = store.data['u1'];
+      repo.statusValue = _landedStatus;
+      final c = await bootFake();
+      c.listen(onboardingControllerProvider(OnboardingMode.full), (_, _) {});
+      await _settle();
+      expect(store.data['u1'], kept);
+      expect(c.read(resumeDeferredProvider), isTrue);
+    });
+
+    test('el saldo que ya guardó no se reenvía: pisaría el corregido después', () async {
+      final (c, n) = await atPayments(items: const []);
+      repo.failNext('sources', const ApiException(code: ApiCodes.timeout));
+      await n.finish();
+      final key = n.addCustom();
+      n.updateItem(key!, name: 'Gimnasio', amount: '90000', dayOfMonth: '3');
+      await n.finish();
+      expect((repo.bodies('welcome').last! as Map)['balance'], isNull);
+      expect(stateOf(c).outcome, OnboardingOutcome.saved);
+    });
+
+    test('en la misma sesión, reintentar no pisa un saldo corregido en la web sin mostrarlo', () async {
+      final (c, n) = await atPayments();
+      repo
+        ..failNext('welcome', const ApiException(code: ApiCodes.timeout))
+        ..downOnWelcome = true;
+      await n.finish();
+      repo
+        ..statusDown = false
+        ..statusValue = const WelcomeStatus(
+          welcomeDone: true,
+          tutorialDone: false,
+          hasTransactions: false,
+          balanceSet: true,
+          balance: 700000,
+          commitmentNames: ['Arriendo'],
+        );
+      await n.skip();
+      expect(repo.ops, ['welcome']);
+      expect((stateOf(c).position, stateOf(c).busy), (OnboardingSteps.balance, null));
+      n.next();
+      await n.finish();
+      expect((repo.bodies('welcome').last! as Map)['balance'], 650000, reason: 'ya lo vio y eligió seguir');
+    });
+
+    test('al retomar con otro saldo guardado, lo muestra en Saldo antes de pisarlo', () async {
+      final (first, n) = await atPayments();
+      repo.gates['welcome'] = Completer();
+      unawaited(n.finish());
+      await _settle();
+      first.dispose();
+      repo.statusValue = const WelcomeStatus(
+        welcomeDone: true,
+        tutorialDone: false,
+        hasTransactions: false,
+        balanceSet: true,
+        balance: 700000,
+        commitmentNames: ['Arriendo'],
+      );
+      final again = await bootFake();
+      await open(again);
+      expect((stateOf(again).position, stateOf(again).paymentsSaved), (OnboardingSteps.balance, true));
+    });
+
+    test('si no se puede leer el tipo de ingreso antes de enviar el saldo, no se envía', () async {
+      final (c, n) = await atPayments(sources: const {});
+      repo.statusDown = true;
+      await n.finish();
+      expect(repo.ops, isEmpty);
+      expect(stateOf(c).paymentsLocked, isFalse);
+    });
+
+    test('un 500 deshecho con la bienvenida ya hecha deja corregir el pago nuevo', () async {
+      final (c, n) = await atPayments(items: const []);
+      repo.failNext('sources', const ApiException(code: ApiCodes.timeout));
+      await n.finish();
+      repo.statusValue = const WelcomeStatus(
+        welcomeDone: true,
+        tutorialDone: false,
+        hasTransactions: false,
+        balance: 650000,
+      );
+      final key = n.addCustom();
+      n.updateItem(key!, name: 'Gimnasio', amount: '90000', dayOfMonth: '3');
+      repo.failNext('welcome', const ApiException(code: 'INTERNAL_ERROR', status: 500));
+      await n.finish();
+      expect(stateOf(c).paymentsLocked, isFalse);
     });
 
     test('welcome sin red: mensaje de sin conexión', () async {
@@ -662,6 +1074,31 @@ void main() {
       await open(c);
       expect(stateOf(c).alreadyDone, isTrue);
       expect(store.data['u1'], isNull);
+    });
+
+    test('con la etapa 1 confirmada, cambiar de idioma no renombra ni reenvía los pagos', () async {
+      await store.write(
+        'u1',
+        _draftJson(position: 9, sources: {IncomeKind.sueldo: _sueldo}, items: const [_arriendo]),
+      );
+      final c = await bootFake(en: const {'Arriendo': 'Rent'});
+      final n = await open(c);
+      repo.failNext('sources', const ApiException(code: ApiCodes.network));
+      await n.finish();
+
+      // Atrás hasta País, otro idioma (a mano o por el país) y de vuelta a Pagos.
+      n.go(OnboardingSteps.country);
+      n.pickLanguage('en');
+      expect(stateOf(c).draft.language, 'en');
+      expect(stateOf(c).draft.items.single.name, 'Arriendo');
+      n.pickCountry('US');
+      expect(stateOf(c).draft.items.single.name, 'Arriendo');
+      n.go(OnboardingSteps.payments);
+
+      await n.finish();
+      // Con «Rent» el servidor guardaría el pago otra vez y apartaría la plata dos veces.
+      expect(repo.ops, ['welcome', 'sources', 'sources']);
+      expect(stateOf(c).outcome, OnboardingOutcome.saved);
     });
 
     test('con la etapa 1 confirmada los pagos no se editan (el servidor no los cambiaría)', () async {
@@ -768,10 +1205,37 @@ void main() {
     );
   });
 
+  test(
+    'la confirmación llega con la pantalla ya cerrada: la entrada igual vuelve a preguntar el estado',
+    () async {
+      await store.write('u1', _draftJson(position: 9, balance: '5', sources: {IncomeKind.sueldo: _sueldo}));
+      final c = await bootFake();
+      final provider = onboardingControllerProvider(OnboardingMode.full);
+      final screen = c.listen(provider, (_, _) {});
+      final n = c.read(provider.notifier);
+      await _settle();
+      expect(repo.statusCalls, 1);
+
+      final sources = repo.gates['sources'] = Completer();
+      final pending = n.finish();
+      await _settle();
+      // Se cierra solo la pantalla; la app (el contenedor) sigue.
+      screen.close();
+      await _settle();
+      sources.complete();
+      await pending;
+
+      expect(store.data.containsKey('u1'), isFalse);
+      // Con el dato viejo en caché (bienvenida pendiente), la entrada devolvería a la bienvenida.
+      await c.read(welcomeStatusProvider(c.read(accountProvider)).future);
+      expect(repo.statusCalls, 3);
+    },
+  );
+
   group('MODO DEMOSTRACIÓN', () {
-    Future<ProviderContainer> bootDemo(MemoryDemoStateStore demoStore) async {
+    Future<ProviderContainer> bootDemo(MemoryDemoStateStore demoStore, {String scenario = 'nuevo'}) async {
       final c = await boot(
-        session: Session.demo('nuevo'),
+        session: Session.demo(scenario),
         overrides: [
           appConfigProvider.overrideWithValue(
             const AppConfig(apiBaseUrl: '', environment: 'local', demoMode: true),
@@ -793,7 +1257,12 @@ void main() {
       expect(stateOf(c).userName, 'Ana');
 
       await n.finish();
-      expect(demo.calls.map((call) => call.operation), [DemoOperation.status, DemoOperation.welcome]);
+      expect(demo.calls.map((call) => call.operation), [
+        DemoOperation.status,
+        // Con saldo, antes de enviar se lee el tipo de ingreso que hay.
+        DemoOperation.status,
+        DemoOperation.welcome,
+      ]);
       expect(stateOf(c).outcome, OnboardingOutcome.demoSaved);
       expect(await demoStore.welcomeDone('demo-nuevo'), isTrue);
       expect(store.data.containsKey('demo-nuevo'), isFalse);
@@ -805,6 +1274,33 @@ void main() {
       await n.later();
       expect(stateOf(c).outcome, OnboardingOutcome.demoSkipped);
     });
+
+    test('reiniciar vuelve a leer el estado: la propuesta de saldo del escenario reaparece', () async {
+      final c = await bootDemo(MemoryDemoStateStore(), scenario: 'movimientos');
+      final n = await open(c);
+      expect(stateOf(c).draft.balance, '650000');
+      n.setBalance('1');
+      await n.restartDemo();
+      await _settle();
+      expect(stateOf(c).position, OnboardingSteps.hello);
+      expect(stateOf(c).draft.balance, '650000');
+    });
+
+    test(
+      'reiniciar mientras guarda no hace nada (la respuesta en camino reescribiría el borrador)',
+      () async {
+        final c = await bootDemo(MemoryDemoStateStore());
+        final n = await open(c);
+        n.go(OnboardingSteps.payments);
+        c.read(demoControlsProvider.notifier).setLatency(const Duration(milliseconds: 20));
+        final pending = n.finish();
+        await n.restartDemo();
+        expect(stateOf(c).busy, OnboardingBusy.finishing);
+        expect(stateOf(c).position, OnboardingSteps.payments);
+        await pending;
+        expect(stateOf(c).outcome, OnboardingOutcome.demoSaved);
+      },
+    );
 
     test('una falla programada se muestra como la real', () async {
       final c = await bootDemo(MemoryDemoStateStore());

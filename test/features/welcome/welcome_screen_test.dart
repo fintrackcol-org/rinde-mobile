@@ -1,13 +1,18 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:rinde_mobile/app/routes.dart';
+import 'package:rinde_mobile/core/i18n/tr.dart';
 import 'package:rinde_mobile/design/theme/rinde_theme.dart';
 import 'package:rinde_mobile/features/welcome/presentation/welcome_screen.dart';
 
-/// Bienvenida dentro de un GoRouter propio con destinos falsos.
-Widget _app({double textScale = 1, bool still = false}) {
+/// Bienvenida dentro de un GoRouter propio con destinos falsos. Con [language] en o pt usa las
+/// traducciones generadas (assets/l10n).
+Widget _app({double textScale = 1, bool still = false, String language = 'es'}) {
   final router = GoRouter(
     initialLocation: Routes.welcome,
     routes: [
@@ -17,6 +22,15 @@ Widget _app({double textScale = 1, bool still = false}) {
     ],
   );
   return ProviderScope(
+    overrides: [
+      if (language != 'es')
+        trProvider.overrideWithValue(
+          Tr(
+            language,
+            (jsonDecode(File('assets/l10n/$language.json').readAsStringSync()) as Map).cast<String, String>(),
+          ),
+        ),
+    ],
     child: MaterialApp.router(
       theme: RindeTheme.public,
       routerConfig: router,
@@ -103,4 +117,26 @@ void main() {
     expect(tester.hasRunningAnimations, isFalse);
     expect(find.text('Empieza a controlar tus gastos hoy.'), findsOneWidget);
   });
+
+  for (final (language, title, login) in [
+    ('en', 'Start taking control of your spending today.', 'I already have an account'),
+    ('pt', 'Comece a controlar seus gastos hoje.', 'Já tenho conta'),
+  ]) {
+    testWidgets('en $language no queda texto en español ni se desborda a 320 con texto 1,3x', (tester) async {
+      _phone(tester, const Size(320, 568));
+      await tester.pumpWidget(_app(textScale: 1.3, language: language));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(tester.takeException(), isNull);
+      expect(find.text(title), findsOneWidget);
+      expect(find.text(login), findsOneWidget);
+      for (final spanish in [
+        'Empieza a controlar tus gastos hoy.',
+        'Crear cuenta gratis',
+        'Ya tengo cuenta',
+      ]) {
+        expect(find.text(spanish), findsNothing);
+      }
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
 }

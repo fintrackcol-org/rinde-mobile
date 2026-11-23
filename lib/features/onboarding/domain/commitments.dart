@@ -13,6 +13,14 @@ const suggestedCommitments = ['Arriendo', 'Internet', 'Celular', 'Transporte', '
 
 const commitmentNameMax = 60;
 
+/// Corta al tope sin partir un emoji por la mitad (dejaría un carácter inválido).
+String clipCommitmentName(String name) {
+  if (name.length <= commitmentNameMax) return name;
+  final cut = name.substring(0, commitmentNameMax);
+  final last = cut.codeUnitAt(cut.length - 1);
+  return last >= 0xD800 && last <= 0xDBFF ? cut.substring(0, cut.length - 1) : cut;
+}
+
 /// Tope del servidor por bienvenida (MAX_COMMITMENTS). La web no lo avisa y responde 422.
 const maxCommitments = 30;
 
@@ -36,7 +44,7 @@ class CommitmentItem {
     final name = text(json['name']);
     return CommitmentItem(
       key: key,
-      name: name.length > commitmentNameMax ? name.substring(0, commitmentNameMax) : name,
+      name: clipCommitmentName(name),
       amount: text(json['amount']),
       dayOfMonth: text(json['dayOfMonth']).replaceAll(RegExp(r'\D'), ''),
       custom: json['custom'] == true,

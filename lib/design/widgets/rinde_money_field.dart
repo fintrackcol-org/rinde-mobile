@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/i18n/tr.dart';
 import '../../core/region/money_text.dart';
 import '../../core/region/region.dart';
 import '../tokens/rinde_colors.dart';
@@ -117,8 +118,9 @@ class _RindeMoneyFieldState extends State<RindeMoneyField> {
             cursorColor: RindeBrand.violet,
             onChanged: (text) => widget.onChanged(parseMoneyInput(text, decimal: widget.format.inputDecimal)),
             onTapOutside: (_) => FocusScope.of(context).unfocus(),
-            // Al abrir el teclado sube también el aviso y la ayuda que van debajo del campo.
-            scrollPadding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            // Al abrir el teclado sube también el aviso y la ayuda que van debajo del campo, que crecen
+            // con el tamaño de texto.
+            scrollPadding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.textScalerOf(context).scale(120)),
             decoration: InputDecoration(
               hintText: widget.hint,
               errorText: widget.errorText,
@@ -183,60 +185,57 @@ class _MoneyFormatter extends TextInputFormatter {
   }
 }
 
-/// Aviso bajo el campo de saldo (describeAmount de la web). Devuelve (clave, variables, tono) o null.
-/// `inPesos`: la palabra «de pesos» y «menos de $1.000» solo tienen sentido en COP.
-({String text, Map<String, Object> vars, RindeMoneyMessageTone tone})? describeAmount(
+/// Aviso bajo el campo de saldo (describeAmount de la web), ya en el idioma de [t], o null.
+/// `inPesos`: la palabra «de pesos» y el «¿faltan ceros?» solo tienen sentido en COP.
+({String message, RindeMoneyMessageTone tone})? describeAmount(
   String raw, {
+  required MoneyFormat format,
   required bool inPesos,
-  required String decimal,
-  String Function(String text, [Map<String, Object?> vars])? translate,
+  required Tr t,
 }) {
-  // Como la web: «millón» y «{format} mil millones» se traducen; «millones» no.
-  String tr(String text, [Map<String, Object?> vars = const {}]) {
-    if (translate != null) return translate(text, vars);
-    var out = text;
-    vars.forEach((k, v) => out = out.replaceAll('{$k}', '$v'));
-    return out;
-  }
-
   final value = moneyValue(raw);
   if (value == null || value <= 0) return null;
-  final unit = inPesos ? ' de pesos' : '';
-  String compact(num v) {
-    String one(num x) {
-      final r = (x * 10).round() / 10;
-      final s = r == r.roundToDouble() ? r.round().toString() : r.toStringAsFixed(1);
-      return s.replaceAll('.', decimal);
-    }
-
-    if (v >= 1000000000) return tr('{format} mil millones', {'format': one(v / 1000000000)});
-    final millions = (v / 1000000 * 10).round() / 10;
-    return '${one(millions)} ${millions == 1 ? tr('millón') : 'millones'}';
-  }
-
   if (value > maxAmount) {
     return (
-      text: 'Supera el máximo permitido ({MAX_AMOUNT}).',
-      vars: {'MAX_AMOUNT': maxAmount},
+      message: t('Supera el máximo permitido ({MAX_AMOUNT}).', {'MAX_AMOUNT': format.money(maxAmount)}),
       tone: RindeMoneyMessageTone.error,
     );
   }
+  final words = bigAmountWords(value, t.language, format.inputDecimal);
+  final unit = inPesos ? t(' de pesos') : '';
   if (value >= largeAmount) {
     return (
-      text: 'Monto muy grande ({value}{unit}). Revisa que no sobren ceros.',
-      vars: {'value': compact(value), 'unit': unit},
+      message: t('Monto muy grande ({value}{unit}). Revisa que no sobren ceros.', {
+        'value': words,
+        'unit': unit,
+      }),
       tone: RindeMoneyMessageTone.warning,
     );
   }
-  if (value >= 1000000) {
+  if (value >= 1000000) return (message: '≈ $words$unit', tone: RindeMoneyMessageTone.info);
+  if (value < 1000 && inPesos) {
     return (
-      text: '≈ {value}{unit}',
-      vars: {'value': compact(value), 'unit': unit},
+      message: t('Son menos de {amount}. ¿Faltan ceros?', {'amount': format.money(1000)}),
       tone: RindeMoneyMessageTone.info,
     );
   }
-  if (value < 1000 && inPesos) {
-    return (text: r'Son menos de $1.000. ¿Faltan ceros?', vars: const {}, tone: RindeMoneyMessageTone.info);
-  }
   return null;
+}
+
+/// «1,5 millones», «1.5 million», «1,5 milhão»: un decimal como mucho, con el separador con que se
+/// escribe el monto. No pasa por t(): el plural cambia con el número y cada idioma tiene su regla.
+String bigAmountWords(num value, String language, String decimal) {
+  num tenth(num x) => (x * 10).round() / 10;
+  var n = tenth(value / 1000000);
+  // 999,95 millones redondea a 1000: se dice en miles de millones.
+  final billions = n >= 1000;
+  if (billions) n = tenth(value / 1000000000);
+  final word = switch (language) {
+    'en' => billions ? 'billion' : 'million',
+    // En portugués el singular llega hasta 2: «1,5 milhão».
+    'pt' => billions ? (n < 2 ? 'bilhão' : 'bilhões') : (n < 2 ? 'milhão' : 'milhões'),
+    _ => billions ? 'mil millones' : (n == 1 ? 'millón' : 'millones'),
+  };
+  final number = n == n.roundToDouble() ? n.round().toString() : n.toStringAsFixed(1);
+  return '${number.replaceAll('.', decimal)} $word';
 }

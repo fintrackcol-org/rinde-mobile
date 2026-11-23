@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/i18n/tr.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
@@ -37,6 +38,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   bool _submitted = false;
   bool _loading = false;
+
+  /// Clave en español o mensaje del servidor; se traduce al mostrarlo.
   String? _error;
 
   /// Correo al que se pidió el enlace; con valor se muestra "Revisa tu correo".
@@ -75,16 +78,17 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(trProvider);
     final footer = Center(
-      child: RindeTextLink(label: 'Volver a iniciar sesión', onPressed: _backToLogin),
+      child: RindeTextLink(label: t('Volver a iniciar sesión'), onPressed: _backToLogin),
     );
     final sentTo = _sentTo;
-    if (sentTo != null) return _sent(sentTo, footer);
+    if (sentTo != null) return _sent(t, sentTo, footer);
 
     return AuthScaffold(
       icon: RindeIcons.mail,
-      title: 'Recupera tu contraseña',
-      subtitle: 'Escribe tu correo y te enviamos un enlace para crear una nueva.',
+      title: t('Recupera tu contraseña'),
+      subtitle: t('Escribe tu correo y te enviamos un enlace para crear una nueva.'),
       footer: footer,
       children: [
         Form(
@@ -94,10 +98,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               RindeTextField(
-                label: 'Correo electrónico',
-                hint: 'tu@correo.com',
+                label: t('Correo electrónico'),
+                hint: t('tu@correo.com'),
                 controller: _email,
-                validator: AuthValidators.email,
+                validator: (v) => t.maybe(AuthValidators.email(v)),
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.done,
                 autofillHints: const [AutofillHints.email],
@@ -106,10 +110,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 onSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: RindeSpace.s6),
-              if (_error != null) ...[RindeBanner(message: _error!), const SizedBox(height: RindeSpace.s6)],
+              if (_error != null) ...[
+                RindeBanner(message: t(_error!)),
+                const SizedBox(height: RindeSpace.s6),
+              ],
               RindeButton(
-                label: 'Enviar enlace',
-                loadingLabel: 'Enviando…',
+                label: t('Enviar enlace'),
+                loadingLabel: t('Enviando…'),
                 loading: _loading,
                 onPressed: _submit,
               ),
@@ -120,27 +127,27 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     );
   }
 
-  Widget _sent(String sentTo, Widget footer) {
+  Widget _sent(Tr t, String sentTo, Widget footer) {
     final muted = RindeBrand.white.withValues(alpha: 0.55);
     return AuthScaffold(
       icon: RindeIcons.mailCheck,
-      title: 'Revisa tu correo',
+      title: t('Revisa tu correo'),
       footer: footer,
       // Subtítulo con el correo en negrita; al lector se le anuncia la frase de la web (sr-only).
       subtitleWidget: Semantics(
         liveRegion: true,
-        label: 'Te enviamos un enlace a $sentTo si tiene una cuenta.',
+        label: t('Te enviamos un enlace a {sentTo} si tiene una cuenta.', {'sentTo': sentTo}),
         excludeSemantics: true,
         child: Text.rich(
           TextSpan(
             children: [
-              const TextSpan(text: 'Si '),
+              TextSpan(text: '${t('Si')} '),
               TextSpan(
                 text: sentTo,
                 style: RindeType.small.w(FontWeight.w500).copyWith(color: RindeBrand.white),
               ),
-              const TextSpan(
-                text: ' tiene una cuenta, te llegará un enlace para crear una contraseña nueva.',
+              TextSpan(
+                text: ' ${t('tiene una cuenta, te llegará un enlace para crear una contraseña nueva.')}',
               ),
             ],
           ),
@@ -150,9 +157,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       ),
       children: [
         CheckInbox(
-          tips: const [
-            'El enlace vence en 30 minutos y sirve una sola vez.',
-            '¿No lo ves? Revisa las carpetas de spam o promociones.',
+          tips: [
+            t('El enlace vence en 30 minutos y sirve una sola vez.'),
+            t('¿No lo ves? Revisa las carpetas de spam o promociones.'),
           ],
           onResend: () => ref.read(authRepositoryProvider).forgotPassword(sentTo),
           onUseOtherEmail: () => setState(() => _sentTo = null),

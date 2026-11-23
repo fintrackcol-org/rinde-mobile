@@ -1,3 +1,5 @@
+import 'dart:io' show CertificateException, HandshakeException, HttpException, IOException;
+
 import 'package:dio/dio.dart';
 
 /// Códigos de error del backend de Rinde que la app trata de forma especial.
@@ -12,9 +14,11 @@ abstract final class ApiCodes {
   static const googleNotConfigured = 'GOOGLE_NOT_CONFIGURED';
 
   // Códigos propios de la app (no vienen del servidor).
+
+  /// No se pudo conectar: la petición no salió del teléfono.
   static const network = 'NETWORK';
 
-  /// Venció la espera: a diferencia de `network`, la petición pudo haber llegado al servidor.
+  /// Venció la espera o se cortó: a diferencia de `network`, la petición pudo haber llegado al servidor.
   static const timeout = 'TIMEOUT';
   static const notConfigured = 'NOT_CONFIGURED';
 
@@ -39,13 +43,24 @@ class ApiException implements Exception {
     if (e.error is ApiException) return e.error! as ApiException;
     switch (e.type) {
       case DioExceptionType.connectionError:
-        return const ApiException(code: ApiCodes.network);
+        // Solo si no se pudo conectar la petición no salió. Si la conexión se cortó después
+        // (HttpException), pudo haber llegado.
+        return ApiException(code: e.error is HttpException ? ApiCodes.timeout : ApiCodes.network);
       case DioExceptionType.connectionTimeout:
+        // Venció abriendo la conexión, antes de escribir nada.
+        return const ApiException(code: ApiCodes.network);
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
         return const ApiException(code: ApiCodes.timeout);
       default:
         break;
+    }
+    // Llegó una respuesta que no es JSON: es un fallo, no falta de conexión.
+    if (e.error is FormatException) return const ApiException(code: ApiCodes.unknown);
+    // Se cortó con la conexión ya abierta (Dio los deja sin tipo): pudo haber llegado. El saludo TLS
+    // y el certificado fallan antes de enviar.
+    if (e.error is IOException && e.error is! HandshakeException && e.error is! CertificateException) {
+      return const ApiException(code: ApiCodes.timeout);
     }
     final response = e.response;
     if (response == null) return const ApiException(code: ApiCodes.network);

@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/i18n/tr.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../design/tokens/rinde_colors.dart';
 import '../../../../design/tokens/rinde_layout.dart';
@@ -11,9 +13,10 @@ import '../../../../design/widgets/rinde_feedback.dart';
 
 /// Cuerpo de "Revisa tu correo" (CheckInbox.jsx): consejos, reenvío con cuenta regresiva de 60 s
 /// desde que aparece y "Usar otro correo". El título y el subtítulo los pone la pantalla.
-class CheckInbox extends StatefulWidget {
+class CheckInbox extends ConsumerStatefulWidget {
   const CheckInbox({super.key, required this.tips, required this.onResend, required this.onUseOtherEmail});
 
+  /// Ya traducidos.
   final List<String> tips;
 
   /// Reenvía el enlace. Lanza ApiException si falla.
@@ -23,13 +26,15 @@ class CheckInbox extends StatefulWidget {
   static const resendSeconds = 60;
 
   @override
-  State<CheckInbox> createState() => _CheckInboxState();
+  ConsumerState<CheckInbox> createState() => _CheckInboxState();
 }
 
-class _CheckInboxState extends State<CheckInbox> {
+class _CheckInboxState extends ConsumerState<CheckInbox> {
   int _left = CheckInbox.resendSeconds;
   Timer? _timer;
   bool _sending = false;
+
+  /// Clave en español o mensaje del servidor; se traduce al mostrarlo.
   String? _message;
   bool _failed = false;
 
@@ -82,6 +87,7 @@ class _CheckInboxState extends State<CheckInbox> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(trProvider);
     final p = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -107,11 +113,11 @@ class _CheckInboxState extends State<CheckInbox> {
         ),
         const SizedBox(height: RindeSpace.s6),
         if (_message != null) ...[
-          RindeBanner(message: _message!, tone: _failed ? RindeBannerTone.error : RindeBannerTone.success),
+          RindeBanner(message: t(_message!), tone: _failed ? RindeBannerTone.error : RindeBannerTone.success),
           const SizedBox(height: RindeSpace.s4),
         ],
         RindeButton(
-          label: _left > 0 ? 'Reenviar enlace en $_clock' : 'Reenviar enlace',
+          label: _left > 0 ? '${t('Reenviar enlace en')} $_clock' : t('Reenviar enlace'),
           variant: RindeButtonVariant.outline,
           loading: _sending,
           onPressed: _left > 0 ? null : _resend,
@@ -119,7 +125,7 @@ class _CheckInboxState extends State<CheckInbox> {
         const SizedBox(height: RindeSpace.s2),
         Center(
           child: RindeTextLink(
-            label: 'Usar otro correo',
+            label: t('Usar otro correo'),
             color: p.ink.withValues(alpha: 0.7),
             onPressed: widget.onUseOtherEmail,
           ),

@@ -103,11 +103,15 @@ class _PaymentsStepState extends ConsumerState<PaymentsStep> {
         ),
         if (state.paymentsLocked) ...[
           const SizedBox(height: RindeSpace.s3),
-          // TEXTO NUEVO: la etapa 1 ya llegó al servidor, que no pisa ni borra pagos con el mismo nombre.
+          // TEXTO NUEVO: la etapa 1 ya salió; el servidor no pisa ni borra pagos con el mismo nombre.
           Semantics(
             liveRegion: true,
             child: Text(
-              t('Tus pagos ya quedaron guardados. Si quieres cambiarlos, hazlo luego en Mi plata.'),
+              state.paymentsSaved
+                  ? t('Tus pagos ya quedaron guardados. Si quieres cambiarlos, hazlo luego en Mi plata.')
+                  : t(
+                      'No sabemos si tus pagos alcanzaron a guardarse. «Ver mi plata» los envía otra vez. Si ya los cambiaste en la web, toca «Omitir» para no repetirlos.',
+                    ),
               style: RindeType.small.copyWith(color: p.inkMuted),
             ),
           ),

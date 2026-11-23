@@ -248,6 +248,108 @@ void main() {
       expect(expiredEvents, 0);
     });
 
+    group('la sesión cambia mientras se renueva', () {
+      const other = Session(
+        user: AuthUser(id: 'u2', email: 'beto@rinde.co', name: 'Beto'),
+        accessToken: 'acceso-beto',
+        refreshToken: 'refresh-beto',
+      );
+      late Completer<void> refreshing;
+      late Completer<void> release;
+      late int expiredEvents;
+
+      setUp(() {
+        refreshing = Completer();
+        release = Completer();
+        expiredEvents = 0;
+        final sub = holder.onExpired.listen((_) => expiredEvents++);
+        addTearDown(sub.cancel);
+      });
+
+      /// El refresh avisa que llegó y espera a que la prueba lo suelte.
+      FakeHandler slow(FakeHandler reply) => (o) async {
+        refreshing.complete();
+        await release.future;
+        return reply(o);
+      };
+
+      test('salir mientras renueva: la sesión no revive y el logout revoca el refresh nuevo', () async {
+        final adapter = backend(refresh: slow(newTokens));
+        final logout = client(adapter)
+            .post('/auth/logout', body: {'refreshToken': 'refresh-viejo'}, auth: true);
+        await refreshing.future;
+        // signOut no espera a un servidor dormido: borra la sesión con la renovación en camino.
+        await holder.clear();
+        release.complete();
+        await logout;
+
+        expect(holder.current, isNull);
+        expect(await storage.read(), isNull, reason: 'guardar los tokens nuevos reviviría la sesión');
+        expect(expiredEvents, 0);
+        expect(adapter.to('/auth/logout').last.data, {'refreshToken': 'refresh-nuevo'});
+      });
+
+      test('entra otra cuenta mientras renueva: su sesión queda intacta', () async {
+        final adapter = backend(refresh: slow(newTokens));
+        final request = client(adapter).get('/users/me');
+        await refreshing.future;
+        await holder.clear();
+        await holder.save(other);
+        release.complete();
+        await request;
+
+        expect(holder.current, same(other));
+        expect((await storage.read())?.accessToken, 'acceso-beto');
+        expect(expiredEvents, 0);
+        // La petición de la primera cuenta termina con SU token renovado, nunca con el de la otra.
+        expect(adapter.to('/users/me').map((r) => r.headers['Authorization']), [
+          'Bearer acceso-viejo',
+          'Bearer acceso-nuevo',
+        ]);
+      });
+
+      test('si el refresh de la sesión anterior se rechaza, no cierra la sesión nueva', () async {
+        final adapter = backend(refresh: slow((_) => errorBody(401, 'UNAUTHORIZED', 'Refresh revocado')));
+        final request = _failure(client(adapter).get('/users/me'));
+        await refreshing.future;
+        await holder.save(other);
+        release.complete();
+
+        expect((await request).code, _tokenExpired);
+        await Future<void>.delayed(Duration.zero);
+        expect(holder.current, same(other));
+        expect((await storage.read())?.refreshToken, 'refresh-beto');
+        expect(expiredEvents, 0);
+      });
+
+      test('un 401 que llega cuando ya entró otra cuenta no renueva ni repite con el token ajeno', () async {
+        final arrived = Completer<void>();
+        final adapter = FakeHttpAdapter((o) async {
+          if (o.path == '/auth/refresh') return newTokens(o);
+          if (o.headers['Authorization'] != 'Bearer acceso-viejo') return jsonBody(200, {'id': 'u2'});
+          arrived.complete();
+          await release.future;
+          return errorBody(401, _tokenExpired, 'El token expiró');
+        });
+        final api = client(adapter);
+        final request = _failure(api.post('/money-profile/welcome', body: {'balance': 1}, auth: true));
+        await arrived.future;
+        await holder.save(other);
+        release.complete();
+
+        final e = await request;
+        expect(e.code, _tokenExpired);
+        expect(e.serverMessage, ApiMessages.sessionExpired);
+        expect(adapter.to('/auth/refresh'), isEmpty);
+        expect(adapter.to('/money-profile/welcome'), hasLength(1), reason: 'escribiría en la otra cuenta');
+        expect(holder.current, same(other));
+        expect(expiredEvents, 0);
+
+        // La cuenta nueva sigue usando la API con normalidad.
+        expect(await api.get('/users/me'), {'id': 'u2'});
+      });
+    });
+
     test('dos peticiones concurrentes con 401 hacen UN solo refresh', () async {
       // El backend retiene los dos 401 hasta que ambas peticiones llegaron con el token viejo.
       final bothArrived = Completer<void>();

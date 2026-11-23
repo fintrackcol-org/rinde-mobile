@@ -1,0 +1,54 @@
+import '../core/i18n/tr.dart';
+import '../features/shell/presentation/rinde_tab_scaffold.dart';
+import 'routes.dart';
+
+/// Un destino que ya existe en Rinde Web y todavía no en la app: mientras tanto abre «En desarrollo»
+/// (shell/presentation/pending_module_screen.dart). Al construirlo se quita de [pendingModules] y su
+/// ruta pasa a router.dart.
+class PendingModule {
+  const PendingModule({required this.path, required this.title, required this.web, this.tab});
+
+  /// Ruta de go_router, con los mismos nombres de la web.
+  final String path;
+
+  /// Título ya traducido. Recibe los parámetros `?…` con que se abrió.
+  final String Function(Tr t, Map<String, String> query) title;
+
+  /// Página de Rinde Web (frontend/src/pages/app) que hay que portar.
+  final String web;
+
+  /// Pestaña que ocupa; null si se abre encima de otra pantalla, con «Volver».
+  final RindeTab? tab;
+}
+
+final pendingModules = <PendingModule>[
+  PendingModule(
+    path: Routes.movements,
+    title: (t, _) => t('Movimientos'),
+    web: 'Movements.jsx',
+    tab: RindeTab.movements,
+  ),
+  PendingModule(path: Routes.plan, title: (t, _) => t('Planear'), web: 'Planear.jsx', tab: RindeTab.plan),
+  PendingModule(
+    path: Routes.account,
+    title: (t, _) => t('Tu cuenta'),
+    web: 'Account.jsx',
+    tab: RindeTab.account,
+  ),
+  PendingModule(
+    path: Routes.record,
+    // Como Anotar.jsx: sin `?tipo=ingreso` es un gasto.
+    title: (t, query) => query['tipo'] == 'ingreso' ? t('Anotar un ingreso') : t('Anotar un gasto'),
+    web: 'Anotar.jsx',
+  ),
+  PendingModule(path: Routes.notifications, title: (t, _) => t('Notificaciones'), web: 'Notifications.jsx'),
+  PendingModule(path: Routes.myMoney, title: (t, _) => t('Mi plata'), web: 'MiPlata.jsx'),
+  PendingModule(path: Routes.payments, title: (t, _) => t('Pagos del mes'), web: 'MoneyPayments.jsx'),
+  PendingModule(path: Routes.fixBalance, title: (t, _) => t('Corregir saldo'), web: 'FixBalance.jsx'),
+  PendingModule(path: Routes.income, title: (t, _) => t('Ingresos'), web: 'PeriodDetail.jsx (ingreso)'),
+  PendingModule(path: Routes.expenses, title: (t, _) => t('Gastos'), web: 'PeriodDetail.jsx (gasto)'),
+  PendingModule(path: Routes.toConfirm, title: (t, _) => t('Por confirmar'), web: 'PendingPayments.jsx'),
+  PendingModule(path: Routes.budgets, title: (t, _) => t('Presupuestos'), web: 'Budgets.jsx'),
+  PendingModule(path: Routes.cards, title: (t, _) => t('Tarjetas'), web: 'Cards.jsx'),
+  PendingModule(path: Routes.card(':id'), title: (t, _) => t('Tarjeta'), web: 'CardDetail.jsx'),
+];

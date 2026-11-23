@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/i18n/tr.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
@@ -55,6 +56,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   /// Tras el primer envío, los errores se revisan al escribir (como en el login).
   bool _submitted = false;
+
+  /// Clave en español o mensaje del servidor; se traduce al mostrarlo.
   String? _error;
 
   /// Problemas por campo que manda el servidor (422): `name`, `email`, `password`.
@@ -130,21 +133,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(trProvider);
     final sentTo = _sentTo;
-    return sentTo == null ? _form(context) : _checkInbox(context, sentTo);
+    return sentTo == null ? _form(context, t) : _checkInbox(context, t, sentTo);
   }
 
-  Widget _checkInbox(BuildContext context, String sentTo) {
+  Widget _checkInbox(BuildContext context, Tr t, String sentTo) {
     final p = context.palette;
     final muted = RindeType.small.copyWith(color: p.ink.withValues(alpha: 0.55));
     return AuthScaffold(
       key: const ValueKey('confirm'),
       icon: RindeIcons.mailCheck,
-      title: 'Confirma tu correo',
+      title: t('Confirma tu correo'),
       // Sin selector: la cuenta ya está creada.
       footer: Center(
         child: RindeTextLink(
-          label: 'Ya lo confirmé, iniciar sesión',
+          label: t('Ya lo confirmé, iniciar sesión'),
           color: RindeBrand.violetLight,
           onPressed: () => context.pushReplacement(
             Uri(path: Routes.login, queryParameters: {'correo': sentTo}).toString(),
@@ -157,12 +161,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         child: Text.rich(
           TextSpan(
             children: [
-              const TextSpan(text: 'Te enviamos un enlace a '),
+              TextSpan(text: '${t('Te enviamos un enlace a')} '),
               TextSpan(
                 text: sentTo,
                 style: RindeType.small.w(FontWeight.w500).copyWith(color: RindeBrand.white),
               ),
-              const TextSpan(text: '. Ábrelo para activar tu cuenta y entrar.'),
+              TextSpan(text: t('. Ábrelo para activar tu cuenta y entrar.')),
             ],
           ),
           textAlign: TextAlign.center,
@@ -171,9 +175,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
       children: [
         CheckInbox(
-          tips: const [
-            'El enlace vence en 24 horas y sirve una sola vez.',
-            '¿No lo ves? Revisa las carpetas de spam o promociones.',
+          tips: [
+            t('El enlace vence en 24 horas y sirve una sola vez.'),
+            t('¿No lo ves? Revisa las carpetas de spam o promociones.'),
           ],
           onResend: () => ref.read(authRepositoryProvider).resendVerification(sentTo),
           // Vuelve al formulario con lo que ya había escrito.
@@ -183,8 +187,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  Widget _form(BuildContext context) {
+  Widget _form(BuildContext context, Tr t) {
     final p = context.palette;
+    // Las mismas piezas de la web (el orden de la frase cambia poco entre idiomas); el lector las oye juntas.
+    final terms = [
+      t('Soy mayor de edad y acepto los'),
+      t('términos de uso'),
+      t('y la'),
+      t('política de privacidad'),
+      t('de Rinde.'),
+    ];
     const link = TextStyle(
       color: RindeBrand.violetLight,
       decoration: TextDecoration.underline,
@@ -193,15 +205,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return AuthScaffold(
       key: const ValueKey('form'),
       mode: AuthMode.register,
-      title: 'Que tu plata alcance',
-      subtitle: 'Crea tu cuenta en un minuto. Los campos con * son obligatorios.',
+      title: t('Que tu plata alcance'),
+      subtitle: t('Crea tu cuenta en un minuto. Los campos con * son obligatorios.'),
       footer: Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text('¿Ya tienes cuenta?', style: RindeType.small.copyWith(color: p.ink.withValues(alpha: 0.55))),
+          Text(
+            t('¿Ya tienes cuenta?'),
+            style: RindeType.small.copyWith(color: p.ink.withValues(alpha: 0.55)),
+          ),
           RindeTextLink(
-            label: 'Inicia sesión',
+            label: t('Inicia sesión'),
             color: RindeBrand.violetLight,
             onPressed: () => context.pushReplacement(Routes.login),
           ),
@@ -216,45 +231,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 RindeTextField(
-                  label: '¿Cómo te llamas? *',
+                  label: t('¿Cómo te llamas? *'),
                   controller: _name,
-                  hint: 'Tu nombre',
-                  helper: 'Así te saludamos en la app.',
+                  hint: t('Tu nombre'),
+                  helper: t('Así te saludamos en la app.'),
                   maxLength: AuthValidators.nameMax,
                   autofillHints: const [AutofillHints.givenName],
                   keyboardType: TextInputType.name,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
-                  validator: AuthValidators.name,
+                  validator: (v) => t.maybe(AuthValidators.name(v)),
                   serverError: _fieldErrors['name'],
                   onChanged: (_) => _clearFieldError('name'),
                   onSubmitted: (_) => _emailFocus.requestFocus(),
                 ),
                 const SizedBox(height: RindeSpace.s4),
                 RindeTextField(
-                  label: 'Correo *',
+                  label: t('Correo *'),
                   controller: _email,
                   focusNode: _emailFocus,
-                  hint: 'tu@correo.com',
-                  helper: 'Te enviamos un enlace para confirmarlo.',
+                  hint: t('tu@correo.com'),
+                  helper: t('Te enviamos un enlace para confirmarlo.'),
                   autofillHints: const [AutofillHints.email],
                   keyboardType: TextInputType.emailAddress,
                   autocorrect: false,
                   textInputAction: TextInputAction.next,
-                  validator: AuthValidators.registerEmail,
+                  validator: (v) => t.maybe(AuthValidators.registerEmail(v)),
                   serverError: _fieldErrors['email'],
                   onChanged: (_) => _clearFieldError('email'),
                   onSubmitted: (_) => _passwordFocus.requestFocus(),
                 ),
                 const SizedBox(height: RindeSpace.s4),
                 RindePasswordField(
-                  label: 'Contraseña *',
+                  label: t('Contraseña *'),
+                  showLabel: t('Mostrar contraseña'),
+                  hideLabel: t('Ocultar contraseña'),
                   controller: _password,
                   focusNode: _passwordFocus,
-                  hint: 'Crea una contraseña',
+                  hint: t('Crea una contraseña'),
                   autofillHints: const [AutofillHints.newPassword],
                   textInputAction: TextInputAction.done,
-                  validator: AuthValidators.newPassword,
+                  validator: (v) => t.maybe(AuthValidators.newPassword(v)),
                   serverError: _fieldErrors['password'],
                   onChanged: (_) => _clearFieldError('password'),
                   onSubmitted: (_) => _submit(),
@@ -268,17 +285,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 RindeCheckboxField(
                   initialValue: _accepted,
                   onChanged: (v) => _accepted = v,
-                  validator: AuthValidators.acceptTerms,
-                  semanticLabel:
-                      'Soy mayor de edad y acepto los términos de uso y la política de privacidad de Rinde.',
+                  validator: (v) => t.maybe(AuthValidators.acceptTerms(v)),
+                  semanticLabel: terms.join(' '),
                   label: Text.rich(
                     TextSpan(
                       children: [
-                        const TextSpan(text: 'Soy mayor de edad y acepto los '),
-                        TextSpan(text: 'términos de uso', style: link, recognizer: _termsLink),
-                        const TextSpan(text: ' y la '),
-                        TextSpan(text: 'política de privacidad', style: link, recognizer: _privacyLink),
-                        const TextSpan(text: ' de Rinde.'),
+                        TextSpan(text: '${terms[0]} '),
+                        TextSpan(text: terms[1], style: link, recognizer: _termsLink),
+                        TextSpan(text: ' ${terms[2]} '),
+                        TextSpan(text: terms[3], style: link, recognizer: _privacyLink),
+                        TextSpan(text: ' ${terms[4]}'),
                       ],
                     ),
                     // Líneas más altas: los enlaces quedan más fáciles de tocar con el dedo.
@@ -286,10 +302,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: RindeSpace.s6),
-                if (_error != null) ...[RindeBanner(message: _error!), const SizedBox(height: RindeSpace.s4)],
+                if (_error != null) ...[
+                  RindeBanner(message: t(_error!)),
+                  const SizedBox(height: RindeSpace.s4),
+                ],
                 RindeButton(
-                  label: 'Crear cuenta',
-                  loadingLabel: 'Creando cuenta…',
+                  label: t('Crear cuenta'),
+                  loadingLabel: t('Creando cuenta…'),
                   loading: _sending,
                   onPressed: _sending ? null : _submit,
                 ),

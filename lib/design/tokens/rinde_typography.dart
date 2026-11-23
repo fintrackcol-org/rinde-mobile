@@ -66,6 +66,23 @@ abstract final class RindeType {
   /// Sobrerrótulo en mayúsculas: text-sm font-semibold tracking-[0.18em].
   static final overline = _style(14, 20, FontWeight.w600, trackingEm: 0.18);
 
+  /// La cifra grande del Inicio: text-[40px] leading-[44px] font-extrabold tracking-[-0.02em].
+  static final amount = _style(40, 44, FontWeight.w800, trackingEm: -0.02);
+
+  /// Totales del mes: extrabold tracking-tight. Se achica si el monto es largo (22, 18 o 15).
+  static final figure = _style(22, 33, FontWeight.w800, trackingEm: -0.025);
+  static final figureMd = _style(18, 28, FontWeight.w800, trackingEm: -0.025);
+  static final figureSm = _style(15, 22.5, FontWeight.w800, trackingEm: -0.025);
+
+  /// Rótulo de tarjeta en mayúsculas: text-xs font-semibold tracking-[0.08em].
+  static final eyebrow = _style(12, 16, FontWeight.w600, trackingEm: 0.08);
+
+  /// Texto de 15 con interlineado normal (filas de lista, texto de apoyo).
+  static final lead = _style(15, 22.5, FontWeight.w400);
+
+  /// Etiqueta de la barra de pestañas. La web usa 11; aquí 12, el mínimo del manual visual.
+  static final tab = _style(12, 15, FontWeight.w600);
+
   /// Cifras de dinero: números tabulares, como `tabular-nums` en la web.
   static const tabular = [FontFeature.tabularFigures()];
 }

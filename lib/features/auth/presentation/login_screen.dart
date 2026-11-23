@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/i18n/tr.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
@@ -43,6 +44,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool _submitted = false;
   bool _loading = false;
+
+  /// Clave en español o mensaje del servidor; se traduce al mostrarlo (igual [_resendNotice]).
   String? _error;
 
   /// Correo con el que el servidor respondió EMAIL_NOT_VERIFIED; con valor se ofrece reenviar.
@@ -141,22 +144,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(trProvider);
     final expired = ref.watch(sessionControllerProvider).value?.expired ?? false;
     final muted = RindeBrand.white.withValues(alpha: 0.55);
     final clock = '${_cooldown ~/ 60}:${(_cooldown % 60).toString().padLeft(2, '0')}';
 
     return AuthScaffold(
       mode: AuthMode.login,
-      title: 'Inicia sesión en tu cuenta',
-      subtitle: 'Ingresa tus datos para continuar con tus finanzas.',
+      title: t('Inicia sesión en tu cuenta'),
+      subtitle: t('Ingresa tus datos para continuar con tus finanzas.'),
       footer: Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text('¿Primera vez en Rinde?', style: RindeType.small.copyWith(color: muted)),
+          Text(t('¿Primera vez en Rinde?'), style: RindeType.small.copyWith(color: muted)),
           const SizedBox(width: RindeSpace.s1),
           RindeTextLink(
-            label: 'Crea tu cuenta gratis',
+            label: t('Crea tu cuenta gratis'),
             onPressed: () => context.pushReplacement(Routes.register),
           ),
         ],
@@ -164,7 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       children: [
         // La web no explica por qué volvió al login; aquí sí, si venció la sesión.
         if (expired && _error == null) ...[
-          const RindeBanner(message: ApiMessages.sessionExpired, tone: RindeBannerTone.neutral),
+          RindeBanner(message: t(ApiMessages.sessionExpired), tone: RindeBannerTone.neutral),
           const SizedBox(height: RindeSpace.s6),
         ],
         Form(
@@ -175,10 +179,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 RindeTextField(
-                  label: 'Correo electrónico',
-                  hint: 'tu@correo.com',
+                  label: t('Correo electrónico'),
+                  hint: t('tu@correo.com'),
                   controller: _email,
-                  validator: AuthValidators.email,
+                  validator: (v) => t.maybe(AuthValidators.email(v)),
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.email],
@@ -186,10 +190,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: RindeSpace.s4),
                 RindePasswordField(
-                  label: 'Contraseña',
-                  hint: 'Tu contraseña',
+                  label: t('Contraseña'),
+                  hint: t('Tu contraseña'),
+                  showLabel: t('Mostrar contraseña'),
+                  hideLabel: t('Ocultar contraseña'),
                   controller: _password,
-                  validator: AuthValidators.loginPassword,
+                  validator: (v) => t.maybe(AuthValidators.loginPassword(v)),
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.password],
                   onSubmitted: (_) => _submit(),
@@ -197,7 +203,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: RindeTextLink(
-                    label: '¿Olvidaste tu contraseña?',
+                    label: t('¿Olvidaste tu contraseña?'),
                     color: RindeBrand.white.withValues(alpha: 0.6),
                     style: RindeType.small,
                     onPressed: _openForgot,
@@ -206,11 +212,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: RindeSpace.s4),
                 if (_error != null) ...[
                   RindeBanner(
-                    message: _error!,
+                    message: t(_error!),
                     action: _unverifiedEmail == null
                         ? null
                         : RindeButton(
-                            label: _cooldown > 0 ? 'Reenviar enlace en $clock' : 'Reenviar enlace',
+                            label: _cooldown > 0 ? '${t('Reenviar enlace en')} $clock' : t('Reenviar enlace'),
                             variant: RindeButtonVariant.outline,
                             expand: false,
                             loading: _resending,
@@ -221,14 +227,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
                 if (_resendNotice != null) ...[
                   RindeBanner(
-                    message: _resendNotice!,
+                    message: t(_resendNotice!),
                     tone: _resendFailed ? RindeBannerTone.error : RindeBannerTone.success,
                   ),
                   const SizedBox(height: RindeSpace.s4),
                 ],
                 RindeButton(
-                  label: 'Iniciar sesión',
-                  loadingLabel: 'Ingresando…',
+                  label: t('Iniciar sesión'),
+                  loadingLabel: t('Ingresando…'),
                   loading: _loading,
                   onPressed: _submit,
                 ),

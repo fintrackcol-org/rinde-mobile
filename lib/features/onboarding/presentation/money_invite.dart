@@ -10,6 +10,8 @@ import '../../../design/tokens/rinde_layout.dart';
 import '../../../design/tokens/rinde_typography.dart';
 import '../../../design/widgets/rinde_button.dart';
 import '../../../design/widgets/rinde_feedback.dart';
+import '../../auth/application/session_controller.dart';
+import '../data/draft_store.dart';
 import '../data/onboarding_repository.dart';
 import '../../../design/widgets/rinde_icon.dart';
 
@@ -26,6 +28,9 @@ class MoneyInviteCard extends ConsumerStatefulWidget {
 class _MoneyInviteCardState extends ConsumerState<MoneyInviteCard> {
   bool _busy = false;
 
+  /// Ya guardado: la tarjeta se quita sin esperar a que el Inicio logre recargar (puede fallar).
+  bool _done = false;
+
   /// Clave en español o mensaje del servidor (ya traducido); se pasa por t() al dibujar.
   String? _error;
 
@@ -35,11 +40,23 @@ class _MoneyInviteCardState extends ConsumerState<MoneyInviteCard> {
       _busy = true;
       _error = null;
     });
+    // El contenedor y no `ref`: si la tarjeta ya no está cuando llega la respuesta, el estado viejo
+    // (bienvenida pendiente) no puede quedarse guardado.
+    final container = ProviderScope.containerOf(context, listen: false);
+    final account = ref.read(accountProvider);
+    final drafts = ref.read(draftStoreProvider);
     try {
       await ref.read(onboardingRepositoryProvider).finishWelcome(const {});
-      if (!mounted) return;
-      // Confirmado: el inicio vuelve a pedir el estado y quita la tarjeta. Sigue bloqueada mientras tanto.
-      ref.invalidate(welcomeStatusProvider);
+      // Dijo que no: el borrador sobra, salvo que ya haya salido. Ese se retoma para no perder las fuentes.
+      if (account != null) {
+        final saved = await drafts.read(account.user.id);
+        // Solo lo que se pudo leer: null también es un llavero que no respondió.
+        if (saved is Map && saved['sentWelcome'] is! String) await drafts.clear(account.user.id);
+      }
+      container.invalidate(pendingSourcesProvider);
+      // Confirmado: el inicio vuelve a pedir el estado.
+      container.invalidate(welcomeStatusProvider, asReload: true);
+      if (mounted) setState(() => _done = true);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
@@ -53,6 +70,7 @@ class _MoneyInviteCardState extends ConsumerState<MoneyInviteCard> {
   Widget build(BuildContext context) {
     final t = ref.watch(trProvider);
     final p = context.palette;
+    if (_done) return const SizedBox.shrink();
     return RindeCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

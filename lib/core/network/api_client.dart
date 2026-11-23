@@ -106,6 +106,11 @@ class _AuthInterceptor extends QueuedInterceptor {
   final Dio refresher;
 
   static const _retried = 'rinde.retried';
+  static const _line = 'rinde.session';
+
+  /// A qué inicio de sesión pertenece cada `Session`: la renovación cambia el objeto pero no la
+  /// marca; salir o entrar con otra cuenta sí. Así una respuesta tardía no toca una sesión ajena.
+  final _lines = Expando<Object>();
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -133,6 +138,7 @@ class _AuthInterceptor extends QueuedInterceptor {
       return;
     }
     options.headers['Authorization'] = 'Bearer ${current.accessToken}';
+    options.extra[_line] = _lines[current] ??= Object();
     handler.next(options);
   }
 
@@ -145,8 +151,10 @@ class _AuthInterceptor extends QueuedInterceptor {
     if (!isAuthError || err.requestOptions.extra[_retried] == true) return handler.next(err);
 
     final current = session.current;
-    // Otra petición ya intentó renovar y el servidor cerró la sesión: mismo mensaje para todas.
-    if (current == null) {
+    final line = err.requestOptions.extra[_line] as Object?;
+    // La sesión de esta petición ya no es la vigente (el servidor la cerró, la persona salió o entró
+    // otra cuenta): no se renueva ni se repite con un token que no es el suyo.
+    if (current == null || !identical(_lines[current], line)) {
       return handler.reject(
         _withError(
           err,
@@ -170,18 +178,24 @@ class _AuthInterceptor extends QueuedInterceptor {
         );
         final data = response.data;
         if (data is! Map || data['accessToken'] is! String || data['refreshToken'] is! String) {
-          throw const ApiException(code: ApiCodes.unknown);
+          // La petición original fue un 401: seguro no se aplicó.
+          throw const ApiException(code: ApiCodes.unknown, status: 401);
         }
         tokens = current.copyWith(
           accessToken: data['accessToken'] as String,
           refreshToken: data['refreshToken'] as String,
         );
-        await session.save(tokens);
+        // Mientras renovaba, la persona salió o entró otra cuenta: los tokens nuevos no se guardan
+        // (revivirían o pisarían una sesión); solo sirven para terminar esta petición (el logout).
+        if (identical(session.current, current)) {
+          _lines[tokens] = line;
+          await session.save(tokens);
+        }
       } on DioException catch (e) {
         final refreshFailure = ApiException.fromDio(e);
         final status = e.response?.statusCode;
         if (status == 401 || status == 400) {
-          await session.expire();
+          if (identical(session.current, current)) await session.expire();
           return handler.reject(
             _withError(
               err,
@@ -193,13 +207,17 @@ class _AuthInterceptor extends QueuedInterceptor {
             ),
           );
         }
-        if (refreshFailure.isNetwork) return handler.reject(_withError(err, refreshFailure));
+        // La petición original sí fue rechazada (401): aunque falle renovar, seguro no se aplicó.
+        if (refreshFailure.isNetwork) {
+          return handler.reject(_withError(err, ApiException(code: refreshFailure.code, status: 401)));
+        }
         return handler.reject(
           _withError(
             err,
             const ApiException(
               code: 'REFRESH_FAILED',
               serverMessage: 'No pudimos renovar tu sesión. Inténtalo de nuevo.',
+              status: 401,
             ),
           ),
         );

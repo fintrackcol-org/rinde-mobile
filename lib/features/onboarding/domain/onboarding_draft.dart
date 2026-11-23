@@ -18,9 +18,12 @@ class OnboardingDraft {
     this.balance = '',
     this.items = const [],
     this.sentWelcome,
+    this.welcomeConfirmed = false,
+    this.sourcesSent = false,
+    this.confirmedBalance,
   });
 
-  /// Borrador nuevo: país sugerido y su idioma.
+  /// Borrador nuevo: país sugerido y su idioma (el controlador lo cambia por el idioma que ya se ve).
   factory OnboardingDraft.fresh(String suggestedCountry) {
     final region = regionForCountry(suggestedCountry);
     return OnboardingDraft(
@@ -66,6 +69,9 @@ class OnboardingDraft {
       balance: RegExp(r'^\d{1,10}(\.\d{0,2})?$').hasMatch(balance) ? balance : '',
       items: items,
       sentWelcome: json['sentWelcome'] is String ? json['sentWelcome'] as String : null,
+      welcomeConfirmed: json['sentWelcome'] is String && json['welcomeConfirmed'] == true,
+      sourcesSent: json['sourcesSent'] == true,
+      confirmedBalance: json['confirmedBalance'] is num ? json['confirmedBalance'] as num : null,
     );
   }
 
@@ -85,9 +91,41 @@ class OnboardingDraft {
   final String balance;
   final List<CommitmentItem> items;
 
-  /// Cuerpo de POST /money-profile/welcome que el servidor YA confirmó en un intento anterior.
-  /// Si el siguiente intento manda lo mismo, no se repite: solo falta guardar las fuentes.
+  /// Cuerpo de POST /money-profile/welcome que se empezó a enviar. Se anota ANTES de enviarlo: si la
+  /// respuesta no llega (espera vencida, app cerrada), la etapa 1 pudo quedar en el servidor y al
+  /// reabrir se retoma para guardar las fuentes en vez de perderlas.
   final String? sentWelcome;
+
+  /// El servidor confirmó [sentWelcome]: si el siguiente intento manda lo mismo no se repite, y los
+  /// pagos ya no se editan aquí.
+  final bool welcomeConfirmed;
+
+  /// PUT /money-profile/sources salió alguna vez: si después quita todas las fuentes, hay que mandar
+  /// la lista vacía para borrarlas en el servidor.
+  final bool sourcesSent;
+
+  /// El saldo que el servidor respondió que guardó. No se vuelve a enviar: pisaría el que la persona
+  /// corrija después en Mi plata.
+  final num? confirmedBalance;
+
+  /// Los pagos que salieron en la etapa 1, o null si no salió ninguno. Desde entonces no se editan y
+  /// un reenvío los repite desde aquí, no desde la pantalla: el servidor no pisa ni borra pagos, así
+  /// que otra lista los duplicaría. Si se omitieron, no hay nada que bloquear.
+  List<Map<String, dynamic>>? get sentCommitments {
+    final sent = sentWelcome;
+    if (sent == null) return null;
+    try {
+      if (jsonDecode(sent) case {'commitments': final List<dynamic> list} when list.isNotEmpty) {
+        return [
+          for (final c in list)
+            if (c is Map<String, dynamic>) c,
+        ];
+      }
+    } on FormatException {
+      // Una marca ilegible no bloquea nada.
+    }
+    return null;
+  }
 
   OnboardingDraft copyWith({
     int? position,
@@ -98,6 +136,9 @@ class OnboardingDraft {
     String? balance,
     List<CommitmentItem>? items,
     String? Function()? sentWelcome,
+    bool? welcomeConfirmed,
+    bool? sourcesSent,
+    num? Function()? confirmedBalance,
   }) => OnboardingDraft(
     position: position ?? this.position,
     country: country ?? this.country,
@@ -107,6 +148,9 @@ class OnboardingDraft {
     balance: balance ?? this.balance,
     items: items ?? this.items,
     sentWelcome: sentWelcome != null ? sentWelcome() : this.sentWelcome,
+    welcomeConfirmed: welcomeConfirmed ?? this.welcomeConfirmed,
+    sourcesSent: sourcesSent ?? this.sourcesSent,
+    confirmedBalance: confirmedBalance != null ? confirmedBalance() : this.confirmedBalance,
   );
 
   Map<String, dynamic> toJson() => {
@@ -119,6 +163,9 @@ class OnboardingDraft {
     'balance': balance,
     'items': [for (final i in items) i.toJson()],
     'sentWelcome': ?sentWelcome,
+    if (welcomeConfirmed) 'welcomeConfirmed': true,
+    if (sourcesSent) 'sourcesSent': true,
+    'confirmedBalance': ?confirmedBalance,
   };
 }
 

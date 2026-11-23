@@ -56,6 +56,18 @@ void main() {
       expect(OnboardingDraft.fresh('CO').toJson().containsKey('sentWelcome'), isFalse);
     });
 
+    test('la confirmación del servidor viaja aparte de la huella y solo vale con ella', () {
+      const sent = OnboardingDraft(position: 9, country: 'CO', language: 'es', sentWelcome: '{}');
+      // Anotada antes de enviar: todavía no hay confirmación.
+      expect(sent.toJson().containsKey('welcomeConfirmed'), isFalse);
+      expect(_read(sent.toJson()).welcomeConfirmed, isFalse);
+
+      final confirmed = sent.copyWith(welcomeConfirmed: true);
+      expect(_read(jsonDecode(jsonEncode(confirmed.toJson()))).welcomeConfirmed, isTrue);
+      expect(_read(_valid({'welcomeConfirmed': true})).welcomeConfirmed, isFalse, reason: 'sin huella');
+      expect(_read(_valid({'sentWelcome': '{}', 'welcomeConfirmed': 'true'})).welcomeConfirmed, isFalse);
+    });
+
     test('borrador nuevo: saludo, país sugerido y su idioma', () {
       final fresh = OnboardingDraft.fresh('BR');
       expect(fresh.position, OnboardingSteps.hello);

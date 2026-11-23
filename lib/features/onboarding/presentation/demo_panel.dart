@@ -1,14 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../app/app.dart' show themeModeProvider;
+import '../../../app/routes.dart';
+import '../../../core/region/region.dart';
+import '../../../core/region/region_provider.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
 import '../../../design/tokens/rinde_typography.dart';
 import '../../../design/widgets/rinde_button.dart';
 import '../../../design/widgets/rinde_segmented.dart';
 import '../../auth/application/session_controller.dart';
+import '../../home/application/home_providers.dart';
 import '../application/onboarding_controller.dart';
 import '../data/demo_onboarding_repository.dart';
+import '../data/draft_store.dart';
 import '../data/onboarding_repository.dart';
 import '../domain/onboarding_flow.dart';
 
@@ -20,8 +27,9 @@ import '../domain/onboarding_flow.dart';
 
 const demoWarning = 'MODO DEMOSTRACIÓN · SIN BACKEND: nada se envía a ningún servidor.';
 
-/// Panel «DEMO» de la bienvenida: latencia, fallas a propósito, reiniciar y salir.
-Future<void> showDemoPanel(BuildContext context, {required OnboardingMode mode}) =>
+/// Panel «DEMO»: latencia, fallas a propósito, reiniciar y salir. Con [mode] es el de la bienvenida;
+/// sin él se abrió desde el Inicio o las pestañas y además deja cambiar la región y el tema.
+Future<void> showDemoPanel(BuildContext context, {OnboardingMode? mode}) =>
     _showDemoSheet<void>(context, _DemoPanel(mode: mode));
 
 /// Elegir un escenario sintético desde la pantalla de entrada. Devuelve null si se cierra.
@@ -32,19 +40,24 @@ Future<T?> _showDemoSheet<T>(BuildContext context, Widget body) => showModalBott
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
-  // Canvas y no surface: en la pantalla pública surface es casi transparente.
-  backgroundColor: context.palette.canvas,
+  // El fondo lo pinta el contenido con el tema del momento: el panel cambia el tema estando abierto.
+  backgroundColor: Colors.transparent,
+  clipBehavior: Clip.antiAlias,
   shape: const RoundedRectangleBorder(
     borderRadius: BorderRadius.vertical(top: Radius.circular(RindeRadius.x3)),
   ),
-  builder: (context) => SingleChildScrollView(
-    padding: EdgeInsets.fromLTRB(
-      RindeSpace.s5,
-      RindeSpace.s5,
-      RindeSpace.s5,
-      RindeSpace.s5 + MediaQuery.paddingOf(context).bottom,
+  builder: (context) => ColoredBox(
+    // Canvas y no surface: en la pantalla pública surface es casi transparente.
+    color: context.palette.canvas,
+    child: SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        RindeSpace.s5,
+        RindeSpace.s5,
+        RindeSpace.s5,
+        RindeSpace.s5 + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: body,
     ),
-    child: body,
   ),
 );
 
@@ -75,7 +88,9 @@ class _ScenarioSheet extends StatelessWidget {
 
 class _DemoPanel extends ConsumerWidget {
   const _DemoPanel({required this.mode});
-  final OnboardingMode mode;
+
+  /// null = abierto desde el Inicio o las pestañas.
+  final OnboardingMode? mode;
 
   static final _latencies = {
     Duration.zero: '0',
@@ -89,22 +104,45 @@ class _DemoPanel extends ConsumerWidget {
     DemoFailure.server: 'Error del servidor',
   };
 
-  static const _operations = [
+  static const _operations = <(Enum, String, String)>[
     (DemoOperation.region, 'Guardar país e idioma', 'PATCH /users/me'),
     (DemoOperation.welcome, 'Guardar la bienvenida', 'POST /money-profile/welcome'),
     (DemoOperation.sources, 'Guardar las fuentes de ingreso', 'PUT /money-profile/sources'),
     (DemoOperation.status, 'Leer el estado de la bienvenida', 'GET /money-profile'),
   ];
 
-  /// Como el cierre de la demostración: la cuenta sintética vuelve a cero y se empieza en el saludo.
+  static const _homeOperations = <(Enum, String, String)>[
+    (DemoHomeOperation.plan, 'Leer el plan', 'GET /money-profile/plan'),
+    (DemoHomeOperation.summary, 'Leer los ingresos y gastos del mes', 'GET /transactions/summary'),
+    (
+      DemoHomeOperation.secondary,
+      'Leer presupuestos, tarjetas, pagos por confirmar y avisos',
+      'GET /budgets · /cards · /pending-payments · /notifications · /categories',
+    ),
+    (DemoOperation.status, 'Leer la plata y el estado de la bienvenida', 'GET /money-profile'),
+  ];
+
+  /// Países de prueba: peso sin decimales, dólar, real, euro y libra, en los tres idiomas.
+  static const _countries = ['CO', 'US', 'BR', 'ES', 'GB'];
+
+  /// La cuenta sintética vuelve a estar recién creada. En la bienvenida completa se empieza en el saludo;
+  /// desde el Inicio o desde «solo las preguntas» decide la entrada (una cuenta nueva vuelve a la
+  /// bienvenida completa).
   Future<void> _restart(BuildContext context) async {
     // El contenedor y no `ref`: sigue sirviendo aunque la hoja se cierre a mitad.
     final container = ProviderScope.containerOf(context, listen: false);
+    final router = GoRouter.maybeOf(context);
+    final userId = container.read(sessionControllerProvider).value?.session?.user.id;
+    final mode = this.mode;
     final repo = container.read(onboardingRepositoryProvider);
     if (repo is DemoOnboardingRepository) await repo.reset();
-    container.invalidate(welcomeStatusProvider);
-    await container.read(onboardingControllerProvider(mode).notifier).restartDemo();
+    // Tampoco queda una bienvenida a medias de la cuenta anterior.
+    if (userId != null) await container.read(draftStoreProvider).clear(userId);
+    container.invalidate(pendingSourcesProvider);
+    invalidateHome(container.invalidate);
+    if (mode != null) await container.read(onboardingControllerProvider(mode).notifier).restartDemo();
     if (context.mounted) Navigator.of(context).pop();
+    if (mode != OnboardingMode.full) router?.go(Routes.app);
   }
 
   Future<void> _exit(BuildContext context) async {
@@ -113,12 +151,52 @@ class _DemoPanel extends ConsumerWidget {
     await container.read(sessionControllerProvider.notifier).signOut();
   }
 
+  /// Cambia la región de la cuenta sintética sin pasar por la bienvenida. No se guarda en el
+  /// dispositivo; sí en la demostración, para que siga al reabrir la app.
+  Future<void> _setRegion(BuildContext context, String country) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final userId = container.read(sessionControllerProvider).value?.session?.user.id;
+    if (userId == null) return;
+    final region = regionForCountry(country);
+    // Sin conexión o con una falla puesta seguirían en pantalla los montos de la otra moneda.
+    container.read(demoControlsProvider.notifier).reconnect();
+    final before = await container.read(demoStateStoreProvider).read(userId);
+    if ((before.region ?? kDefaultRegion).currency != region.currency) {
+      await _dropProposal(container.read(draftStoreProvider), userId, before);
+    }
+    await container.read(demoStateStoreProvider).update(userId, (state) => state.withRegion(region));
+    await container.read(appRegionProvider.notifier).set(region, persist: false);
+    // Los montos fijos cambian de escala con la moneda: los anteriores no se muestran mientras llegan.
+    invalidateHome((provider) => container.invalidate(provider, asReload: true));
+  }
+
+  /// La propuesta de saldo que quedó en el borrador es de la otra escala: se quita solo si nadie la
+  /// cambió ni la envió. Lo que escribió la persona no se toca.
+  Future<void> _dropProposal(DraftStore drafts, String userId, DemoState before) async {
+    final proposal = demoWelcomeStatus(DemoScenario.fromUserId(userId), before).balanceProposal;
+    final draft = await drafts.read(userId);
+    if (proposal == null || draft is! Map<String, dynamic> || draft['sentWelcome'] != null) return;
+    if (draft['balance'] == '$proposal') await drafts.write(userId, {...draft, 'balance': ''});
+  }
+
+  void _showTour(BuildContext context, WidgetRef ref) {
+    final router = GoRouter.maybeOf(context);
+    ref.read(tourRequestedProvider.notifier).request();
+    Navigator.of(context).pop();
+    // El tutorial vive en el Inicio.
+    router?.go(Routes.app);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.palette;
     final controls = ref.watch(demoControlsProvider);
     final notifier = ref.read(demoControlsProvider.notifier);
     final repo = ref.watch(onboardingRepositoryProvider);
+    final home = mode == null;
+    // Guardando no se reinicia: la respuesta en camino volvería a escribir sobre lo que se borró.
+    final saving = !home && ref.watch(onboardingControllerProvider(mode!).select((s) => s.busy != null));
+    final region = ref.watch(appRegionProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -141,7 +219,7 @@ class _DemoPanel extends ConsumerWidget {
         ),
         const SizedBox(height: RindeSpace.s6),
         const _Label('Simular falla en la próxima…'),
-        for (final (op, label, endpoint) in _operations) ...[
+        for (final (op, label, endpoint) in home ? _homeOperations : _operations) ...[
           const SizedBox(height: RindeSpace.s4),
           Text(label, style: RindeType.small.copyWith(color: p.ink)),
           Text(endpoint, style: RindeType.caption.copyWith(color: p.inkMuted)),
@@ -153,11 +231,62 @@ class _DemoPanel extends ConsumerWidget {
             onChanged: (failure) => notifier.failNext(op, failure),
           ),
         ],
-        const SizedBox(height: RindeSpace.s8),
+        const SizedBox(height: RindeSpace.s6),
+        const _Label('Conexión'),
+        Text(
+          'Apagada, todas las llamadas fallan hasta que la vuelvas a encender.',
+          style: RindeType.caption.copyWith(color: p.inkMuted),
+        ),
+        const SizedBox(height: RindeSpace.s2),
+        RindeSegmented<bool>(
+          semanticLabel: 'Conexión',
+          options: const {false: 'Encendida', true: 'Apagada'},
+          value: controls.offline,
+          onChanged: (offline) {
+            notifier.setOffline(offline);
+            // El Inicio se vuelve a pedir en el acto: se ve caer y volver sin tener que deslizar.
+            if (home) invalidateHome(ref.invalidate);
+          },
+        ),
+        if (home) ...[
+          const SizedBox(height: RindeSpace.s6),
+          const _Label('País, moneda e idioma'),
+          Text(
+            '${region.country} · ${region.currency} · ${region.language}',
+            style: RindeType.caption.copyWith(color: p.inkMuted),
+          ),
+          const SizedBox(height: RindeSpace.s2),
+          RindeSegmented<String>(
+            semanticLabel: 'País, moneda e idioma',
+            // El país elegido en la bienvenida puede no ser uno de los de prueba.
+            options: {
+              for (final code in {..._countries, region.country}) code: code,
+            },
+            value: region.country,
+            onChanged: (country) => _setRegion(context, country),
+          ),
+          const SizedBox(height: RindeSpace.s6),
+          const _Label('Tema'),
+          const SizedBox(height: RindeSpace.s2),
+          RindeSegmented<ThemeMode>(
+            semanticLabel: 'Tema',
+            options: const {ThemeMode.light: 'Claro', ThemeMode.dark: 'Oscuro'},
+            value: ref.watch(themeModeProvider),
+            onChanged: ref.read(themeModeProvider.notifier).set,
+          ),
+          const SizedBox(height: RindeSpace.s8),
+          RindeButton(
+            label: 'Ver el tutorial',
+            variant: RindeButtonVariant.outline,
+            onPressed: () => _showTour(context, ref),
+          ),
+          const SizedBox(height: RindeSpace.s2),
+        ] else
+          const SizedBox(height: RindeSpace.s8),
         RindeButton(
           label: 'Reiniciar demostración',
           variant: RindeButtonVariant.outline,
-          onPressed: () => _restart(context),
+          onPressed: saving ? null : () => _restart(context),
         ),
         const SizedBox(height: RindeSpace.s2),
         RindeButton(

@@ -86,9 +86,10 @@ void main() {
       expect((await read({'income': 100, 'expense': 100})).balanceProposal, isNull);
       // round como Math.round de la web.
       expect((await read({'income': 100.5, 'expense': 0})).balanceProposal, 101);
-      // Totales ausentes o con otra forma cuentan como 0.
-      expect((await read(null, total: 'x')).balanceProposal, isNull);
-      expect((await read(null, total: 'x')).hasTransactions, isFalse);
+      // Totales ausentes cuentan como 0.
+      expect((await read(null)).balanceProposal, isNull);
+      // Un total ilegible no es «sin movimientos»: mandaría a la bienvenida a una cuenta con historia.
+      await expectLater(read(null, total: 'x'), throwsA(isA<ApiException>()));
     });
 
     test('status: una respuesta que no es objeto es un error de contrato', () async {
@@ -237,6 +238,126 @@ void main() {
       expect(repo.isDemo, isTrue);
       expect((repo as DemoOnboardingRepository).scenario, DemoScenario.movimientos);
     });
+
+    test('cada entrada a la demostración estrena el registro de llamadas', () async {
+      final c = await boot(Session.demo('nuevo'));
+      c.listen(sessionControllerProvider, (_, _) {});
+      c.read(demoControlsProvider.notifier).setLatency(Duration.zero);
+      final first = c.read(onboardingRepositoryProvider) as DemoOnboardingRepository;
+      await first.finishWelcome(const {});
+      expect(first.calls, hasLength(1));
+
+      await c.read(sessionControllerProvider.notifier).signOut();
+      await c.read(sessionControllerProvider.notifier).signInDemo('nuevo');
+      final second = c.read(onboardingRepositoryProvider) as DemoOnboardingRepository;
+      expect(second.calls, isEmpty);
+      // El estado de la cuenta sintética sí sigue: está guardado, no en memoria.
+      expect((await second.status()).welcomeDone, isTrue);
+    });
+  });
+
+  group('DemoState (reglas del servidor)', () {
+    const arriendo = {'name': 'Arriendo', 'amount': 900000, 'dayOfMonth': 5, 'kind': 'fixed'};
+
+    test('bienvenida respondida: guarda el saldo y los pagos, y deja el tipo de ingreso sin definir', () {
+      final state = const DemoState(incomeType: 'fecha_fija', payDays: [15]).withWelcome(const {
+        'incomeType': null,
+        'payDays': <int>[],
+        'balance': 850000.456,
+        'commitments': [arriendo],
+      });
+      expect(state.welcomeDone, isTrue);
+      expect(state.balance, 850000.46);
+      expect(state.incomeType, isNull);
+      expect(state.payDays, isEmpty);
+      // Solo nombre, monto y día: lo demás el servidor lo descarta.
+      expect(state.commitments, [
+        {'name': 'Arriendo', 'amount': 900000, 'dayOfMonth': 5},
+      ]);
+    });
+
+    test('«Ahora no» ({}) o un reintento sin saldo conserva lo que había y solo suma pagos', () {
+      const before = DemoState(balance: 500000, incomeType: 'sin_fecha', commitments: [arriendo]);
+      final skipped = before.withWelcome(const {});
+      expect(skipped.welcomeDone, isTrue);
+      expect(skipped.balance, 500000);
+      expect(skipped.incomeType, 'sin_fecha');
+      expect(skipped.commitments, hasLength(1));
+
+      final retried = before.withWelcome(const {
+        'incomeType': null,
+        'payDays': <int>[],
+        'balance': null,
+        'commitments': [
+          // Mismo nombre con otra mayúscula y otro monto: no se repite ni se actualiza.
+          {'name': 'ARRIENDO', 'amount': 1, 'dayOfMonth': 1},
+          {'name': 'Internet', 'amount': 85000, 'dayOfMonth': 20},
+          {'name': 'internet', 'amount': 2, 'dayOfMonth': 2},
+        ],
+      });
+      expect(retried.balance, 500000);
+      expect(retried.commitments.map((c) => (c['name'], c['amount'])), [
+        ('Arriendo', 900000),
+        ('Internet', 85000),
+      ]);
+    });
+
+    test('fuentes: reemplazan y de ellas sale el tipo de ingreso (legacyIncomeType)', () {
+      const state = DemoState(welcomeDone: true, balance: 1);
+      final fixed = state.withSources(const [
+        {
+          'kind': 'sueldo',
+          'payDays': [30, 15, 15],
+        },
+        {
+          'kind': 'comisiones',
+          'payDays': [5, 1, 28],
+        },
+        {
+          'kind': 'proyectos',
+          'payDays': [9],
+        },
+      ]);
+      expect(fixed.incomeType, 'fecha_fija');
+      // Sin repetidos, en orden y como mucho 4; los días de «proyectos» no cuentan.
+      expect(fixed.payDays, [1, 5, 15, 28]);
+      expect(fixed.balance, 1);
+      expect(fixed.welcomeDone, isTrue);
+
+      final variable = fixed.withSources(const [
+        {'kind': 'mesada', 'payDays': <int>[]},
+        {'kind': 'diario'},
+      ]);
+      expect(variable.incomeType, 'sin_fecha');
+      expect(variable.payDays, isEmpty);
+
+      expect(variable.withSources(const []).incomeType, isNull);
+    });
+
+    test('se guarda y se lee igual; algo ilegible es una cuenta nueva', () {
+      const state = DemoState(
+        welcomeDone: true,
+        tutorialDone: true,
+        region: Region(country: 'BR', currency: 'BRL', language: 'pt'),
+        balance: 1250.5,
+        commitments: [
+          {'name': 'Aluguel', 'amount': 900.5, 'dayOfMonth': 31},
+        ],
+        incomeType: 'fecha_fija',
+        payDays: [15, 30],
+      );
+      expect(DemoState.fromJson(state.toJson()).toJson(), state.toJson());
+      expect(DemoState.fromJson('roto').toJson(), const DemoState().toJson());
+      // Lo que guardaba la versión anterior de la demostración.
+      expect(DemoState.fromJson(const {'welcomeDone': true}).welcomeDone, isTrue);
+    });
+
+    test('los montos fijos se dividen entre 1.000 fuera del peso colombiano', () {
+      expect(const DemoState().fixed(412300), 412300);
+      expect(const DemoState().withRegion(regionForCountry('CO')).fixed(412300), 412300);
+      expect(const DemoState().withRegion(regionForCountry('US')).fixed(412300), 412.3);
+      expect(const DemoState().withRegion(regionForCountry('ES')).fixed(-93000), -93);
+    });
   });
 
   group('DemoOnboardingRepository (MODO DEMOSTRACIÓN)', () {
@@ -327,6 +448,92 @@ void main() {
       await repo.finishWelcome(const {});
       await repo.reset();
       expect(repo.calls, isEmpty);
+      expect((await repo.status()).welcomeDone, isFalse);
+    });
+
+    test('reset lo borra todo (saldo, pagos, fuentes, región y tutorial) y avisa', () async {
+      var resets = 0;
+      final repo = DemoOnboardingRepository(
+        userId: 'demo-nuevo',
+        store: store,
+        controls: controls,
+        onReset: () => resets++,
+      );
+      await repo.saveRegion(country: 'BR', language: 'pt');
+      await repo.finishWelcome(const {
+        'balance': 800000,
+        'commitments': [
+          {'name': 'Arriendo', 'amount': 500000, 'dayOfMonth': 5},
+        ],
+      });
+      await repo.saveSources(const [
+        {
+          'kind': 'sueldo',
+          'payDays': [15],
+        },
+      ]);
+      await store.update('demo-nuevo', (state) => state.withTutorial());
+      await demo('movimientos').finishWelcome(const {});
+
+      await repo.reset();
+      expect(resets, 1);
+      expect((await store.read('demo-nuevo')).toJson(), const DemoState().toJson());
+      // Otra cuenta sintética no se toca.
+      expect(await store.welcomeDone('demo-movimientos'), isTrue);
+    });
+
+    test('status sale del mismo estado: la plata es el saldo que se dijo, nunca un cero inventado', () async {
+      final nuevo = demo('nuevo');
+      await nuevo.finishWelcome(const {});
+      var status = await nuevo.status();
+      expect(status.welcomeDone, isTrue);
+      expect(status.money, isNull);
+      expect(status.balanceSet, isFalse);
+      expect(status.tutorialDone, isFalse);
+
+      await nuevo.finishWelcome(const {'incomeType': null, 'payDays': <int>[], 'balance': 0});
+      await store.update('demo-nuevo', (state) => state.withTutorial());
+      status = await nuevo.status();
+      expect(status.money, 0);
+      expect(status.balanceSet, isTrue);
+      expect(status.tutorialDone, isTrue);
+
+      // Con movimientos y sin saldo dicho, la plata es lo que dan los movimientos.
+      final movimientos = demo('movimientos');
+      status = await movimientos.status();
+      expect(status.welcomeDone, isFalse);
+      expect(status.money, 650000);
+      expect(status.balanceSet, isFalse);
+      await movimientos.finishWelcome(const {'balance': 1200000});
+      status = await movimientos.status();
+      expect(status.money, 1200000);
+      expect(status.balanceSet, isTrue);
+    });
+
+    test('saveRegion guarda la región en la cuenta sintética', () async {
+      await demo('nuevo').saveRegion(country: 'ES', language: 'en');
+      expect(
+        (await store.read('demo-nuevo')).region,
+        const Region(country: 'ES', currency: 'EUR', language: 'en'),
+      );
+    });
+
+    test('sin conexión: todo falla por red hasta apagarlo, y no se guarda nada', () async {
+      final repo = demo('nuevo');
+      controls.setOffline(true);
+      for (final call in <Future<dynamic> Function()>[
+        repo.status,
+        () => repo.saveRegion(country: 'BR', language: 'pt'),
+        () => repo.finishWelcome(const {'balance': 1}),
+        () => repo.saveSources(const []),
+        // No es de una sola vez.
+        repo.status,
+      ]) {
+        expect((await _failure(call())).isNetwork, isTrue);
+      }
+      expect((await store.read('demo-nuevo')).toJson(), const DemoState().toJson());
+
+      controls.setOffline(false);
       expect((await repo.status()).welcomeDone, isFalse);
     });
   });

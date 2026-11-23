@@ -1,6 +1,8 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/i18n/tr.dart';
 import '../../../../design/tokens/rinde_colors.dart';
 import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
@@ -12,12 +14,13 @@ import 'auth_switch.dart';
 /// Android/iOS hace falta crear los clientes nativos en Google Cloud (SHA-1 del keystore) y pedir
 /// el token con `serverClientId` = cliente web. Hasta entonces se muestra deshabilitado con
 /// "Próximamente", exactamente como la web cuando no tiene VITE_GOOGLE_CLIENT_ID.
-class GoogleSection extends StatelessWidget {
+class GoogleSection extends ConsumerWidget {
   const GoogleSection({super.key, required this.mode});
   final AuthMode mode;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(trProvider);
     final muted = RindeBrand.white.withValues(alpha: 0.55);
     final line = Expanded(child: Container(height: 1, color: RindeBrand.white.withValues(alpha: 0.1)));
     return Column(
@@ -31,7 +34,8 @@ class GoogleSection extends StatelessWidget {
             ConstrainedBox(
               constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.7),
               child: Text(
-                (mode == AuthMode.register ? 'O regístrate con Google' : 'O entra con Google').toUpperCase(),
+                (mode == AuthMode.register ? t('O regístrate con Google') : t('O entra con Google'))
+                    .toUpperCase(),
                 textAlign: TextAlign.center,
                 style: RindeType.caption.copyWith(color: muted, letterSpacing: 0.3),
               ),
@@ -44,7 +48,7 @@ class GoogleSection extends StatelessWidget {
         Semantics(
           button: true,
           enabled: false,
-          label: 'Continuar con Google. Próximamente',
+          label: '${t('Continuar con Google')}. ${t('Próximamente')}',
           excludeSemantics: true,
           child: Opacity(
             opacity: 0.5,
@@ -67,7 +71,10 @@ class GoogleSection extends StatelessWidget {
                     height: 16,
                     excludeFromSemantics: true,
                   ),
-                  Text('Continuar con Google', style: RindeType.bodyMedium.copyWith(color: RindeBrand.white)),
+                  Text(
+                    t('Continuar con Google'),
+                    style: RindeType.bodyMedium.copyWith(color: RindeBrand.white),
+                  ),
                   DecoratedBox(
                     decoration: BoxDecoration(
                       color: RindeBrand.white.withValues(alpha: 0.1),
@@ -76,7 +83,7 @@ class GoogleSection extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: RindeSpace.s2, vertical: 2),
                       child: Text(
-                        'Próximamente',
+                        t('Próximamente'),
                         style: RindeType.caption.copyWith(color: RindeBrand.white.withValues(alpha: 0.7)),
                       ),
                     ),

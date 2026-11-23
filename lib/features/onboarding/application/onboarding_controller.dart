@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/widgets.dart' show WidgetsBinding;
@@ -15,6 +16,8 @@ import '../domain/commitments.dart';
 import '../domain/income_sources.dart';
 import '../domain/onboarding_draft.dart';
 import '../domain/onboarding_flow.dart';
+import '../../home/application/home_providers.dart' show invalidateHome;
+import '../../home/data/home_models.dart' show readMoney;
 
 /// Qué está guardando ahora (bloquea Atrás, Omitir y el botón principal).
 enum OnboardingBusy { region, finishing, later }
@@ -82,9 +85,11 @@ class OnboardingState {
   int get step => OnboardingSteps.stepNumber(position, mode);
   int get total => OnboardingSteps.total(mode);
 
-  /// Los pagos ya llegaron al servidor (etapa 1): cambiarlos aquí no tendría efecto (el servidor no
-  /// pisa ni borra pagos con el mismo nombre), así que se muestran sin edición.
-  bool get paymentsLocked => draft.sentWelcome != null;
+  /// Los pagos salieron en la etapa 1: se muestran sin edición (ver OnboardingDraft.sentCommitments).
+  bool get paymentsLocked => draft.sentCommitments != null;
+
+  /// El servidor los tiene; mientras esté en duda no se dice que quedaron guardados.
+  bool get paymentsSaved => paymentsLocked && draft.welcomeConfirmed;
 
   OnboardingState copyWith({
     OnboardingDraft? draft,
@@ -130,6 +135,7 @@ class OnboardingController extends Notifier<OnboardingState> {
   // (Riverpod 3), pero una respuesta del servidor que llega tarde igual debe borrar el borrador.
   late OnboardingRepository _repo;
   late DraftStore _store;
+  late ProviderContainer _container;
 
   /// Borrador aún no escrito en el dispositivo (se escribe al cerrar sin tocar `ref` ni `state`).
   Map<String, dynamic>? _pending;
@@ -140,6 +146,7 @@ class OnboardingController extends Notifier<OnboardingState> {
     _userId = session?.user.id ?? 'anon';
     _repo = ref.read(onboardingRepositoryProvider);
     _store = ref.read(draftStoreProvider);
+    _container = ref.container;
     final store = _store;
     final userId = _userId;
     ref.onDispose(() {
@@ -151,6 +158,16 @@ class OnboardingController extends Notifier<OnboardingState> {
       if (pending != null) unawaited(store.write(userId, pending));
     });
     final suggested = suggestCountry(ref.read(systemLocalesProvider));
+    if (mode == OnboardingMode.questions) {
+      // El idioma de la cuenta puede llegar con las preguntas abiertas: las sugerencias marcadas lo
+      // siguen, o se agregaría dos veces el mismo pago con dos nombres.
+      ref.listen(appRegionProvider.select((r) => r.language), (_, language) {
+        final draft = state.draft;
+        if (!state.ready || state.busy != null) return; // guardando: no se escribe sobre la marca
+        if (draft.sentCommitments != null || draft.language == language) return;
+        _setDraft(draft.copyWith(language: language, items: _relabel(draft, language)));
+      });
+    }
     unawaited(_load(suggested));
     return OnboardingState(
       mode: mode,
@@ -160,28 +177,42 @@ class OnboardingController extends Notifier<OnboardingState> {
     );
   }
 
-  /// Borrador nuevo. En «solo las preguntas» no hay paso de País: se queda la región de la cuenta
-  /// (si no, la interfaz cambiaría al idioma del país sugerido sin poder corregirlo).
+  /// Borrador nuevo, en el idioma en que ya se ve la app: el país sugerido no lo cambia hasta que la
+  /// persona elija un país. En «solo las preguntas» no hay paso de País: se queda la región de la cuenta.
   OnboardingDraft _freshDraft(String suggested) {
-    if (mode == OnboardingMode.full) return OnboardingDraft.fresh(suggested);
     final region = ref.read(appRegionProvider);
-    return OnboardingDraft.fresh(region.country)
-        .copyWith(language: region.language, position: OnboardingSteps.income);
+    final full = mode == OnboardingMode.full;
+    return OnboardingDraft.fresh(full ? suggested : region.country)
+        .copyWith(language: region.language, position: full ? null : OnboardingSteps.income);
   }
 
   void _previewLanguage(OnboardingDraft draft) => ref
       .read(displayLanguageProvider.notifier)
       .preview(mode == OnboardingMode.full ? draft.language : ref.read(appRegionProvider).language);
 
+  /// Al abrir se pudo leer un borrador. Sin eso no se borra nada: pudo fallar el llavero.
+  bool _hadDraft = false;
+
+  /// No se pudo leer el borrador: no se escribe encima solo. Un envío sí anota su marca.
+  bool _unreadable = false;
+
   Future<void> _load(String suggested) async {
     final raw = await _store.read(_userId);
     if (_disposed) return;
-    var draft = raw == null
+    _unreadable = raw == draftUnreadable;
+    _hadDraft = raw != null && !_unreadable;
+    var draft = !_hadDraft
         ? _freshDraft(suggested)
         : OnboardingDraft.fromJson(raw, suggestedCountry: suggested);
-    // El recorrido abreviado siempre empieza en «¿Cómo te entra la plata?».
-    if (mode == OnboardingMode.questions && draft.position < OnboardingSteps.income) {
-      draft = draft.copyWith(position: OnboardingSteps.income);
+    if (mode == OnboardingMode.questions) {
+      // El recorrido abreviado siempre empieza en «¿Cómo te entra la plata?».
+      if (draft.position < OnboardingSteps.income) draft = draft.copyWith(position: OnboardingSteps.income);
+      // Aquí se ve el idioma de la cuenta: un borrador escrito en otro se pasa a ese, para que las
+      // sugerencias sigan marcadas y no se dupliquen.
+      final language = ref.read(appRegionProvider).language;
+      if (draft.sentCommitments == null && draft.language != language) {
+        draft = draft.copyWith(language: language, items: _relabel(draft, language));
+      }
     }
     state = state.copyWith(draft: draft, ready: true);
     _previewLanguage(draft);
@@ -191,26 +222,51 @@ class OnboardingController extends Notifier<OnboardingState> {
   /// Propuesta de saldo y guarda de «ya la hizo». Si falla (sin red), se sigue sin ellas.
   Future<void> _loadStatus() async {
     try {
-      final status = await ref.read(welcomeStatusProvider.future);
-      if (_disposed) return;
+      final status = await ref.read(welcomeStatusProvider(ref.read(accountProvider)).future);
+      // Si ya está guardando, escribir aquí pisaría la marca de lo que va en camino.
+      if (_disposed || state.busy != null) return;
       if (status.welcomeDone) {
-        // La etapa 1 quedó y la 2 (fuentes) no: se vuelve a Pagos para terminar solo esa etapa.
-        if (state.draft.sentWelcome != null) {
-          if (state.position != OnboardingSteps.payments) {
-            _setDraft(state.draft.copyWith(position: OnboardingSteps.payments));
+        // La etapa 1 se envió y falta terminar. Saldo y pagos se comprueban por separado: los pagos que
+        // están quedan guardados; un saldo distinto se le muestra a la persona antes de pisarlo.
+        final draft = state.draft;
+        if (draft.sentWelcome case final mark?) {
+          final payments = draft.sentCommitments;
+          final balance = _sentBalance(mark);
+          final balanceSaved =
+              balance == null || balance == status.balance || balance == draft.confirmedBalance;
+          final confirmed =
+              draft.welcomeConfirmed ||
+              (_hasPayments(status, payments) && (balanceSaved || payments != null));
+          final next = draft.copyWith(
+            position: balanceSaved ? OnboardingSteps.payments : OnboardingSteps.balance,
+            welcomeConfirmed: confirmed,
+            // Saldo sin comprobar: la marca no puede igualar la huella, o no se volvería a enviar.
+            sentWelcome: balanceSaved ? null : () => _asEdited(mark),
+          );
+          if (next.position != state.position ||
+              next.welcomeConfirmed != draft.welcomeConfirmed ||
+              next.sentWelcome != mark) {
+            _setDraft(next);
           }
           return;
         }
         // Ya la hizo (quizás en otro dispositivo): este borrador ya no sirve.
         _writeTimer?.cancel();
         _pending = null;
-        await _store.clear(_userId);
+        if (_hadDraft) {
+          await _store.clear(_userId);
+        } else {
+          // No se borra lo que no se leyó; y sin esto la entrada lo devolvería aquí una y otra vez.
+          ref.read(resumeDeferredProvider.notifier).defer();
+        }
         if (_disposed) return;
+        _refreshEntry();
         state = state.copyWith(alreadyDone: true);
         return;
       }
       final proposal = status.balanceProposal;
-      if (proposal != null && state.draft.balance.isEmpty) {
+      // Pasado el Saldo, vacío es una respuesta: la propuesta viajaría sin que nadie la viera.
+      if (proposal != null && state.draft.balance.isEmpty && state.position <= OnboardingSteps.balance) {
         _setDraft(state.draft.copyWith(balance: proposal.toString()));
       }
     } catch (_) {}
@@ -224,7 +280,7 @@ class OnboardingController extends Notifier<OnboardingState> {
       error: clearError ? () => null : null,
       errorItemKey: clearError ? () => null : null,
     );
-    if (state.ready && state.outcome == null) _pending = draft.toJson();
+    if (state.ready && !_unreadable && state.outcome == null) _pending = draft.toJson();
     _writeTimer?.cancel();
     _writeTimer = Timer(draftWriteDelay, flush);
   }
@@ -295,11 +351,7 @@ class OnboardingController extends Notifier<OnboardingState> {
     final draft = state.draft;
     final language = draft.languagePicked ? draft.language : regionForCountry(code).language;
     _setDraft(
-      draft.copyWith(
-        country: code,
-        language: language,
-        items: _relabel(draft.items, draft.language, language),
-      ),
+      draft.copyWith(country: code, language: language, items: _relabel(draft, language)),
       clearError: true,
     );
     ref.read(displayLanguageProvider.notifier).preview(language);
@@ -309,11 +361,7 @@ class OnboardingController extends Notifier<OnboardingState> {
     if (_blocked || !isAppLanguage(code)) return;
     final draft = state.draft;
     _setDraft(
-      draft.copyWith(
-        language: code,
-        languagePicked: true,
-        items: _relabel(draft.items, draft.language, code),
-      ),
+      draft.copyWith(language: code, languagePicked: true, items: _relabel(draft, code)),
       clearError: true,
     );
     // La interfaz cambia al instante, sin recargar (la web recarga la página).
@@ -339,13 +387,16 @@ class OnboardingController extends Notifier<OnboardingState> {
 
   /// Las sugerencias se guardan con el nombre traducido (como la web): al cambiar de idioma se
   /// renombran, para que sigan marcadas y no se dupliquen. Lo escrito en «Otro» no se toca.
-  List<CommitmentItem> _relabel(List<CommitmentItem> items, String from, String to) {
-    if (from == to || items.isEmpty) return items;
+  /// Si la etapa 1 ya salió hacia el servidor no se renombra nada: con otro nombre, el servidor
+  /// guardaría el mismo pago por segunda vez y apartaría la plata dos veces.
+  List<CommitmentItem> _relabel(OnboardingDraft draft, String to) {
+    final from = draft.language;
+    if (draft.sentCommitments != null || from == to || draft.items.isEmpty) return draft.items;
     final translations = ref.read(translationsProvider);
     final before = Tr(from, translations.of(from));
     final after = Tr(to, translations.of(to));
     return [
-      for (final item in items)
+      for (final item in draft.items)
         if (item.custom)
           item
         else
@@ -406,7 +457,7 @@ class OnboardingController extends Notifier<OnboardingState> {
       for (final i in state.draft.items)
         i.key == key
             ? i.copyWith(
-                name: name == null ? null : (name.length > commitmentNameMax ? name.substring(0, 60) : name),
+                name: name == null ? null : clipCommitmentName(name),
                 amount: amount,
                 dayOfMonth: dayOfMonth?.replaceAll(RegExp(r'\D'), ''),
               )
@@ -449,8 +500,10 @@ class OnboardingController extends Notifier<OnboardingState> {
   /// No hay reintentos automáticos: si algo falla, el borrador queda y la persona decide.
   Future<void> _save({required bool withCommitments}) async {
     if (_blocked) return;
-    List<Map<String, dynamic>>? commitments;
-    if (withCommitments) {
+    final locked = state.draft.sentCommitments;
+    // Lo que ya salió se repite igual: ni se vuelve a validar ni «Omitir» lo quita.
+    var commitments = locked;
+    if (locked == null && withCommitments) {
       final read = readCommitments(state.draft.items);
       if (read.problem != null) {
         state = state.copyWith(
@@ -459,7 +512,8 @@ class OnboardingController extends Notifier<OnboardingState> {
         );
         return;
       }
-      commitments = read.commitments;
+      // Ninguno es lo mismo que omitirlos: con otra huella se reenviaría lo que ya quedó.
+      commitments = read.commitments.isEmpty ? null : read.commitments;
     }
     final body = welcomeBody(balance: state.draft.balance, commitments: commitments);
     final print = fingerprint(body);
@@ -468,44 +522,186 @@ class OnboardingController extends Notifier<OnboardingState> {
     // Copias locales: si la pantalla se cierra mientras espera al servidor, se sigue sin `ref` ni `state`.
     final repo = _repo;
     var draft = state.draft;
+    final before = draft.sentWelcome;
+    final wasConfirmed = draft.welcomeConfirmed;
+    // La etapa 1 salió y todavía no se sabe si el servidor la guardó.
+    var inDoubt = false;
+    var sent = const <String, dynamic>{};
+    final balanceBefore = draft.confirmedBalance;
+    // Un PUT de fuentes salió en este intento, y si antes ya había salido alguno.
+    var sendingSources = false;
+    final sentSourcesBefore = draft.sourcesSent;
+    // «Omitir» con los pagos en duda: no se reenvían (pudo haberlos cambiado en la web).
+    final withoutPayments = locked != null && !withCommitments && !wasConfirmed;
     try {
-      if (draft.sentWelcome != print) {
-        await repo.finishWelcome(body);
-        // Etapa 1 confirmada: se anota en el borrador para no repetirla si la 2 falla.
-        draft = draft.copyWith(sentWelcome: () => print);
-        await _store.write(_userId, draft.toJson());
-        if (!_disposed) state = state.copyWith(draft: draft);
+      if (!(wasConfirmed && before == print)) {
+        // Con los pagos ya guardados solo viaja el saldo: repetirlos reviviría los que la persona
+        // haya renombrado o borrado después en Mi plata.
+        final balanceOnly = wasConfirmed && locked != null;
+        // Si cambia algo que ya había salido, la marca no puede ser igual a la huella: lo que pruebe
+        // que llegó el intento anterior no prueba que llegó este, y hay que volver a enviarlo.
+        final mark = before == null || before == print ? print : fingerprint({...body, 'edited': true});
+        sent = {...(balanceOnly || withoutPayments ? welcomeBody(balance: draft.balance) : body)};
+        final balance = readMoney(sent['balance']);
+        if (balance != null && balance == draft.confirmedBalance) {
+          // Ya lo guardó: sin saldo el servidor conserva el que tenga (quizás corregido después).
+          sent['balance'] = null;
+        } else if (balance != null) {
+          // Los nulos de la bienvenida borrarían el tipo de ingreso y los días guardados por otro
+          // camino si las fuentes no llegan después. Si no se pueden leer, no se envía nada.
+          final current = await repo.status();
+          final other = current.balance;
+          if (before == print && current.welcomeDone && other != null && other != balance) {
+            // Reintento sin cambios y el servidor ya tiene otro saldo (corregido después): se le
+            // muestra antes de pisarlo, como al reabrir.
+            await _keep(
+              draft.copyWith(
+                position: OnboardingSteps.balance,
+                sentWelcome: () => _asEdited(print),
+                welcomeConfirmed: wasConfirmed || (locked != null && _hasPayments(current, locked)),
+              ),
+            );
+            if (!_disposed) state = state.copyWith(busy: () => null);
+            return;
+          }
+          if (current.incomeType != null) {
+            sent['incomeType'] = current.incomeType;
+            sent['payDays'] = current.payDays;
+          }
+        }
+        final sendsBalance = sent['balance'] != null;
+        // Se anota ANTES de enviar: si la respuesta no llega (espera vencida, app cerrada), al reabrir
+        // se sabe que pudo quedar guardada y las fuentes no se pierden.
+        draft = await _keep(
+          draft.copyWith(
+            sentWelcome: () => mark,
+            welcomeConfirmed: balanceOnly,
+            confirmedBalance: sendsBalance ? () => null : null,
+          ),
+        );
+        inDoubt = !balanceOnly;
+        await repo.finishWelcome(sent);
+        inDoubt = false;
+        // Etapa 1 confirmada: no se repite si la 2 falla. Sin los pagos en duda sigue sin confirmar.
+        draft = await _keep(
+          draft.copyWith(
+            sentWelcome: () => print,
+            welcomeConfirmed: !withoutPayments,
+            confirmedBalance: sendsBalance ? () => readMoney(sent['balance']) : null,
+          ),
+        );
       }
       final sources = [for (final f in draft.sources.values) f.toApi()];
-      if (sources.isNotEmpty) await repo.saveSources(sources);
+      if (sources.isNotEmpty || draft.sourcesSent) {
+        if (!draft.sourcesSent) draft = await _keep(draft.copyWith(sourcesSent: true));
+        sendingSources = true;
+        await repo.saveSources(sources);
+      }
       await _done(repo.isDemo ? OnboardingOutcome.demoSaved : OnboardingOutcome.saved);
     } on Object catch (e) {
+      final status = e is ApiException ? e.status ?? 0 : 0;
+      final notSent = e is ApiException && e.code == ApiCodes.network;
+      final rejected = notSent || (status >= 400 && status < 500);
+      if (sendingSources && rejected && !sentSourcesBefore) {
+        // Seguro no se aplicó: «Omitir» después no puede borrar fuentes que esta app no escribió.
+        await _keep(draft.copyWith(sourcesSent: false));
+      }
+      if (inDoubt) {
+        Future<void> revert({bool release = false}) => _keep(
+          draft.copyWith(
+            sentWelcome: () => release ? null : before,
+            welcomeConfirmed: !release && wasConfirmed,
+            confirmedBalance: () => balanceBefore,
+          ),
+        );
+        if (rejected) {
+          // No salió del teléfono o el servidor la rechazó: seguro no quedó guardada. Si rechazó por
+          // inválido el mismo envío de antes, aquel tampoco quedó: se sueltan los pagos para arreglarlos.
+          final invalidAgain =
+              (status == 400 || status == 422) && !wasConfirmed && !withoutPayments && before == print;
+          // Y solo si el servidor dice que no tiene bienvenida: si no, aquel envío sí pudo quedar.
+          final release = invalidAgain && (await _statusOrNull(repo))?.welcomeDone == false;
+          await revert(release: release);
+        } else if (await _statusOrNull(repo) case final saved?) {
+          if (!withoutPayments && saved.welcomeDone && _landed(saved, fingerprint(sent))) {
+            // Llegó aunque la respuesta se perdió: falta solo la etapa 2.
+            final balance = _sentBalance(fingerprint(sent));
+            await _keep(
+              draft.copyWith(
+                welcomeConfirmed: true,
+                confirmedBalance: balance == null ? null : () => balance,
+              ),
+            );
+          } else if (status == 500 &&
+              (!saved.welcomeDone || !_hasPayments(saved, sent['commitments'] as List<Object?>?))) {
+            // El servidor falló y deshizo la operación: se puede corregir. Con una espera vencida no,
+            // porque todavía puede llegar.
+            await revert();
+          }
+        }
+      }
       if (_disposed) return;
       state = state.copyWith(busy: () => null, error: () => _problem(e));
+    }
+  }
+
+  /// Deja el borrador en el dispositivo ya (sin esperar el temporizador) y en pantalla si sigue abierta.
+  Future<OnboardingDraft> _keep(OnboardingDraft draft) async {
+    await _store.write(_userId, draft.toJson());
+    // La marca de la etapa 1 cambió: la entrada y el Inicio ya no pueden responder con lo de antes.
+    _refreshEntry();
+    if (!_disposed) state = state.copyWith(draft: draft);
+    return draft;
+  }
+
+  /// Tras un fallo sin respuesta clara (espera vencida, 5xx): qué tiene el servidor. Si tampoco se
+  /// puede saber, la marca del borrador queda y se revisa al reabrir.
+  Future<WelcomeStatus?> _statusOrNull(OnboardingRepository repo) async {
+    try {
+      return await repo.status();
+    } on Object {
+      return null;
+    }
+  }
+
+  /// La entrada vuelve a preguntar si falta la bienvenida. Con el contenedor y no con `ref`: la
+  /// respuesta puede llegar con la pantalla ya cerrada, y el dato viejo devolvería a la bienvenida.
+  void _refreshEntry() {
+    try {
+      _container.invalidate(pendingSourcesProvider);
+      // Todo el Inicio, y como carga nueva: lo de antes de responder ya no es cierto ni para mostrarlo
+      // mientras llega lo nuevo.
+      invalidateHome((provider) => _container.invalidate(provider, asReload: true));
+    } on StateError {
+      // La app entera ya se cerró: no queda nadie a quien avisar.
     }
   }
 
   Future<void> _done(OnboardingOutcome outcome) async {
     _writeTimer?.cancel();
     _pending = null;
-    // Solo ahora, con la confirmación, se borra el borrador.
+    // Solo ahora, con la confirmación, se borra el borrador. Primero se vacía: si el llavero no deja
+    // borrar, lo que quede no tiene marca y no se retoma una bienvenida terminada.
+    await _store.write(_userId, const {'v': 0});
     await _store.clear(_userId);
+    _refreshEntry();
     if (_disposed) return;
-    ref
-      ..invalidate(welcomeStatusProvider)
-      ..invalidate(pendingSourcesProvider);
     state = state.copyWith(busy: () => null, outcome: () => outcome);
   }
 
   /// MODO DEMOSTRACIÓN: borra el borrador y vuelve a empezar desde el saludo.
   Future<void> restartDemo() async {
-    if (!state.isDemo) return;
+    // Mientras guarda no: la respuesta en camino volvería a escribir lo que se acaba de borrar.
+    if (!state.isDemo || state.busy != null) return;
     _writeTimer?.cancel();
     _pending = null;
     await _store.clear(_userId);
+    if (_disposed) return;
     final draft = _freshDraft(suggestCountry(ref.read(systemLocalesProvider)));
     state = OnboardingState(mode: mode, draft: draft, ready: true, isDemo: true, userName: state.userName);
     _previewLanguage(draft);
+    // El escenario puede traer una propuesta de saldo: se vuelve a leer como al abrir.
+    unawaited(_loadStatus());
   }
 
   OnboardingMessage _problem(Object e) {
@@ -522,6 +718,46 @@ class OnboardingController extends Notifier<OnboardingState> {
     }
     return const OnboardingMessage(ApiMessages.generic);
   }
+}
+
+/// ¿El servidor tiene ESTE envío de la etapa 1? `welcomeDone` solo no lo prueba: pudo hacerse por
+/// otro camino («Ahora no», otro dispositivo). Se exige el mismo saldo y todos los pagos: que haya
+/// algún saldo no prueba nada (pudo ser el de antes). Ante la duda no se dice «guardado».
+bool _landed(WelcomeStatus status, String sent) {
+  final balance = _sentBalance(sent);
+  if (balance != null && balance != status.balance) return false;
+  try {
+    if (jsonDecode(sent) case final Map<String, dynamic> body) {
+      return _hasPayments(status, body['commitments'] as List<Object?>?);
+    }
+  } on FormatException {
+    // Una marca ilegible no prueba nada.
+  }
+  return false;
+}
+
+/// El servidor tiene todos esos pagos (por nombre, como su ON CONFLICT). Sin pagos, cierto.
+bool _hasPayments(WelcomeStatus status, List<Object?>? payments) {
+  final saved = {for (final name in status.commitmentNames) name.trim().toLowerCase()};
+  return (payments ?? const []).every((c) => c is Map && saved.contains('${c['name']}'.trim().toLowerCase()));
+}
+
+num? _sentBalance(String mark) {
+  try {
+    if (jsonDecode(mark) case {'balance': final num balance}) return readMoney(balance);
+  } on FormatException {
+    // Una marca ilegible no prueba nada.
+  }
+  return null;
+}
+
+String _asEdited(String mark) {
+  try {
+    if (jsonDecode(mark) case final Map<String, dynamic> body) return fingerprint({...body, 'edited': true});
+  } on FormatException {
+    // Se deja como está.
+  }
+  return mark;
 }
 
 /// Primer nombre para el saludo (getDisplayName de la web): el nombre, o la parte del correo.

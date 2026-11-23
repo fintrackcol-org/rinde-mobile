@@ -22,6 +22,22 @@ void main() {
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
+  test('negativos: el signo va donde lo pone Intl, y lo que se muestra como cero no lleva signo', () {
+    String money(String code, num amount) => findCountry(code)!.format.money(amount);
+    // La paridad país por país está en la prueba de arriba (los ejemplos traen negativos).
+    expect(money('CO', -1250000), '-${money('CO', 1250000)}');
+    expect(money('ES', -38), '-${money('ES', 38)}');
+    expect(money('CL', -1250000), r'$-1.250.000');
+    expect(money('CH', -1250000), 'CHF-1’250’000');
+    for (final code in ['CO', 'CL', 'CH', 'ES']) {
+      expect(money(code, -0.0), money(code, 0), reason: code);
+      expect(money(code, -0.001), money(code, 0.001), reason: code);
+      expect(money(code, -0.004), isNot(contains('-')), reason: code);
+    }
+    // Redondea a un centavo: ya no es cero, lleva signo.
+    expect(money('CO', -0.005), '-${money('CO', 0.01)}');
+  });
+
   test('regionForCountry: desconocido → CO; idioma sin traducción → inglés', () {
     expect(regionForCountry('BR'), const Region(country: 'BR', currency: 'BRL', language: 'pt'));
     expect(regionForCountry('CN').language, 'en');

@@ -21,6 +21,7 @@ import 'steps/income_step.dart';
 import 'steps/payments_step.dart';
 import 'steps/tour_step.dart';
 import 'widgets/onboarding_shell.dart';
+import '../../home/application/home_providers.dart' show invalidateHome;
 
 /// Bienvenida con sesión (pages/app/Welcome.jsx). Dos modos de entrada explícitos (rutas propias):
 /// completa y solo las tres preguntas de plata.
@@ -59,7 +60,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _onBack() {
     if (_controller.back()) return;
-    if (widget.mode == OnboardingMode.questions) _leave();
+    if (widget.mode != OnboardingMode.questions) return;
+    // Salió sin terminar: en esta sesión la entrada ya no la devuelve aquí (si no, con las fuentes
+    // pendientes no podría llegar al Inicio).
+    ref.read(resumeDeferredProvider.notifier).defer();
+    _leave();
   }
 
   @override
@@ -87,8 +92,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         calls: repo is DemoOnboardingRepository ? repo.calls : const [],
         onRestart: () async {
           if (repo is DemoOnboardingRepository) await repo.reset();
-          ref.invalidate(welcomeStatusProvider);
+          if (!mounted) return;
+          invalidateHome(ref.invalidate);
           await _controller.restartDemo();
+          if (!mounted) return;
+          ref.invalidate(pendingSourcesProvider);
+          if (widget.mode == OnboardingMode.questions) _leave();
         },
         onExit: _leave,
       );

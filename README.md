@@ -77,6 +77,25 @@ flutter analyze      # debe quedar en cero
 flutter test
 ```
 
+### Demostración sin servidor
+
+```bash
+flutter run --dart-define=DEMO_MODE=true
+```
+
+En la bienvenida aparece «Probar sin servidor (demo)». La franja roja abre el panel de escenarios,
+fallas, región y tema. Nunca funciona en una versión *release*.
+
+### Textos y regiones
+
+```bash
+node tool/export_l10n.mjs <fintrack>/frontend/src/locales
+node tool/export_region.mjs <fintrack>/frontend/src/lib/region.js
+```
+
+Los textos propios de la app y las correcciones de traducción van en `tool/l10n_mobile/`, no en
+`assets/l10n/` (se genera). El informe de la etapa actual está en `docs/ETAPA_02_DASHBOARD.md`.
+
 ## Estructura
 
 ```
@@ -88,6 +107,9 @@ lib/
     auth/      login, registro, recuperar contraseña y sesión
     welcome/   bienvenida sin sesión
     entry/     arranque, términos y entrada a la app
+    onboarding/ bienvenida de 10 posiciones, borrador cifrado y demostración
+    home/      Inicio financiero: modelos, reglas puras, estado, pantalla y tutorial
+    shell/     barra de pestañas y destinos «En desarrollo»
     rin/       la mascota Rin, dibujada y animada igual que en la web
 assets/        fuente Inter Tight (OFL), logo oficial, íconos lucide (ISC)
 test/          pruebas unitarias y de widgets, con la misma estructura de lib/

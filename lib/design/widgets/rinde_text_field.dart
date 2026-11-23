@@ -119,6 +119,8 @@ class RindePasswordField extends StatefulWidget {
   const RindePasswordField({
     super.key,
     required this.label,
+    required this.showLabel,
+    required this.hideLabel,
     this.controller,
     this.hint,
     this.helper,
@@ -133,6 +135,10 @@ class RindePasswordField extends StatefulWidget {
   });
 
   final String label;
+
+  /// Nombre del botón del ojo, ya traducido: «Mostrar contraseña» y «Ocultar contraseña».
+  final String showLabel;
+  final String hideLabel;
   final TextEditingController? controller;
   final String? hint;
   final String? helper;
@@ -155,7 +161,7 @@ class _RindePasswordFieldState extends State<RindePasswordField> {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final tooltip = _visible ? 'Ocultar contraseña' : 'Mostrar contraseña';
+    final tooltip = _visible ? widget.hideLabel : widget.showLabel;
     return RindeTextField(
       label: widget.label,
       controller: widget.controller,

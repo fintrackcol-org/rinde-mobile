@@ -16,4 +16,23 @@ abstract final class Routes {
   /// Las dos exigen sesión: están bajo /app.
   static const onboarding = '/app/bienvenida';
   static const onboardingQuestions = '/app/bienvenida/preguntas';
+
+  // Destinos del Inicio y de la barra de pestañas. Mismos nombres que Rinde Web. Los que aún no
+  // tienen pantalla propia muestran «En desarrollo» (ver app/pending_modules.dart).
+  static const movements = '/app/movimientos';
+  static const plan = '/app/planear';
+  static const account = '/app/cuenta';
+  static const record = '/app/anotar';
+  static const recordExpense = '/app/anotar?tipo=gasto';
+  static const recordIncome = '/app/anotar?tipo=ingreso';
+  static const notifications = '/app/notificaciones';
+  static const myMoney = '/app/mi-plata';
+  static const payments = '/app/mi-plata/pagos';
+  static const fixBalance = '/app/mi-plata/corregir';
+  static const income = '/app/ingresos';
+  static const expenses = '/app/gastos';
+  static const toConfirm = '/app/por-confirmar';
+  static const budgets = '/app/presupuestos';
+  static const cards = '/app/tarjetas';
+  static String card(String id) => '/app/tarjetas/$id';
 }

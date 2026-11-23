@@ -13,6 +13,7 @@ import '../../../../design/widgets/rinde_motion.dart';
 import '../../../rin/rin.dart';
 import '../../application/onboarding_controller.dart';
 import '../../domain/onboarding_flow.dart';
+import '../../../auth/application/session_controller.dart';
 
 /// Posición 0: saludo con Rin (components/onboarding/WelcomeIntro.jsx). Pantalla completa, sin marco
 /// ni barra de avance: la marca, Rin que saluda una vez, la promesa y dos caminos (empezar o después).
@@ -26,6 +27,9 @@ class HelloStep extends ConsumerStatefulWidget {
 
 class _HelloStepState extends ConsumerState<HelloStep> {
   bool _waving = false;
+
+  /// Cerrando sesión: ya nada de aquí debe guardar en la cuenta que se deja.
+  bool _leaving = false;
   late final List<Timer> _timers;
 
   @override
@@ -53,7 +57,7 @@ class _HelloStepState extends ConsumerState<HelloStep> {
     final controller = ref.read(provider.notifier);
     final t = ref.watch(trProvider);
     final p = context.palette;
-    final busy = state.busy != null;
+    final busy = state.busy != null || _leaving;
     final name = state.userName;
     final error = state.error?.resolve(t);
 
@@ -187,6 +191,20 @@ class _HelloStepState extends ConsumerState<HelloStep> {
                                   onPressed: busy ? null : controller.later,
                                 ),
                               ),
+                              // Si guardar falla, esta pantalla no puede ser una trampa: sin pestañas, es
+                              // la única salida.
+                              if (error != null)
+                                RindeButton(
+                                  label: t('Cerrar sesión'),
+                                  variant: RindeButtonVariant.ghost,
+                                  loading: _leaving,
+                                  onPressed: busy
+                                      ? null
+                                      : () {
+                                          setState(() => _leaving = true);
+                                          unawaited(ref.read(sessionControllerProvider.notifier).signOut());
+                                        },
+                                ),
                             ],
                           ),
                         ),

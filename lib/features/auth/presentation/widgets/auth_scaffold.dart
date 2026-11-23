@@ -1,8 +1,10 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../app/routes.dart';
+import '../../../../core/i18n/tr.dart';
 import '../../../../design/theme/rinde_theme.dart';
 import '../../../../design/tokens/rinde_colors.dart';
 import '../../../../design/tokens/rinde_layout.dart';
@@ -28,6 +30,7 @@ class AuthScaffold extends StatelessWidget {
     this.footer,
   });
 
+  /// Título y subtítulo llegan ya traducidos.
   final String title;
   final String? subtitle;
 
@@ -173,11 +176,12 @@ class _Glow extends StatelessWidget {
   );
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   const _Header();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(trProvider);
     final p = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: RindeSpace.s4),
@@ -190,7 +194,7 @@ class _Header extends StatelessWidget {
             // "Volver": regresa a la bienvenida (en la web, a la landing).
             Semantics(
               button: true,
-              label: 'Volver al inicio',
+              label: t('Volver al inicio'),
               onTap: () => context.go(Routes.welcome),
               excludeSemantics: true,
               child: Material(
@@ -210,7 +214,7 @@ class _Header extends StatelessWidget {
                           RindeIcon(RindeIcons.arrowLeft, size: 16, color: p.ink.withValues(alpha: 0.9)),
                           const SizedBox(width: RindeSpace.s2),
                           Text(
-                            'Volver',
+                            t('Volver'),
                             style: RindeType.label.copyWith(color: p.ink.withValues(alpha: 0.9)),
                           ),
                         ],

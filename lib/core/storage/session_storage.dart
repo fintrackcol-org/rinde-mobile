@@ -20,9 +20,15 @@ class SecureSessionStorage implements SessionStorage {
 
   @override
   Future<Session?> read() async {
+    final String? raw;
     try {
-      final raw = await _storage.read(key: _key);
-      if (raw == null) return null;
+      raw = await _storage.read(key: _key);
+    } catch (_) {
+      // El llavero no respondió (p. ej. bloqueado): la sesión sigue ahí. Se pide entrar, sin borrarla.
+      return null;
+    }
+    if (raw == null) return null;
+    try {
       return Session.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       // Un valor dañado no debe impedir abrir la app: se descarta y se pide entrar de nuevo.

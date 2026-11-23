@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// [DraftStore.read] no pudo leer (p. ej. teléfono bloqueado). No es lo mismo que «no hay borrador»:
+/// sobre esto no se escribe ni se borra.
+const draftUnreadable = 'borrador ilegible';
+
 /// Dónde vive el BORRADOR LOCAL de la bienvenida. Una clave por usuario (`rinde.bienvenida.<id>`,
 /// la misma idea de la web) y cifrado, porque tiene montos de plata. Nunca se registra en logs.
 abstract class DraftStore {
@@ -19,11 +23,17 @@ class SecureDraftStore implements DraftStore {
 
   @override
   Future<Object?> read(String userId) async {
+    final String? raw;
     try {
-      final raw = await _storage.read(key: _key(userId));
+      raw = await _storage.read(key: _key(userId));
+    } catch (_) {
+      // El llavero no respondió (p. ej. teléfono bloqueado): no se borra lo que no se pudo leer.
+      return draftUnreadable;
+    }
+    try {
       return raw == null ? null : jsonDecode(raw);
     } catch (_) {
-      // Dañado o ilegible: se empieza de cero sin bloquear la app.
+      // Dañado: se empieza de cero sin bloquear la app.
       await clear(userId);
       return null;
     }

@@ -48,6 +48,7 @@ class MoneyFormat {
   const MoneyFormat({
     required this.prefix,
     required this.suffix,
+    this.negativePrefix,
     required this.group,
     required this.decimal,
     required this.inputGroup,
@@ -58,6 +59,9 @@ class MoneyFormat {
 
   final String prefix;
   final String suffix;
+
+  /// Prefijo de los montos negativos cuando no es «-» + [prefix] («$-1.250» en Chile, «CHF-1’250» en Suiza).
+  final String? negativePrefix;
   final String group;
   final String decimal;
 
@@ -73,13 +77,14 @@ class MoneyFormat {
 
   /// `formatMoney` de la web: sin decimales si el monto es entero, con 2 si no.
   String money(num amount) {
-    final negative = amount < 0;
     final abs = amount.abs();
     final whole = abs == abs.roundToDouble();
     final fixed = whole ? abs.round().toString() : abs.toStringAsFixed(2);
+    // Lo que se muestra como cero va sin signo (-0.0, -0.001): Intl escribiría «-$ 0».
+    final negative = amount < 0 && fixed.contains(RegExp('[1-9]'));
     final [integer, ...rest] = fixed.split('.');
     final body = _group(integer) + (rest.isEmpty ? '' : '$decimal${rest.first}');
-    return '${negative ? '-' : ''}$prefix$body$suffix';
+    return '${negative ? negativePrefix ?? '-$prefix' : prefix}$body$suffix';
   }
 
   String _group(String digits) {

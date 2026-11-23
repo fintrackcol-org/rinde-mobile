@@ -1,3 +1,4 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -124,7 +125,10 @@ class OnboardingShell extends StatelessWidget {
                           // Sigue desplazándose; el campo con foco lo suelta (y se cierra el teclado).
                           child: ExcludeFocus(
                             excluding: busy,
-                            child: IgnorePointer(ignoring: busy, child: child),
+                            child: IgnorePointer(
+                              ignoring: busy,
+                              child: _StepScope(label: labels.stepOf(step, total), child: child),
+                            ),
                           ),
                         ),
                       ),
@@ -181,11 +185,42 @@ class OnboardingShellLabels {
   final String Function(int step, int total) stepOf;
 }
 
-/// Título de paso (StepTitle): 28, semibold, tracking -0.025em. Se anuncia como encabezado.
-class StepTitle extends StatelessWidget {
+/// «Paso n de m» del marco, para que el título del paso lo anuncie junto con su texto.
+class _StepScope extends InheritedWidget {
+  const _StepScope({required this.label, required super.child});
+  final String label;
+
+  @override
+  bool updateShouldNotify(_StepScope old) => false;
+}
+
+/// Título de paso (StepTitle): 28, semibold, tracking -0.025em. Es un encabezado y, al entrar al
+/// paso, se anuncia al lector de pantalla con «Paso n de m».
+class StepTitle extends StatefulWidget {
   const StepTitle(this.text, {super.key, this.subtitle});
   final String text;
   final String? subtitle;
+
+  @override
+  State<StepTitle> createState() => _StepTitleState();
+}
+
+class _StepTitleState extends State<StepTitle> {
+  @override
+  void initState() {
+    super.initState();
+    // Cada paso monta un título nuevo. Se anuncia a mano: un liveRegion no siempre se lee en el
+    // primer montaje, y sin esto cambiar de paso no dice nada.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final step = context.getInheritedWidgetOfExactType<_StepScope>()?.label;
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        [widget.text, ?step].join('\n'),
+        Directionality.of(context),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -193,15 +228,16 @@ class StepTitle extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // liveRegion: el título es un nodo nuevo en cada paso y TalkBack lo lee al cambiar de paso.
         Semantics(
           header: true,
-          liveRegion: true,
-          child: Text(text, style: RindeType.headline.copyWith(fontSize: 28, height: 1.25, color: p.ink)),
+          child: Text(
+            widget.text,
+            style: RindeType.headline.copyWith(fontSize: 28, height: 1.25, color: p.ink),
+          ),
         ),
-        if (subtitle != null) ...[
+        if (widget.subtitle != null) ...[
           const SizedBox(height: RindeSpace.s2),
-          Text(subtitle!, style: RindeType.body.copyWith(color: p.inkMuted)),
+          Text(widget.subtitle!, style: RindeType.body.copyWith(color: p.inkMuted)),
         ],
       ],
     );

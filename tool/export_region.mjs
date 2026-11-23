@@ -26,6 +26,14 @@ function format(country, currency) {
   const last = parts.findLastIndex((p) => p.type === 'integer' || p.type === 'fraction');
   const prefix = parts.slice(0, first).map((p) => p.value).join('');
   const suffix = parts.slice(last + 1).map((p) => p.value).join('');
+  // Dónde va el signo menos: «$-1.250» en Chile, «CHF-1’250» en Suiza. Solo se guarda si no es «-» + prefijo.
+  const negative = nf(2).formatToParts(-1234567.5);
+  const negativeFirst = negative.findIndex((p) => p.type === 'integer');
+  const negativePrefix = negative.slice(0, negativeFirst).map((p) => p.value).join('');
+  const negativeLast = negative.findLastIndex((p) => p.type === 'integer' || p.type === 'fraction');
+  if (negative.slice(negativeLast + 1).map((p) => p.value).join('') !== suffix) {
+    throw new Error(`${locale}: el sufijo cambia en negativo; MoneyFormat no lo contempla`);
+  }
   const plain = new Intl.NumberFormat(locale).formatToParts(12345.6);
   const groupsFourDigits = new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 })
     .formatToParts(1250)
@@ -34,6 +42,7 @@ function format(country, currency) {
     locale,
     prefix,
     suffix,
+    negativePrefix: negativePrefix === '-' + prefix ? null : negativePrefix,
     group: parts.find((p) => p.type === 'group')?.value ?? '.',
     decimal: parts.find((p) => p.type === 'decimal')?.value ?? ',',
     inputGroup: plain.find((p) => p.type === 'group')?.value ?? '.',
@@ -65,7 +74,7 @@ const examples = rows.map((r) => {
       maximumFractionDigits: d,
     });
   const money = (a) => (Number.isInteger(a) ? nf(0) : nf(2)).format(a);
-  return { code: r.code, cases: [40000, 1250, 1234567.5, 9999999999.99, 0.5, 38].map((a) => [a, money(a)]) };
+  return { code: r.code, cases: [40000, 1250, 1234567.5, 9999999999.99, 0.5, 38, -1234567, -0.5, -38].map((a) => [a, money(a)]) };
 });
 
 const map = (o) => `{${Object.entries(o).map(([k, v]) => `${q(k)}: ${q(v)}`).join(', ')}}`;
@@ -91,7 +100,8 @@ for (const r of rows) {
     sample: ${q(r.sample)},
     format: MoneyFormat(
       prefix: ${q(r.prefix)},
-      suffix: ${q(r.suffix)},
+      suffix: ${q(r.suffix)},${r.negativePrefix === null ? '' : `
+      negativePrefix: ${q(r.negativePrefix)},`}
       group: ${q(r.group)},
       decimal: ${q(r.decimal)},
       inputGroup: ${q(r.inputGroup)},

@@ -1,11 +1,15 @@
-// Genera assets/l10n/{en,pt}.json con las traducciones de Rinde Web que usa la app móvil.
-// La clave es el texto en español (igual que la web). Solo se copian las que aparecen en lib/.
+// Genera assets/l10n/{en,pt}.json: las traducciones de Rinde Web que usa la app móvil más las propias
+// de la app (tool/l10n_mobile/{en,pt}.json). La clave es el texto en español, igual que en la web.
+// De la web solo se copian las que aparecen en lib/. Las de l10n_mobile van siempre y se aplican
+// después: ahí viven los textos que la web no tiene y las correcciones de traducciones de la web.
 //
 //   node tool/export_l10n.mjs <ruta a fintrack/frontend/src/locales>
 //
-// Al final lista los textos de t('…') que la web no tiene traducidos (quedan en español).
+// Lista los textos de t('…') sin traducción en ninguna de las dos fuentes y, si hay alguno, termina
+// con código 1 (los archivos se escriben igual: esos textos se verían en español).
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const localesDir = process.argv[2];
 if (!localesDir) throw new Error('Falta la ruta a frontend/src/locales de Rinde Web');
@@ -49,7 +53,9 @@ function literals(source) {
     }
     if (source[j] !== "'") return j;
     all.push(text);
-    if (TR_CALL.test(source.slice(Math.max(0, i - 40), i))) inT.push(text);
+    if (TR_CALL.test(source.slice(Math.max(0, i - 40), i))) {
+      inT.push({ text, line: source.slice(0, i).split(NL).length });
+    }
     return j;
   }
 
@@ -78,27 +84,53 @@ function literals(source) {
   return { all, inT };
 }
 
+const root = fileURLToPath(new URL('..', import.meta.url));
 const used = new Set();
-const keys = new Set();
-for (const file of walk(new URL('../lib', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))) {
+// Clave de t('…') → primer lugar donde se usa, para decir qué archivo la pide.
+const keys = new Map();
+for (const file of walk(join(root, 'lib'))) {
   const { all, inT } = literals(readFileSync(file, 'utf8'));
   all.forEach((s) => used.add(s));
-  inT.forEach((s) => keys.add(s));
+  const where = relative(root, file).split(sep).join('/');
+  for (const { text, line } of inT) if (!keys.has(text)) keys.set(text, `${where}:${line}`);
 }
 
-const missing = {};
+// Clave → idiomas en los que falta.
+const missing = new Map();
+const unused = new Set();
 for (const language of ['en', 'pt']) {
   const dir = join(localesDir, language);
   const web = {};
   for (const name of readdirSync(dir).filter((n) => n.endsWith('.json')).sort()) {
     Object.assign(web, JSON.parse(readFileSync(join(dir, name), 'utf8')));
   }
+  const mobile = JSON.parse(readFileSync(join(root, 'tool', 'l10n_mobile', `${language}.json`), 'utf8'));
+  const merged = { ...web, ...mobile };
   const out = {};
-  for (const text of [...used].sort()) if (web[text] !== undefined) out[text] = web[text];
-  writeFileSync(new URL(`../assets/l10n/${language}.json`, import.meta.url), JSON.stringify(out, null, 1) + '\n');
-  missing[language] = [...keys].filter((k) => web[k] === undefined).sort();
-  console.log(`${language}: ${Object.keys(out).length} traducciones`);
+  for (const text of [...new Set([...used, ...Object.keys(mobile)])].sort()) {
+    if (merged[text] !== undefined) out[text] = merged[text];
+  }
+  writeFileSync(join(root, 'assets', 'l10n', `${language}.json`), JSON.stringify(out, null, 1) + '\n');
+  for (const key of keys.keys()) {
+    if (!merged[key]) missing.set(key, [...(missing.get(key) ?? []), language]);
+  }
+  Object.keys(mobile).filter((k) => !used.has(k)).forEach((k) => unused.add(k));
+  console.log(
+    `${language}: ${Object.keys(out).length} traducciones (${Object.keys(mobile).length} propias de la app)`,
+  );
 }
-const both = missing.en.filter((k) => missing.pt.includes(k));
-console.log(`\nTextos de t('…') sin traducción en la web (${both.length}); se verán en español:`);
-both.forEach((k) => console.log('  - ' + k));
+
+if (unused.size > 0) {
+  console.log(`\nAviso: ${unused.size} claves de tool/l10n_mobile no aparecen en lib/ (revisa si sobran):`);
+  [...unused].sort().forEach((k) => console.log(`  - «${k}»`));
+}
+if (missing.size === 0) {
+  console.log("\nTodos los textos de t('…') tienen traducción en inglés y en portugués.");
+} else {
+  console.error(`\nFALTAN ${missing.size} textos de t('…') sin traducción; se verían en español.`);
+  console.error('Agrégalos en tool/l10n_mobile/en.json y pt.json y vuelve a generar:');
+  for (const key of [...missing.keys()].sort()) {
+    console.error(`  [${missing.get(key).join(' ')}] «${key}»  (${keys.get(key)})`);
+  }
+  process.exitCode = 1;
+}

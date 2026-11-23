@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/i18n/tr.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
 import '../../../design/tokens/rinde_typography.dart';
@@ -18,11 +19,12 @@ import '../../rin/rin.dart';
 
 /// Primera pantalla sin sesión. Porte del cierre violeta de la landing
 /// (`components/home/CallToAction.jsx`): Rin saluda e invita a crear la cuenta.
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(trProvider);
     final size = MediaQuery.sizeOf(context);
     // Rin: h-[clamp(9rem,26dvh,14rem)]; el disco guarda la proporción de la web (size-24 bajo h-28).
     final rinHeight = (size.height * 0.26).clamp(144.0, 224.0);
@@ -67,12 +69,12 @@ class WelcomeScreen extends StatelessWidget {
                                 height: rinHeight,
                                 width: rinHeight * 200 / 290,
                                 // Rin se queda quieto solo con movimiento reducido del sistema.
-                                child: const Rin(
+                                child: Rin(
                                   emotion: RinEmotion.feliz,
                                   gesture: RinGesture.saludar,
                                   level: 1,
                                   tidy: 1,
-                                  semanticLabel: 'Rin, la mascota de Rinde, te saluda',
+                                  semanticLabel: t('Rin, la mascota de Rinde, te saluda'),
                                 ),
                               ),
                             ],
@@ -83,7 +85,7 @@ class WelcomeScreen extends StatelessWidget {
                             child: Semantics(
                               header: true,
                               child: Text(
-                                'Empieza a controlar tus gastos hoy.',
+                                t('Empieza a controlar tus gastos hoy.'),
                                 textAlign: TextAlign.center,
                                 // El título ya es enorme: con texto grande del sistema crece hasta 1,3x
                                 // para que las palabras no se partan a 320 de ancho.
@@ -101,7 +103,7 @@ class WelcomeScreen extends StatelessWidget {
                           _Rise(
                             index: 1,
                             child: Text(
-                              'Crea tu cuenta en menos de un minuto. Sin tarjeta, sin letra pequeña.',
+                              t('Crea tu cuenta en menos de un minuto. Sin tarjeta, sin letra pequeña.'),
                               textAlign: TextAlign.center,
                               style: RindeType.body.copyWith(color: RindeBrand.onVioletMuted),
                             ),
@@ -111,7 +113,7 @@ class WelcomeScreen extends StatelessWidget {
                           _Rise(
                             index: 2,
                             child: RindeButton(
-                              label: 'Crear cuenta gratis',
+                              label: t('Crear cuenta gratis'),
                               variant: RindeButtonVariant.onBrand,
                               pill: true,
                               trailing: const RindeIcon(RindeIcons.arrowRight, size: 16),
@@ -122,7 +124,7 @@ class WelcomeScreen extends StatelessWidget {
                           _Rise(
                             index: 3,
                             child: RindeButton(
-                              label: 'Ya tengo cuenta',
+                              label: t('Ya tengo cuenta'),
                               variant: RindeButtonVariant.onBrandOutline,
                               pill: true,
                               onPressed: () => context.push(Routes.login),

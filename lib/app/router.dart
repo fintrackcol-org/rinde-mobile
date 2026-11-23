@@ -10,7 +10,9 @@ import '../features/entry/presentation/boot_screen.dart';
 import '../features/entry/presentation/entry_screen.dart';
 import '../features/onboarding/domain/onboarding_flow.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
+import '../features/shell/presentation/pending_module_screen.dart';
 import '../features/welcome/presentation/welcome_screen.dart';
+import 'pending_modules.dart';
 import 'routes.dart';
 
 /// Decide adónde va la persona según la sesión. Es una función pura para poder probarla.
@@ -47,7 +49,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.forgot,
         builder: (_, state) => ForgotPasswordScreen(initialEmail: _email(state)),
       ),
-      GoRoute(path: Routes.app, builder: (_, _) => const EntryScreen()),
+      // El Inicio y las demás pestañas entran sin transición: al cambiar de pestaña la barra no se mueve.
+      GoRoute(
+        path: Routes.app,
+        pageBuilder: (_, state) => NoTransitionPage(key: state.pageKey, child: const EntryScreen()),
+      ),
       GoRoute(
         path: Routes.onboarding,
         builder: (_, _) => const OnboardingScreen(mode: OnboardingMode.full),
@@ -56,6 +62,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.onboardingQuestions,
         builder: (_, _) => const OnboardingScreen(mode: OnboardingMode.questions),
       ),
+      // Destinos de Rinde Web que aún no tienen pantalla: «En desarrollo». Todos bajo /app (con sesión).
+      for (final module in pendingModules)
+        if (module.tab != null)
+          GoRoute(
+            path: module.path,
+            pageBuilder: (_, state) =>
+                NoTransitionPage(key: state.pageKey, child: PendingModuleScreen(module)),
+          )
+        else
+          GoRoute(
+            path: module.path,
+            builder: (_, state) => PendingModuleScreen(module, query: state.uri.queryParameters),
+          ),
     ],
   );
   ref.onDispose(() {

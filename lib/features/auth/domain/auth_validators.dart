@@ -2,6 +2,9 @@
 /// (frontend/src/lib/validation/auth.js, zod): mismos textos y mismo orden de revisión.
 /// El backend es más permisivo (solo largo ≥ 8), así que validar aquí evita cuentas
 /// que la web no permitiría crear.
+///
+/// Los mensajes y las etiquetas salen en español, que es la clave de traducción: la pantalla los
+/// pasa por `t()` al mostrarlos.
 library;
 
 abstract final class AuthValidators {

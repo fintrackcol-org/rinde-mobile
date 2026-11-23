@@ -14,6 +14,7 @@ import '../../application/onboarding_controller.dart';
 import '../../data/onboarding_repository.dart';
 import '../../domain/onboarding_flow.dart';
 import '../widgets/onboarding_shell.dart';
+import '../../../auth/application/session_controller.dart';
 
 /// Posición 8: saldo (Welcome.jsx, BALANCE). Lo escrito va crudo al borrador del controlador;
 /// vacío = no lo dijo (se envía null, no 0).
@@ -33,27 +34,22 @@ class BalanceStep extends ConsumerWidget {
     final format = formatFor(region);
     final balance = state.draft.balance;
 
-    final hint = describeAmount(
-      balance,
-      inPesos: region.currency == 'COP',
-      decimal: format.decimal,
-      translate: (text, [vars = const {}]) => t(text, vars),
-    );
-    final message = hint == null
-        ? null
-        : t(hint.text, {
-            ...hint.vars,
-            if (hint.vars['unit'] == ' de pesos') 'unit': t(' de pesos'),
-            if (hint.vars.containsKey('MAX_AMOUNT')) 'MAX_AMOUNT': format.money(maxAmount),
-          });
+    final hint = describeAmount(balance, format: format, inPesos: region.currency == 'COP', t: t);
 
     // MODO DEMOSTRACIÓN: la propuesta sale de totales sintéticos, no de la persona. Se marca mientras
     // el campo tenga exactamente ese valor (si lo escribe igual, sigue marcado: no se distingue).
-    final proposal = state.isDemo ? ref.watch(welcomeStatusProvider).value?.balanceProposal : null;
+    final proposal = state.isDemo
+        ? ref.watch(welcomeStatusProvider(ref.watch(accountProvider))).value?.balanceProposal
+        : null;
     final demoValue = proposal != null && balance.isNotEmpty && balance == '$proposal';
     // TEXTO NUEVO (solo demostración, sin traducir como la etiqueta DEMO).
     const demoLabel = 'Dato de demostración';
     final label = t('Total aproximado');
+    // Al retomar un envío: si el servidor tiene otro saldo, que se vea antes de pisarlo.
+    final saved = state.draft.sentWelcome == null
+        ? null
+        : ref.watch(welcomeStatusProvider(ref.watch(accountProvider))).value?.balance;
+    final savedOther = saved != null && saved != moneyValue(balance) ? saved : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -64,6 +60,19 @@ class BalanceStep extends ConsumerWidget {
           rin: const Rin(compact: true, emotion: RinEmotion.pensativo),
           text: t('Desde ese número sumamos y restamos lo que anotes: así tu saldo es el de verdad.'),
         ),
+        if (savedOther != null) ...[
+          const SizedBox(height: RindeSpace.s3),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              t(
+                'Rinde tiene guardado {amount}. «Omitir» lo deja así; «Seguir» lo cambia por lo que escribas.',
+                {'amount': format.money(savedOther)},
+              ),
+              style: RindeType.small.copyWith(color: p.inkMuted),
+            ),
+          ),
+        ],
         const SizedBox(height: RindeSpace.s5),
         ExcludeSemantics(
           child: Wrap(
@@ -97,7 +106,7 @@ class BalanceStep extends ConsumerWidget {
           semanticLabel: demoValue ? '$label. $demoLabel' : label,
           autofocus: true,
           textInputAction: TextInputAction.done,
-          message: message,
+          message: hint?.message,
           messageTone: hint?.tone ?? RindeMoneyMessageTone.info,
           helper: t(
             'Suma banco, Nequi y efectivo. No tiene que ser exacto y lo puedes corregir cuando quieras.',

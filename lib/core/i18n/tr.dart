@@ -9,7 +9,8 @@ import '../region/region_provider.dart';
 /// su versión. Si falta, se muestra el español. Las variables van entre llaves: «Hola, {name}».
 ///
 /// Los archivos assets/l10n/{en,pt}.json los genera tool/export_l10n.mjs con las traducciones de la web
-/// que usa la app móvil (no se escriben a mano).
+/// que usa la app móvil más las propias de la app, que se escriben en tool/l10n_mobile (los assets no
+/// se editan a mano).
 class Translations {
   const Translations(this._byLanguage);
 
@@ -39,11 +40,17 @@ class Tr {
   final String language;
   final Map<String, String> _messages;
 
+  static final _variable = RegExp(r'\{(\w+)\}');
+
   String call(String spanish, [Map<String, Object?> vars = const {}]) {
-    var text = _messages[spanish] ?? spanish;
-    vars.forEach((key, value) => text = text.replaceAll('{$key}', '$value'));
-    return text;
+    final text = _messages[spanish] ?? spanish;
+    if (vars.isEmpty) return text;
+    // Una sola pasada, como la web: si un valor trae «{otra}», no se vuelve a reemplazar.
+    return text.replaceAllMapped(_variable, (m) => vars.containsKey(m[1]) ? '${vars[m[1]]}' : m[0]!);
   }
+
+  /// Para validadores, que devuelven la clave en español o null si no hay error.
+  String? maybe(String? spanish) => spanish == null ? null : call(spanish);
 }
 
 final translationsProvider = Provider<Translations>((ref) => Translations.empty);

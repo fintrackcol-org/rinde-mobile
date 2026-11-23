@@ -9,6 +9,7 @@ import 'package:rinde_mobile/core/i18n/tr.dart';
 import 'package:rinde_mobile/core/region/region.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
 import 'package:rinde_mobile/design/theme/rinde_theme.dart';
+import 'package:rinde_mobile/design/widgets/rinde_segmented.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/onboarding/application/onboarding_controller.dart';
@@ -233,6 +234,46 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.text('Los dos se cambian cuando quieras en Cuenta.'));
       await tester.pump();
+      expect(tester.takeException(), isNull);
+      await _finish(tester);
+    });
+
+    testWidgets('los idiomas van en fila si caben', (tester) async {
+      // La letra de las pruebas es cuadrada (más ancha que Inter Tight): se achica para que quepan.
+      await _pumpOnboarding(tester, drafts: _atCountry(), textScale: 0.7);
+      final tops = [for (final l in kLanguages) tester.getRect(find.text(l.name)).top];
+      expect(tops.toSet(), hasLength(1));
+      expect(
+        tester.getRect(find.text(kLanguages[1].name)).left,
+        greaterThan(tester.getRect(find.text(kLanguages[0].name)).right),
+      );
+      await _finish(tester);
+    });
+
+    testWidgets('si una etiqueta no cabe a su tamaño, los idiomas van uno debajo del otro sin achicarse', (
+      tester,
+    ) async {
+      final c = await _pumpOnboarding(tester, drafts: _atCountry(), size: const Size(320, 568), textScale: 2);
+      final segmented = find.byType(RindeSegmented<String>);
+      await tester.ensureVisible(segmented);
+      await tester.pump();
+      final rects = [for (final l in kLanguages) tester.getRect(find.text(l.name))];
+      for (var i = 1; i < rects.length; i++) {
+        expect(rects[i].top, greaterThanOrEqualTo(rects[i - 1].bottom));
+      }
+      // Letra de 15 con interlínea de 20, al doble: nada de encogerla para que entre.
+      expect(rects.first.height, greaterThanOrEqualTo(40));
+      final box = tester.getRect(segmented);
+      for (final r in rects) {
+        expect(r.left, greaterThanOrEqualTo(box.left));
+        expect(r.right, lessThanOrEqualTo(box.right));
+      }
+      // Cada opción sigue siendo un botón de 48 o más y elige su idioma.
+      final english = find.widgetWithText(InkWell, 'English');
+      expect(tester.getSize(english).height, greaterThanOrEqualTo(48));
+      await tester.tap(english);
+      await tester.pump();
+      expect(_state(c).draft.language, 'en');
       expect(tester.takeException(), isNull);
       await _finish(tester);
     });
