@@ -194,9 +194,9 @@ React y el backend no se tocaron.
 ### Git
 
 - Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
-- Commit: COMMIT_4A.
-- PR: PR_4A (hacia `main`, sin fusionar).
-- Respaldo: RESPALDO_4A.
+- Commit: `75ec515` «feat: Mi plata con «Cómo te entra la plata» (etapa 4, bloque 4A)».
+- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), hacia `main`, **sin fusionar**.
+- Respaldo: verificado en GitHub. `git ls-remote` devuelve el mismo `75ec515` que la rama local.
 
 ### Lo que falta o no se comprobó en 4A
 
