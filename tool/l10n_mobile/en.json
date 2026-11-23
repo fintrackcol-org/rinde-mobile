@@ -25,11 +25,13 @@
  "No sabemos si tus pagos alcanzaron a guardarse. «Ver mi plata» los envía otra vez. Si ya los cambiaste en la web, toca «Omitir» para no repetirlos.": "We don't know if your payments were saved. “See my money” sends them again. If you already changed them on the website, tap “Skip” so they aren't repeated.",
  "No se pudo cargar": "Couldn't load",
  "Pagos frecuentes": "Common payments",
+ "Primero terminemos de guardar tu bienvenida.": "Let's finish saving your welcome first.",
  "Responder": "Answer",
  "Rinde tiene guardado {amount}. «Omitir» lo deja así; «Seguir» lo cambia por lo que escribas.": "Rinde has {amount} saved. “Skip” leaves it that way; “Continue” replaces it with what you type.",
  "Rinde, cargando": "Rinde, loading",
  "Se activa por cuenta: pídelo en Cuenta.": "It's turned on per account: ask for it in Account.",
  "Semana": "Weekly",
+ "Si guardas sin ninguna, dejamos de calcular cuánto tienes libre.": "If you save with none, we stop calculating how much you have free.",
  "Son menos de {amount}. ¿Faltan ceros?": "That's less than {amount}. Missing zeros?",
  "Todavía no sabemos cuánta plata tienes.": "We don't know how much money you have yet.",
  "Tus pagos ya quedaron guardados. Si quieres cambiarlos, hazlo luego en Mi plata.": "Your payments are already saved. To change them, do it later in My money.",
@@ -38,5 +40,7 @@
  "esta semana": "this week",
  "hoy": "today",
  "pasa el fin de mes": "past month-end",
+ "{amount} cada quincena": "{amount} every two weeks",
+ "{amount} cada semana": "{amount} a week",
  "¡Listo!": "All set!"
 }

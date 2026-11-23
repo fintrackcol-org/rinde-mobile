@@ -34,6 +34,7 @@ class IncomeSourceTile extends StatefulWidget {
     required this.t,
     required this.onToggle,
     required this.onChanged,
+    this.errors = const {},
   });
 
   final IncomeKind kind;
@@ -44,6 +45,10 @@ class IncomeSourceTile extends StatefulWidget {
   final Tr t;
   final VoidCallback onToggle;
   final ValueChanged<IncomeSourceForm> onChanged;
+
+  /// Problemas del servidor por campo (`amount`, `low`, `high`, `lastMonths`), para marcarlos en su
+  /// casilla. La bienvenida no los usa.
+  final Map<String, String> errors;
 
   @override
   State<IncomeSourceTile> createState() => _IncomeSourceTileState();
@@ -239,6 +244,7 @@ class _IncomeSourceTileState extends State<IncomeSourceTile> with SingleTickerPr
                         format: widget.format,
                         t: t,
                         onChanged: widget.onChanged,
+                        errors: widget.errors,
                       ),
                     ),
                   ),
@@ -254,11 +260,18 @@ class _IncomeSourceTileState extends State<IncomeSourceTile> with SingleTickerPr
 /// Las preguntas de cada tipo, todas opcionales (KindQuestions). Montos crudos, placeholder «0» y sin
 /// mensajes bajo el campo. Dentro de una fuente, el teclado pasa al siguiente monto.
 class _KindQuestions extends StatelessWidget {
-  const _KindQuestions({required this.form, required this.format, required this.t, required this.onChanged});
+  const _KindQuestions({
+    required this.form,
+    required this.format,
+    required this.t,
+    required this.onChanged,
+    required this.errors,
+  });
   final IncomeSourceForm form;
   final MoneyFormat format;
   final Tr t;
   final ValueChanged<IncomeSourceForm> onChanged;
+  final Map<String, String> errors;
 
   Widget _amount(
     String field,
@@ -274,6 +287,8 @@ class _KindQuestions extends StatelessWidget {
     onChanged: onChanged,
     format: format,
     textInputAction: action,
+    // Los meses llegan como un solo campo (`lastMonths`): se marca el primero.
+    errorText: errors[field == 'month-0' ? 'lastMonths' : field],
   );
 
   Widget _payDays() => PayDaysField(

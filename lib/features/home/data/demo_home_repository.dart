@@ -46,6 +46,35 @@ const _categories = <String, List<String>>{
 
 const _incomeCategories = {'salario', 'freelance', 'inversion_rendimientos', 'otros_ingresos'};
 
+/// Los pagos que faltan en el plan de cada escenario fijo. Mi plata lee de aquí los compromisos del
+/// perfil: los dos dicen lo mismo. [day] da la fecha a tantos días de hoy.
+List<Map<String, dynamic>> demoFixedPending(
+  DemoScenario scenario,
+  DemoState state,
+  String Function(int) day,
+) {
+  final m = state.fixed;
+  Map<String, dynamic> item(String id, String name, num amount, int offset) => {
+    'id': id,
+    'name': name,
+    'amount': m(amount),
+    'date': day(offset),
+  };
+  return switch (scenario) {
+    DemoScenario.planListo => [
+      item('demo-celular', 'Plan celular', 45000, 3),
+      item('demo-pila', 'PILA', 228000, 6),
+      item('demo-internet', 'Internet', 65000, 10),
+    ],
+    DemoScenario.teFaltan => [
+      item('demo-celular', 'Plan celular', 45000, 2),
+      item('demo-pila', 'PILA', 228000, 5),
+    ],
+    DemoScenario.negativo => [item('demo-celular', 'Plan celular', 45000, 4)],
+    _ => const [],
+  };
+}
+
 class DemoHomeRepository implements HomeRepository {
   DemoHomeRepository({
     required this.userId,
@@ -153,11 +182,7 @@ class DemoHomeRepository implements HomeRepository {
         'shortfall': 0,
         'pace': m(13700),
         'hasCommitments': true,
-        'pending': [
-          {'id': 'demo-celular', 'name': 'Plan celular', 'amount': m(45000), 'date': _day(3)},
-          {'id': 'demo-pila', 'name': 'PILA', 'amount': m(228000), 'date': _day(6)},
-          {'id': 'demo-internet', 'name': 'Internet', 'amount': m(65000), 'date': _day(10)},
-        ],
+        'pending': demoFixedPending(scenario, state, _day),
         'saveAdvice': 0,
         ..._daily(days: 12, perDay: m(6500), spentToday: m(3700), leftToday: m(2800)),
       },
@@ -170,10 +195,7 @@ class DemoHomeRepository implements HomeRepository {
         'shortfall': m(93000),
         'pace': m(24800),
         'hasCommitments': true,
-        'pending': [
-          {'id': 'demo-celular', 'name': 'Plan celular', 'amount': m(45000), 'date': _day(2)},
-          {'id': 'demo-pila', 'name': 'PILA', 'amount': m(228000), 'date': _day(5)},
-        ],
+        'pending': demoFixedPending(scenario, state, _day),
         'saveAdvice': 0,
         ..._daily(days: 8),
       },
@@ -186,9 +208,7 @@ class DemoHomeRepository implements HomeRepository {
         'shortfall': m(80000),
         'pace': m(30200),
         'hasCommitments': true,
-        'pending': [
-          {'id': 'demo-celular', 'name': 'Plan celular', 'amount': m(45000), 'date': _day(4)},
-        ],
+        'pending': demoFixedPending(scenario, state, _day),
         'saveAdvice': 0,
         ..._daily(days: 6),
       },

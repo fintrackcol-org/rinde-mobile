@@ -1,20 +1,15 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../../app/routes.dart';
 import '../../../../core/i18n/tr.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../design/tokens/rinde_colors.dart';
-import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
 import '../../../../design/widgets/rinde_button.dart';
 import '../../../../design/widgets/rinde_feedback.dart';
 import '../../../../design/widgets/rinde_icon.dart';
 import '../../../auth/application/session_controller.dart';
-import '../../../onboarding/presentation/demo_panel.dart';
-import '../../../onboarding/presentation/widgets/onboarding_shell.dart';
+import '../../../shell/presentation/pushed_frame.dart';
 import '../../application/movement_saver.dart';
 import '../../application/movements_controller.dart';
 import '../../domain/movement.dart';
@@ -61,9 +56,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(trProvider);
-    return _PushedFrame(
+    return PushedFrame(
       title: t(_type == MovementType.income ? 'Anotar un ingreso' : 'Anotar un gasto'),
       closeLabel: t('Cerrar sin anotar'),
+      back: false,
       child: MovementForm(
         initialType: widget.initialType,
         onSave: _save,
@@ -109,72 +105,6 @@ class EditMovementScreen extends ConsumerWidget {
         child: Text(t('Cargando…'), style: RindeType.body.copyWith(color: p.inkMuted)),
       );
     }
-    return _PushedFrame(title: t('Editar movimiento'), closeLabel: t('Volver'), back: true, child: body);
-  }
-}
-
-/// Marco de pantalla empujada (patrón de PendingModuleScreen): franja demo, título y salida.
-class _PushedFrame extends ConsumerWidget {
-  const _PushedFrame({required this.title, required this.closeLabel, required this.child, this.back = false});
-
-  final String title;
-  final String closeLabel;
-  final bool back;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final p = context.palette;
-    final demo = ref.watch(sessionControllerProvider.select((s) => s.value?.session?.demo ?? false));
-    void leave() => context.canPop() ? context.pop() : context.go(Routes.app);
-    final close = IconButton(
-      onPressed: leave,
-      tooltip: closeLabel,
-      style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
-      icon: RindeIcon(back ? RindeIcons.chevronLeft : RindeIcons.x, size: 24, color: p.ink),
-    );
-    final heading = Expanded(
-      child: Semantics(
-        header: true,
-        child: Text(title, style: RindeType.headline.copyWith(color: p.ink)),
-      ),
-    );
-    return PopScope(
-      // Abierta sin pantalla anterior (enlace directo): atrás lleva al Inicio, no cierra la app.
-      canPop: context.canPop(),
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go(Routes.app);
-      },
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: (p.brightness == Brightness.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
-            .copyWith(statusBarColor: Colors.transparent),
-        child: Scaffold(
-          backgroundColor: p.canvas,
-          body: Column(
-            children: [
-              if (demo) DemoStrip(onTap: () => showDemoPanel(context)),
-              Expanded(
-                child: SafeArea(
-                  top: !demo,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(RindeSpace.s1, RindeSpace.s2, RindeSpace.s1, 0),
-                        child: Row(
-                          children: back
-                              ? [close, const SizedBox(width: RindeSpace.s1), heading]
-                              : [const SizedBox(width: RindeSpace.s3), heading, close],
-                        ),
-                      ),
-                      Expanded(child: child),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return PushedFrame(title: t('Editar movimiento'), child: body);
   }
 }

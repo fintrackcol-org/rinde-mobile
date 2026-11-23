@@ -8,6 +8,7 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/entry/presentation/boot_screen.dart';
 import '../features/entry/presentation/entry_screen.dart';
+import '../features/money/presentation/my_money_screen.dart';
 import '../features/movements/domain/movement.dart';
 import '../features/movements/presentation/detail/movement_detail_screen.dart';
 import '../features/movements/presentation/list/movements_screen.dart';
@@ -79,6 +80,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               : MovementType.expense,
         ),
       ),
+      GoRoute(path: Routes.myMoney, builder: (_, _) => const MyMoneyScreen()),
       GoRoute(
         path: '/app/transacciones/:id',
         builder: (_, state) => MovementDetailScreen(movementId: state.pathParameters['id']!),

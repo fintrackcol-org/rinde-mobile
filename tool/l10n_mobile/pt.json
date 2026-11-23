@@ -25,12 +25,14 @@
  "No sabemos si tus pagos alcanzaron a guardarse. «Ver mi plata» los envía otra vez. Si ya los cambiaste en la web, toca «Omitir» para no repetirlos.": "Não sabemos se seus pagamentos chegaram a ser salvos. “Ver meu dinheiro” envia de novo. Se você já os mudou no site, toque em “Pular” para não repetir.",
  "No se pudo cargar": "Não foi possível carregar",
  "Pagos frecuentes": "Pagamentos comuns",
+ "Primero terminemos de guardar tu bienvenida.": "Primeiro vamos terminar de salvar suas boas-vindas.",
  "Que tu plata alcance": "Faça seu dinheiro durar",
  "Quincena": "Quinzenal",
  "Rinde tiene guardado {amount}. «Omitir» lo deja así; «Seguir» lo cambia por lo que escribas.": "O Rinde tem {amount} salvo. “Pular” deixa assim; “Continuar” troca pelo que você digitar.",
  "Rinde, cargando": "Rinde, carregando",
  "Se activa por cuenta: pídelo en Cuenta.": "É ativado por conta: peça em Conta.",
  "Semana": "Semanal",
+ "Si guardas sin ninguna, dejamos de calcular cuánto tienes libre.": "Se salvar sem nenhuma, deixamos de calcular quanto você tem livre.",
  "Son menos de {amount}. ¿Faltan ceros?": "É menos de {amount}. Faltam zeros?",
  "Todavía no sabemos cuánta plata tienes.": "Ainda não sabemos quanto dinheiro você tem.",
  "Tus pagos ya quedaron guardados. Si quieres cambiarlos, hazlo luego en Mi plata.": "Seus pagamentos já foram salvos. Se quiser mudá-los, faça isso depois em Meu dinheiro.",
@@ -39,5 +41,7 @@
  "esta semana": "esta semana",
  "hoy": "hoje",
  "pasa el fin de mes": "passa do fim do mês",
+ "{amount} cada quincena": "{amount} por quinzena",
+ "{amount} cada semana": "{amount} por semana",
  "¡Listo!": "Tudo pronto!"
 }

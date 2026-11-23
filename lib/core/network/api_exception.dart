@@ -24,6 +24,9 @@ abstract final class ApiCodes {
 
   /// Una sesión de demostración intentó salir a la red: se bloquea siempre.
   static const demoNoBackend = 'DEMO_NO_BACKEND';
+
+  /// Hay una bienvenida a medias en este dispositivo: al retomarla pisaría lo que se escriba ahora.
+  static const welcomePending = 'WELCOME_PENDING';
   static const unknown = 'UNKNOWN';
 }
 

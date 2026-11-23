@@ -175,6 +175,7 @@ class DemoState {
     this.commitments = const [],
     this.incomeType,
     this.payDays = const [],
+    this.sources = const [],
   });
 
   factory DemoState.fromJson(Object? raw) {
@@ -193,6 +194,11 @@ class DemoState {
       ],
       incomeType: raw['incomeType'] is String ? raw['incomeType'] as String : null,
       payDays: _ints(raw['payDays']),
+      sources: [
+        if (raw['sources'] case final List<dynamic> sources)
+          for (final item in sources)
+            if (item is Map) Map<String, dynamic>.from(item),
+      ],
     );
   }
 
@@ -205,12 +211,15 @@ class DemoState {
   /// El saldo que la persona dijo. null = no lo ha dicho.
   final num? balance;
 
-  /// Pagos fijos: `{name, amount, dayOfMonth}`.
+  /// Pagos fijos: `{name, amount, dayOfMonth}` (los de Mi plata traen además `kind`, `frequency` y `month`).
   final List<Map<String, dynamic>> commitments;
 
   /// `fecha_fija`, `sin_fecha` o null (sin fuentes de ingreso).
   final String? incomeType;
   final List<int> payDays;
+
+  /// Las fuentes de ingreso tal como las recibió PUT /money-profile/sources.
+  final List<Map<String, dynamic>> sources;
 
   Map<String, dynamic> toJson() => {
     'welcomeDone': welcomeDone,
@@ -220,6 +229,7 @@ class DemoState {
     'commitments': commitments,
     'incomeType': incomeType,
     'payDays': payDays,
+    'sources': sources,
   };
 
   /// Los montos fijos de los escenarios están pensados en pesos colombianos. Con otra moneda se
@@ -236,6 +246,7 @@ class DemoState {
     commitments: commitments,
     incomeType: incomeType,
     payDays: payDays,
+    sources: sources,
   );
 
   /// POST /money-profile/tutorial.
@@ -247,6 +258,7 @@ class DemoState {
     commitments: commitments,
     incomeType: incomeType,
     payDays: payDays,
+    sources: sources,
   );
 
   /// POST /money-profile/welcome.
@@ -264,6 +276,7 @@ class DemoState {
       balance: answered ? sent : balance,
       incomeType: answered ? body['incomeType'] as String? : incomeType,
       payDays: answered ? _ints(body['payDays']) : payDays,
+      sources: sources,
       commitments: [
         ...commitments,
         // ON CONFLICT (lower(nombre)) DO NOTHING: un nombre que ya está no cambia de monto ni se repite.
@@ -295,8 +308,21 @@ class DemoState {
           ? 'sin_fecha'
           : 'fecha_fija',
       payDays: days.take(4).toList(),
+      sources: sources,
     );
   }
+
+  /// POST /money-profile/commitments desde Mi plata (el nombre repetido ya lo descartó quien llama).
+  DemoState withCommitment(Map<String, dynamic> commitment) => DemoState(
+    welcomeDone: welcomeDone,
+    tutorialDone: tutorialDone,
+    region: region,
+    balance: balance,
+    commitments: [...commitments, commitment],
+    incomeType: incomeType,
+    payDays: payDays,
+    sources: sources,
+  );
 }
 
 /// Estado simulado que sobrevive a cerrar la app (para probar «ya la terminó» y el Inicio).

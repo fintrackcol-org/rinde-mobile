@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -14,8 +13,7 @@ import '../../../design/widgets/rinde_feedback.dart';
 import '../../../design/widgets/rinde_icon.dart';
 import '../../auth/application/session_controller.dart';
 import '../../home/application/home_providers.dart';
-import '../../onboarding/presentation/demo_panel.dart';
-import '../../onboarding/presentation/widgets/onboarding_shell.dart';
+import 'pushed_frame.dart';
 import 'rinde_tab_scaffold.dart';
 
 /// Pantalla de un destino que todavía no está en la app: lo dice sin rodeos, sin datos de mentira
@@ -87,50 +85,7 @@ class PendingModuleScreen extends ConsumerWidget {
     if (tab != null) {
       return RindeTabScaffold(current: tab, child: body(RindeTabScaffold.bottomInset(context)));
     }
-    final demo = ref.watch(sessionControllerProvider.select((s) => s.value?.session?.demo ?? false));
-    void back() => context.canPop() ? context.pop() : context.go(Routes.app);
-    return PopScope(
-      // Abierta sin pantalla anterior (un enlace directo): atrás lleva al Inicio, no cierra la app.
-      canPop: context.canPop(),
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go(Routes.app);
-      },
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: (p.brightness == Brightness.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
-            .copyWith(statusBarColor: Colors.transparent),
-        child: Scaffold(
-          backgroundColor: p.canvas,
-          body: Column(
-            children: [
-              // También aquí se dice que es una demostración.
-              if (demo) DemoStrip(onTap: () => showDemoPanel(context)),
-              Expanded(
-                child: SafeArea(
-                  top: !demo,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(RindeSpace.s1, RindeSpace.s2, RindeSpace.s1, 0),
-                        child: Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: IconButton(
-                            onPressed: back,
-                            tooltip: t('Volver'),
-                            style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
-                            icon: RindeIcon(RindeIcons.chevronLeft, size: 24, color: p.ink),
-                          ),
-                        ),
-                      ),
-                      Expanded(child: body(RindeSpace.s6)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return PushedFrame(child: body(RindeSpace.s6));
   }
 }
 

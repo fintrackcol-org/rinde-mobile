@@ -1,0 +1,79 @@
+import 'package:rinde_mobile/features/money/data/money_models.dart';
+import 'package:rinde_mobile/features/money/data/money_repository.dart';
+import 'package:rinde_mobile/features/onboarding/domain/income_sources.dart';
+
+/// Repositorio de Mi plata con respuestas a la medida. Guarda cada llamada y lo que se envió.
+class FakeMoneyRepository implements MoneyRepository {
+  final calls = <String>[];
+  final sentSources = <List<Map<String, dynamic>>>[];
+  final sentCommitments = <Map<String, dynamic>>[];
+
+  Future<MoneyProfile> Function() onProfile = () async => const MoneyProfile(welcomeDone: true);
+  Future<IncomeOverview> Function() onIncome = () async => incomeOf();
+  Future<void> Function(List<Map<String, dynamic>> sources) onSaveSources = (_) async {};
+  Future<void> Function(Map<String, dynamic> body) onCreateCommitment = (_) async {};
+
+  int count(String call) => calls.where((c) => c == call).length;
+
+  @override
+  bool get isDemo => false;
+
+  @override
+  Future<MoneyProfile> profile() {
+    calls.add('profile');
+    return onProfile();
+  }
+
+  @override
+  Future<IncomeOverview> income() {
+    calls.add('income');
+    return onIncome();
+  }
+
+  @override
+  Future<void> saveSources(List<Map<String, dynamic>> sources) {
+    calls.add('saveSources');
+    sentSources.add(sources);
+    return onSaveSources(sources);
+  }
+
+  @override
+  Future<void> createCommitment(Map<String, dynamic> body) {
+    calls.add('createCommitment');
+    sentCommitments.add(body);
+    return onCreateCommitment(body);
+  }
+}
+
+/// Un independiente con proyectos: mes normal y flaco, sueldo propio, colchón por crear y PILA.
+IncomeOverview incomeOf({
+  List<IncomeSource> sources = const [
+    IncomeSource(
+      id: 's1',
+      kind: IncomeKind.proyectos,
+      frequency: 'irregular',
+      lastMonths: [700000, 650000, 800000],
+    ),
+  ],
+  num? normal = 700000,
+  num? lean = 650000,
+  String basis = 'declared',
+  bool estimated = false,
+  num? ownSalary = 600000,
+  Cushion? cushion = const Cushion(goal: 2250000, suggestedGoal: 2250000, saved: 0),
+  SocialSecurity? socialSecurity = const SocialSecurity(health: 218863, pension: 280145, total: 499008),
+  WorkDay? workDay,
+}) => IncomeOverview(
+  sources: sources,
+  normal: normal,
+  lean: lean,
+  basis: basis,
+  estimated: estimated,
+  ownSalary: ownSalary,
+  cushion: cushion,
+  socialSecurity: socialSecurity,
+  workDay: workDay,
+);
+
+/// Aún no dijo cómo le entra la plata.
+const noIncome = IncomeOverview(cushion: Cushion(goal: 0, suggestedGoal: 0, saved: 0));

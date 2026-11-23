@@ -13,6 +13,9 @@ import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/auth/presentation/login_screen.dart';
 import 'package:rinde_mobile/features/entry/presentation/entry_screen.dart';
+import 'package:rinde_mobile/features/money/application/money_providers.dart';
+import 'package:rinde_mobile/features/money/data/money_models.dart';
+import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 
 const _session = Session(
@@ -30,7 +33,6 @@ const _tabRoutes = {
 /// Destinos que se abren encima de una pestaña, con el título que deben mostrar.
 final _pushedRoutes = {
   Routes.notifications: 'Notificaciones',
-  Routes.myMoney: 'Mi plata',
   Routes.payments: 'Pagos del mes',
   Routes.fixBalance: 'Corregir saldo',
   Routes.income: 'Ingresos',
@@ -59,6 +61,8 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
       overrides: [
         sessionStorageProvider.overrideWithValue(MemorySessionStorage(session)),
         profileProvider.overrideWith((ref, _) => Completer<UserProfile>().future),
+        // Mi plata se queda cargando: estas pruebas son de rutas, no de sus datos.
+        incomeOverviewProvider.overrideWith((ref, _) => Completer<IncomeOverview>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -88,6 +92,7 @@ void main() {
       ..._tabRoutes.keys,
       ..._pushedRoutes.keys,
       Routes.record,
+      Routes.myMoney,
       Routes.movement('m1'),
     ]) {
       router.go(route);
@@ -164,6 +169,27 @@ void main() {
     await _settle(tester);
     expect(_location(router), Routes.plan);
     expect(find.text('Planear'), findsWidgets);
+  });
+
+  testWidgets('Mi plata ya es pantalla real: se abre encima, sin barra, y «Volver» regresa', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.plan);
+    await _settle(tester);
+    unawaited(router.push(Routes.myMoney));
+    await _settle(tester);
+    expect(find.byType(MyMoneyScreen), findsOneWidget);
+    expect(find.text('En desarrollo'), findsNothing);
+    expect(find.byType(RindeTabScaffold), findsNothing);
+    await tester.tap(find.byTooltip('Volver'));
+    await _settle(tester);
+    expect(_location(router), Routes.plan);
+
+    // Por enlace directo, atrás va al Inicio (backPath de la web).
+    router.go(Routes.myMoney);
+    await _settle(tester);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+    expect(_location(router), Routes.app);
   });
 
   testWidgets('un destino abierto por enlace directo no cierra la app con atrás: va al Inicio', (
