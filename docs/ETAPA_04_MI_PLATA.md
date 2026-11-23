@@ -396,9 +396,9 @@ React y el backend no se tocaron.
 ### Git
 
 - Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
-- Commit: PENDIENTE.
+- Commit: `892f3ba` «feat: saldo y disponibilidad en Mi plata (etapa 4, bloque 4B)».
 - PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A, **sin fusionar**.
-- Respaldo: PENDIENTE.
+- Respaldo: verificado en GitHub. `git ls-remote` devuelve el mismo `892f3ba` que la rama local.
 
 ### Lo que falta o no se comprobó en 4B
 
