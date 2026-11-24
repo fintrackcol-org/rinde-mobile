@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -62,6 +65,35 @@ class ApiClient {
   Future<dynamic> put(String path, {Object? body}) => _send(() => authed.put<dynamic>(path, data: body));
 
   Future<dynamic> patch(String path, {Object? body}) => _send(() => authed.patch<dynamic>(path, data: body));
+
+  /// Un archivo que arma el servidor (GET con sesión): los bytes y el encabezado Content-Disposition.
+  Future<({Uint8List bytes, String? disposition})> download(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final response = await authed.get<List<int>>(
+        path,
+        queryParameters: query,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return (
+        bytes: Uint8List.fromList(response.data ?? const []),
+        disposition: response.headers.value('content-disposition'),
+      );
+    } on DioException catch (e) {
+      // El error también llega en bytes: se lee como el JSON de siempre para conservar su código.
+      final response = e.response;
+      if (response != null && response.data is List<int>) {
+        try {
+          response.data = jsonDecode(utf8.decode(response.data as List<int>));
+        } on FormatException {
+          response.data = null;
+        }
+      }
+      throw ApiException.fromDio(e);
+    }
+  }
 
   Future<dynamic> _send(Future<Response<dynamic>> Function() request) async {
     try {

@@ -25,6 +25,9 @@ dependencies:
   flutter_svg: ^2.5.0
   # Abrir términos y política de privacidad (sitio web) antes de aceptarlos.
   url_launcher: ^6.3.3
+  # Exportar: entrega el archivo que arma el servidor a la hoja de compartir del sistema (guardar en
+  # Archivos o Drive, abrir en Excel, enviar). url_launcher no puede abrir un archivo local.
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:

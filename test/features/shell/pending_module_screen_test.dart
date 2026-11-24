@@ -17,15 +17,11 @@ import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart
 const _honest = 'Esta parte todavía no está en la app. Ya funciona en la web de Rinde, con tu misma cuenta.';
 
 /// Título esperado de cada destino (los de Rinde Web), por la ruta con que se abre.
+// Notificaciones, Consejos, Exportar y Renta (etapa 9) ya son pantallas reales (router_test.dart).
 final _titles = {
-  Routes.notifications: 'Notificaciones',
   // De Planear y del Calendario.
   Routes.goals: 'Metas',
   Routes.vacas: 'Vacas',
-  // Accesos de «Más de tu plata».
-  Routes.insights: 'Consejos',
-  Routes.export: 'Exportar movimientos',
-  Routes.renta: 'Renta y DIAN',
 };
 // Planear (etapa 7) ya es pantalla real: ninguna pestaña queda pendiente.
 const _tabs = <String, RindeTab>{};
@@ -85,14 +81,7 @@ void main() {
   test('la lista cubre todos los destinos del Inicio y de la barra, sin repetir rutas', () {
     final paths = pendingModules.map((m) => m.path).toList();
     expect(paths.toSet().length, paths.length);
-    expect(paths.toSet(), {
-      Routes.notifications,
-      Routes.goals,
-      Routes.vacas,
-      Routes.insights,
-      Routes.export,
-      Routes.renta,
-    });
+    expect(paths.toSet(), {Routes.goals, Routes.vacas});
     expect({for (final m in pendingModules) ?m.tab}, isEmpty);
   });
 
@@ -124,9 +113,9 @@ void main() {
 
   testWidgets('un destino abierto encima vuelve a donde estaba, con «Volver» o con atrás', (tester) async {
     final router = await _pump(tester);
-    unawaited(router.push(Routes.notifications));
+    unawaited(router.push(Routes.vacas));
     await tester.pumpAndSettle();
-    expect(find.text('Notificaciones'), findsOneWidget);
+    expect(find.text('Vacas'), findsOneWidget);
     await tester.tap(find.byTooltip('Volver'));
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
@@ -143,7 +132,7 @@ void main() {
   testWidgets('abierto sin pantalla anterior, «Volver» y atrás llevan al Inicio en vez de cerrar la app', (
     tester,
   ) async {
-    await _pump(tester, initial: Routes.notifications);
+    await _pump(tester, initial: Routes.vacas);
     await tester.tap(find.byTooltip('Volver'));
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
@@ -156,7 +145,7 @@ void main() {
 
   for (final (name, theme) in [('claro', RindeTheme.light), ('oscuro', RindeTheme.dark)]) {
     testWidgets('320 de ancho y letra al doble, tema $name: nada se desborda', (tester) async {
-      for (final route in [Routes.goals, Routes.renta, Routes.vacas]) {
+      for (final route in [Routes.goals, Routes.vacas]) {
         await _pump(tester, initial: route, size: const Size(320, 568), textScale: 2, theme: theme);
         expect(tester.takeException(), isNull, reason: route);
         expect(find.text('En desarrollo'), findsOneWidget, reason: route);

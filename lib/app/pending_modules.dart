@@ -22,12 +22,7 @@ class PendingModule {
 }
 
 final pendingModules = <PendingModule>[
-  PendingModule(path: Routes.notifications, title: (t, _) => t('Notificaciones'), web: 'Notifications.jsx'),
   // De Planear y del Calendario.
   PendingModule(path: Routes.goals, title: (t, _) => t('Metas'), web: 'Metas.jsx'),
   PendingModule(path: Routes.vacas, title: (t, _) => t('Vacas'), web: 'Vacas.jsx'),
-  // Accesos de «Más de tu plata».
-  PendingModule(path: Routes.insights, title: (t, _) => t('Consejos'), web: 'Insights.jsx'),
-  PendingModule(path: Routes.export, title: (t, _) => t('Exportar movimientos'), web: 'Export.jsx'),
-  PendingModule(path: Routes.renta, title: (t, _) => t('Renta y DIAN'), web: 'Renta.jsx'),
 ];

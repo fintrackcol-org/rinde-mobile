@@ -271,6 +271,12 @@ class DemoHomeRepository implements HomeRepository {
     return _notifications()['unread'] as int;
   }
 
+  /// GET /notifications de la demo: los avisos sintéticos que cuenta la campana.
+  Future<Map<String, dynamic>> demoNotifications() async {
+    await _read(DemoHomeOperation.secondary);
+    return _notifications();
+  }
+
   @override
   Future<Map<String, String>> categoryNames() async {
     await _read(DemoHomeOperation.secondary);
