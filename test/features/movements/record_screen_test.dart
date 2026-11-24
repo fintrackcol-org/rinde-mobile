@@ -9,8 +9,12 @@ import 'package:rinde_mobile/features/movements/application/movements_controller
     show movementDetailProvider;
 import 'package:rinde_mobile/core/network/api_exception.dart';
 import 'package:rinde_mobile/design/theme/rinde_theme.dart';
+import 'package:rinde_mobile/design/widgets/rinde_text_field.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
+import 'package:rinde_mobile/features/cards/application/cards_providers.dart';
+import 'package:rinde_mobile/features/cards/data/card_models.dart';
+import 'package:rinde_mobile/features/cards/data/cards_repository.dart';
 import 'package:rinde_mobile/features/home/application/home_providers.dart';
 import 'package:rinde_mobile/features/movements/application/movement_saver.dart';
 import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
@@ -19,6 +23,8 @@ import 'package:rinde_mobile/features/movements/domain/movement.dart';
 import 'package:rinde_mobile/features/movements/presentation/record/record_screen.dart';
 import 'package:rinde_mobile/features/onboarding/presentation/widgets/onboarding_shell.dart';
 
+import '../../support/card_fixtures.dart';
+import '../../support/fake_cards_repository.dart';
 import '../../support/fake_movements_repository.dart';
 
 const _ana = Session(
@@ -49,6 +55,7 @@ const _categories = CategoryLists(
 );
 
 late FakeMovementsRepository repo;
+late FakeCardsRepository cards;
 late MemoryJsonListStore store;
 final inputs = <MovementInput>[];
 
@@ -76,6 +83,7 @@ Future<ProviderContainer> _pump(
               initialType: state.uri.queryParameters['tipo'] == 'ingreso'
                   ? MovementType.income
                   : MovementType.expense,
+              initialCard: state.uri.queryParameters['tarjeta'],
             ),
           ),
           GoRoute(
@@ -94,6 +102,7 @@ Future<ProviderContainer> _pump(
       overrides: [
         sessionControllerProvider.overrideWith(() => _Sessions(session)),
         movementsRepositoryProvider.overrideWithValue(repo),
+        cardsRepositoryProvider.overrideWithValue(cards),
         pendingStoreProvider.overrideWithValue(store),
         clockProvider.overrideWithValue(() => DateTime(2026, 11, 22, 10)),
       ],
@@ -115,6 +124,8 @@ Future<ProviderContainer> _pump(
 
 Finder get _amount => find.byType(TextField).at(0);
 Finder get _description => find.byType(TextField).at(1);
+Finder get _cuotas =>
+    find.descendant(of: find.widgetWithText(RindeTextField, 'Cuotas'), matching: find.byType(TextField));
 Finder _save([String label = 'Guardar gasto']) => find.textContaining(label);
 
 Future<void> _fill(WidgetTester tester, {String amount = '12500', String description = 'Almuerzo'}) async {
@@ -132,6 +143,7 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 void main() {
   setUp(() {
     repo = FakeMovementsRepository()..onCategories = () async => _categories;
+    cards = FakeCardsRepository();
     store = MemoryJsonListStore();
     inputs.clear();
     repo.onCreate = (input, localId) async {
@@ -334,6 +346,210 @@ void main() {
       expect(find.text('Escribe cuánto gastaste.'), findsOneWidget);
     });
   }
+
+  group('«Pagado con» y «Cuotas» (pendiente de la etapa 3)', () {
+    final visa = creditCard(id: 't1', name: 'Mi Visa', last4: '4242');
+    final amex = creditCard(id: 't2', name: 'Amex Gold ••1005', network: 'amex', tier: 'gold', last4: '1005');
+
+    setUp(() => cards.onList = () async => [visa, amex]);
+
+    testWidgets('sin tarjetas la fila no aparece y el resumen dice «Efectivo o débito»', (tester) async {
+      cards.onList = () async => const [];
+      await _pump(tester);
+      expect(find.textContaining('· Efectivo o débito'), findsOneWidget);
+      await _tap(tester, find.textContaining('Más detalles'));
+      expect(find.text('Pagado con'), findsNothing);
+    });
+
+    testWidgets('elige la tarjeta, aparecen las cuotas y viajan con el gasto', (tester) async {
+      await _pump(tester);
+      await _fill(tester);
+      await _tap(tester, find.textContaining('Más detalles'));
+      expect(find.text('Pagado con'), findsOneWidget);
+      expect(find.text('Cuotas'), findsNothing, reason: 'en efectivo no hay cuotas');
+      await _tap(tester, find.text('Amex ••1005'));
+      expect(find.textContaining('· Tarjeta'), findsOneWidget);
+      expect(find.text('De 1 a 48. A más de una cuota el banco suele cobrar intereses.'), findsOneWidget);
+      await tester.enterText(_cuotas, '3');
+      await _tap(tester, _save());
+      expect(inputs.single.card, 't2');
+      expect(inputs.single.installments, 3);
+      expect(inputs.single.toJson(), containsPair('card', 't2'));
+    });
+
+    testWidgets('cuotas fuera de 1 a 48: el error en su campo y no se envía', (tester) async {
+      await _pump(tester, initial: '/app/anotar?tarjeta=t1');
+      await _fill(tester);
+      await _tap(tester, find.textContaining('Más detalles'));
+      await tester.enterText(_cuotas, '49');
+      await _tap(tester, _save());
+      expect(find.text('De 1 a 48 cuotas'), findsOneWidget);
+      expect(inputs, isEmpty);
+    });
+
+    testWidgets('?tarjeta= llega elegida; a ingreso se quita y al volver a gasto regresa la del enlace', (
+      tester,
+    ) async {
+      await _pump(tester, initial: '/app/anotar?tarjeta=t1');
+      expect(find.textContaining('· Tarjeta'), findsOneWidget);
+      await _tap(tester, find.textContaining('Más detalles'));
+      await _tap(tester, find.text('Amex ••1005'));
+      await _tap(tester, find.text('Ingreso'));
+      expect(find.text('Pagado con'), findsNothing);
+      await _tap(tester, find.text('Gasto'));
+      await _fill(tester);
+      await _tap(tester, _save());
+      expect(inputs.single.card, 't1', reason: 'la del enlace, no la última que se tocó (Anotar.jsx:423)');
+      expect(inputs.single.installments, 1);
+    });
+
+    testWidgets('?tarjeta= de una tarjeta que ya no está en la lista: va en efectivo, como la web', (
+      tester,
+    ) async {
+      await _pump(tester, initial: '/app/anotar?tarjeta=vieja');
+      expect(find.textContaining('· Efectivo o débito'), findsOneWidget);
+      await _fill(tester);
+      await _tap(tester, _save());
+      expect(inputs.single.card, isNull);
+    });
+
+    testWidgets(
+      '?tarjeta= sin poder cargar la lista: se manda la tarjeta igual (la web la pasa a efectivo)',
+      (tester) async {
+        cards.onList = () async => throw const ApiException(code: ApiCodes.network);
+        await _pump(tester, initial: '/app/anotar?tarjeta=t1');
+        expect(find.textContaining('· Tarjeta'), findsOneWidget);
+        await _fill(tester);
+        await _tap(tester, _save());
+        // El servidor la valida; un gasto «en efectivo» por error bajaría Mi plata.
+        expect(inputs.single.card, 't1');
+        expect(inputs.single.installments, 1);
+      },
+    );
+
+    testWidgets('?tarjeta= con la lista vieja recargando: se manda la tarjeta y el servidor la valida', (
+      tester,
+    ) async {
+      // La tarjeta se agregó después de cargar la lista (en la web, por ejemplo) y el detalle la recarga.
+      final c = await _pump(tester, initial: '/app/anotar?tarjeta=t3');
+      expect(
+        find.textContaining('· Efectivo o débito'),
+        findsOneWidget,
+        reason: 'la lista vieja no la tiene',
+      );
+      cards.onList = () => Completer<List<CreditCard>>().future;
+      c.invalidate(cardsProvider);
+      await tester.pump();
+      await _fill(tester);
+      await _tap(tester, _save());
+      // Con la lista vieja iría en efectivo: tarjeta_id NULL y Mi plata bajaría por error.
+      expect(inputs.single.card, 't3');
+    });
+
+    testWidgets('?tarjeta= con la lista vieja y la recarga FALLA: también se manda la tarjeta', (
+      tester,
+    ) async {
+      // Sin señal: la recarga que pide el detalle falla y Riverpod deja el error con la lista vieja.
+      repo.onCreate = (input, _) async {
+        inputs.add(input);
+        throw const ApiException(code: ApiCodes.network);
+      };
+      final c = await _pump(tester, initial: '/app/anotar?tarjeta=t3');
+      cards.onList = () async => throw const ApiException(code: ApiCodes.network);
+      c.invalidate(cardsProvider);
+      await tester.pumpAndSettle();
+      final list = c.read(cardsProvider(c.read(accountProvider)));
+      expect((list.hasError, list.value?.length), (true, 2), reason: 'error con la lista vieja');
+      expect(find.textContaining('· Tarjeta'), findsOneWidget, reason: 'no «Efectivo o débito»');
+      await _fill(tester);
+      await _tap(tester, _save());
+      expect(inputs.single.card, 't3');
+      expect((await c.read(pendingMovementsProvider.future)).items.single.input.card, 't3');
+    });
+
+    testWidgets('un 422 en la tarjeta se marca en «Pagado con»', (tester) async {
+      repo.onCreate = (_, _) async => throw const ApiException(
+        code: ApiCodes.validation,
+        status: 422,
+        serverMessage: 'Datos inválidos',
+        fields: {'card': 'No es una de tus tarjetas'},
+      );
+      await _pump(tester, initial: '/app/anotar?tarjeta=t1');
+      await _fill(tester);
+      await _tap(tester, _save());
+      expect(find.text('No es una de tus tarjetas'), findsOneWidget);
+      expect(find.text('Datos inválidos'), findsNothing);
+    });
+
+    testWidgets('sin conexión: la cola guarda la tarjeta con su etiqueta', (tester) async {
+      repo.onCreate = (_, _) async => throw const ApiException(code: ApiCodes.network);
+      final c = await _pump(tester, initial: '/app/anotar?tarjeta=t1');
+      await _fill(tester);
+      await _tap(tester, _save());
+      expect(find.text('Guardado sin conexión. Se sincronizará cuando vuelva internet.'), findsOneWidget);
+      final pending = (await c.read(pendingMovementsProvider.future)).items.single;
+      expect(pending.input.card, 't1');
+      expect(pending.input.installments, 1);
+      expect(pending.toMovement().card?.name, 'Mi Visa');
+      expect(pending.toMovement().card?.last4, '4242');
+    });
+
+    testWidgets('editar: una tarjeta borrada se ve como «Efectivo o débito» y no se envía sin tocarla', (
+      tester,
+    ) async {
+      final updates = <MovementInput>[];
+      const saved = Movement(
+        id: 'id-9',
+        type: MovementType.expense,
+        amount: 50000,
+        description: 'Mercado',
+        source: 'manual',
+        date: '2026-11-20',
+        category: 'alimentacion',
+        card: MovementCard(id: 'borrada', name: 'Visa', last4: '9999', deleted: true),
+        installments: 3,
+      );
+      repo.onGet = (_) async => saved;
+      repo.onUpdate = (id, input) async {
+        updates.add(input);
+        return saved;
+      };
+      await _pump(tester, initial: '/app/transacciones/id-9/editar');
+      expect(find.text('Pagado con'), findsOneWidget);
+      expect(find.text('Cuotas'), findsNothing);
+      await tester.enterText(_description, 'Mercado grande');
+      await _tap(tester, find.text('Guardar cambios'));
+      expect(updates.single.changesFrom(saved), {'description': 'Mercado grande'});
+    });
+
+    testWidgets('editar: cambiar SOLO la tarjeta sí se guarda', (tester) async {
+      final updates = <MovementInput>[];
+      const saved = Movement(
+        id: 'id-8',
+        type: MovementType.expense,
+        amount: 50000,
+        description: 'Mercado',
+        source: 'manual',
+        date: '2026-11-20',
+        category: 'alimentacion',
+        card: MovementCard(id: 't1', name: 'Mi Visa', last4: '4242', deleted: false),
+        installments: 2,
+      );
+      repo.onGet = (_) async => saved;
+      repo.onUpdate = (id, input) async {
+        updates.add(input);
+        return saved;
+      };
+      await _pump(tester, initial: '/app/transacciones/id-8/editar');
+      expect(find.text('Cuotas'), findsOneWidget);
+      await _tap(tester, find.text('Amex ••1005'));
+      await _tap(tester, find.text('Guardar cambios'));
+      expect(updates.single.changesFrom(saved), {
+        'card': 't2',
+        'installments': 2,
+      }, reason: 'sin ellas guarda 1');
+    });
+  });
 
   group('editar', () {
     const saved = Movement(

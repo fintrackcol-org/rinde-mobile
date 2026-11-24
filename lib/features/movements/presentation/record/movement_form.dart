@@ -18,6 +18,9 @@ import '../../../../design/widgets/rinde_money_field.dart';
 import '../../../../design/widgets/rinde_segmented.dart';
 import '../../../../design/widgets/rinde_text_field.dart';
 import '../../../auth/application/session_controller.dart';
+import '../../../cards/application/cards_providers.dart' show cardsProvider;
+import '../../../cards/data/card_models.dart' show CreditCard;
+import '../../../cards/domain/card_rules.dart' show cardListLabel;
 import '../../../home/application/home_providers.dart' show clockProvider;
 import '../../../home/domain/home_dates.dart';
 import '../../application/movements_controller.dart';
@@ -30,7 +33,7 @@ const kBigAmount = 5000000;
 const _visibleCategories = 5;
 
 /// Campos del formulario que el servidor puede marcar en un 422.
-const _formFields = {'type', 'amount', 'description', 'date', 'category', 'kakeibo'};
+const _formFields = {'type', 'amount', 'description', 'date', 'category', 'kakeibo', 'card', 'installments'};
 
 const _kakeibo = [
   ('necesidad', 'Necesidad', 'Lo que no puedes dejar: comida, arriendo, transporte.'),
@@ -50,8 +53,11 @@ Map<String, String> movementProblems(
   required String today,
   required bool editing,
   String? savedDate,
+  String? card,
+  String installments = '1',
 }) {
   final expense = type == MovementType.expense;
+  final cuotas = int.tryParse(installments.trim());
   return {
     if (amount == null || amount <= 0)
       'amount': editing
@@ -67,14 +73,22 @@ Map<String, String> movementProblems(
             }),
     if (date.compareTo(today) > 0 && date != savedDate)
       'date': t('No puedes anotar un movimiento en el futuro'),
+    // Cuotas solo con una tarjeta elegida (lib/validation/transaction.js:29-41).
+    if (expense && card != null)
+      if (installments.trim().isEmpty)
+        'installments': t('Ingresa las cuotas')
+      else if (cuotas == null || cuotas < 1 || cuotas > 48)
+        'installments': t('De 1 a 48 cuotas'),
   };
 }
 
 /// isBigAmount de la web: al editar, solo si el monto cambió.
 bool needsBigConfirm(num amount, {num? before}) => amount >= kBigAmount && amount != before;
 
-/// El PUT del repositorio manda el estado completo: lo que el formulario no muestra (tarjeta, cuotas,
-/// emoción, Kakeibo, otra moneda) va como estaba. Null si nada cambió.
+/// El PUT del repositorio manda el estado completo: lo que el formulario no muestra (emoción,
+/// Kakeibo, otra moneda) va como estaba. Null si nada cambió, TARJETA Y CUOTAS incluidas: si no,
+/// un cambio de solo la tarjeta no se guardaría. Una tarjeta borrada cuenta como «sin tarjeta»
+/// (TransactionEdit.jsx:44-46): sin tocarla, no se envía nada de tarjeta.
 MovementInput? editedInput(
   Movement saved, {
   required MovementType type,
@@ -82,25 +96,31 @@ MovementInput? editedInput(
   required String description,
   required String date,
   required String? category,
+  required String? card,
+  required int? installments,
 }) {
   final text = description.trim();
+  final income = type == MovementType.income;
+  final effectiveCard = income ? null : card;
+  final effectiveInstallments = effectiveCard == null ? null : installments;
+  final savedCard = saved.card == null || saved.card!.deleted ? null : saved.card!.id;
   if (type == saved.type &&
       amount == saved.amount &&
       text == saved.description &&
       date == saved.date &&
-      category == saved.category) {
+      category == saved.category &&
+      effectiveCard == savedCard &&
+      effectiveInstallments == (savedCard == null ? null : saved.installments)) {
     return null;
   }
-  final income = type == MovementType.income;
-  final card = income ? null : saved.card?.id;
   return MovementInput(
     type: type,
     amount: amount,
     description: text,
     date: date,
     category: category,
-    card: card,
-    installments: card == null ? null : saved.installments,
+    card: effectiveCard,
+    installments: effectiveInstallments,
     emotion: income ? null : saved.emotion,
     kakeibo: income ? null : saved.kakeibo,
     // Como en la web: si cambia el monto, queda en la moneda principal sin la conversión.
@@ -116,11 +136,17 @@ class MovementForm extends ConsumerStatefulWidget {
     required this.onSave,
     this.initial,
     this.initialType = MovementType.expense,
+    this.initialCard,
     this.onTypeChanged,
   });
 
   final Movement? initial;
   final MovementType initialType;
+
+  /// Tarjeta con que llega `/app/anotar?tarjeta=<id>` (el «Anotar» del detalle de una tarjeta).
+  /// Se manda aunque la lista de tarjetas no cargue: el servidor la valida. LA WEB, en ese caso,
+  /// guarda el gasto como efectivo sin avisar, y eso baja Mi plata por error (riesgo 2 de RT §8).
+  final String? initialCard;
   final ValueChanged<MovementType>? onTypeChanged;
 
   /// [opened]: el movimiento con que se abrió el formulario (null al anotar). Editar manda solo lo que
@@ -142,6 +168,14 @@ class _MovementFormState extends ConsumerState<MovementForm> {
   late String _amount = _saved == null ? '' : _raw(_saved.amount);
   late String _date = _saved?.date ?? _today();
   late String? _category = _saved?.category; // null: la elige la IA del servidor
+
+  /// null = «Efectivo o débito». Al editar, una tarjeta borrada arranca como efectivo
+  /// (TransactionForm.jsx:40-41).
+  late String? _card = _saved == null
+      ? (_type == MovementType.expense ? widget.initialCard : null)
+      : (_saved.card == null || _saved.card!.deleted ? null : _saved.card!.id);
+  late final _installments = TextEditingController(text: '${_saved?.installments ?? 1}');
+  final _installmentsFocus = FocusNode();
   String? _kakeibo;
   bool _allCategories = false;
   bool _details = false;
@@ -161,11 +195,30 @@ class _MovementFormState extends ConsumerState<MovementForm> {
 
   String _today() => isoDay(ref.read(clockProvider)());
 
+  /// La tarjeta que se manda (null = «Efectivo o débito»). Al anotar, una que no está en la lista
+  /// cargada (un enlace viejo) va en efectivo, como `cardOk` de Anotar.jsx; si la lista no cargó, va
+  /// igual y el servidor la valida (la web la manda en efectivo y baja Mi plata por error). Al editar
+  /// se respeta lo guardado.
+  String? _sentCard(List<CreditCard>? cards) {
+    if (!_expense || _card == null) return null;
+    if (_editing || cards == null) return _card;
+    return cards.any((c) => c.id == _card) ? _card : null;
+  }
+
+  List<CreditCard>? _readCards() => _known(ref.read(cardsProvider(ref.read(accountProvider))));
+
+  /// Mientras recarga, o si la recarga falló, la lista puede ser vieja (sin la tarjeta del enlace): se
+  /// trata como desconocida.
+  static List<CreditCard>? _known(AsyncValue<List<CreditCard>> cards) =>
+      cards.isLoading || cards.hasError ? null : cards.value;
+
   @override
   void dispose() {
     _amountFocus.dispose();
     _descriptionFocus.dispose();
+    _installmentsFocus.dispose();
     _description.dispose();
+    _installments.dispose();
     super.dispose();
   }
 
@@ -184,6 +237,7 @@ class _MovementFormState extends ConsumerState<MovementForm> {
     if (_saving) return;
     final t = ref.read(trProvider);
     final amount = moneyValue(_amount);
+    final card = _sentCard(_readCards());
     final problems = movementProblems(
       t,
       type: _type,
@@ -193,20 +247,25 @@ class _MovementFormState extends ConsumerState<MovementForm> {
       today: _today(),
       editing: _editing,
       savedDate: _saved?.date,
+      card: card,
+      installments: _installments.text,
     );
     // El botón nunca se apaga: si falta algo, lleva a esa casilla.
     if (problems.isNotEmpty) {
       setState(() {
         _tried = true;
-        if (problems.containsKey('date')) _details = true;
+        if (problems.containsKey('date') || problems.containsKey('installments')) _details = true;
       });
       if (problems.containsKey('amount')) {
         _amountFocus.requestFocus();
       } else if (problems.containsKey('description')) {
         _descriptionFocus.requestFocus();
+      } else if (problems.containsKey('installments')) {
+        _installmentsFocus.requestFocus();
       }
       return;
     }
+    final installments = card == null ? null : int.parse(_installments.text.trim());
     final MovementInput input;
     if (_editing) {
       final edited = editedInput(
@@ -216,6 +275,8 @@ class _MovementFormState extends ConsumerState<MovementForm> {
         description: _description.text,
         date: _date,
         category: _category,
+        card: card,
+        installments: installments,
       );
       if (edited == null) return _close();
       input = edited;
@@ -226,6 +287,8 @@ class _MovementFormState extends ConsumerState<MovementForm> {
         description: _description.text.trim(),
         date: _date,
         category: _category,
+        card: card,
+        installments: installments,
         kakeibo: _expense ? _kakeibo : null,
       );
     }
@@ -244,9 +307,13 @@ class _MovementFormState extends ConsumerState<MovementForm> {
       if (mounted) _close(message);
     } on ApiException catch (e) {
       if (!mounted) return;
+      // «Pagado con» y «Cuotas» solo se dibujan con la lista de tarjetas cargada: si no están a la
+      // vista, su error va al aviso de abajo para que no quede invisible.
+      final cardsShown = _expense && (_readCards()?.isNotEmpty ?? false);
       final known = {
         for (final f in e.fields.entries)
-          if (_formFields.contains(f.key)) f.key: f.value,
+          if (_formFields.contains(f.key) && (cardsShown || (f.key != 'card' && f.key != 'installments')))
+            f.key: f.value,
       };
       setState(() {
         _serverFields = known;
@@ -260,7 +327,9 @@ class _MovementFormState extends ConsumerState<MovementForm> {
                 },
                 fallback: ApiMessages.generic,
               );
-        if (known.containsKey('date')) _details = true;
+        if (known.containsKey('date') || known.containsKey('card') || known.containsKey('installments')) {
+          _details = true;
+        }
       });
     } catch (_) {
       if (mounted) setState(() => _error = ApiMessages.generic);
@@ -277,6 +346,9 @@ class _MovementFormState extends ConsumerState<MovementForm> {
       _category = null;
       _kakeibo = null;
       _askBig = null;
+      // Al volver a gasto vuelve la tarjeta de `?tarjeta=` (o efectivo), no la última tocada
+      // (Anotar.jsx:423). Al editar, la web conserva lo elegido.
+      if (!_editing) _card = type == MovementType.expense ? widget.initialCard : null;
     });
     widget.onTypeChanged?.call(type);
   }
@@ -288,6 +360,9 @@ class _MovementFormState extends ConsumerState<MovementForm> {
     final region = ref.watch(appRegionProvider);
     final format = formatFor(region);
     final amount = moneyValue(_amount);
+    // Como la web: sin tarjetas (o si no cargan) «Pagado con» no aparece.
+    final cards = _expense ? _known(ref.watch(cardsProvider(ref.watch(accountProvider)))) : null;
+    final card = _sentCard(cards);
     final shown = _tried
         ? movementProblems(
             t,
@@ -298,6 +373,8 @@ class _MovementFormState extends ConsumerState<MovementForm> {
             today: _today(),
             editing: _editing,
             savedDate: _saved?.date,
+            card: card,
+            installments: _installments.text,
           )
         : const <String, String>{};
     String? problem(String field) => shown[field] ?? _serverFields[field];
@@ -315,6 +392,35 @@ class _MovementFormState extends ConsumerState<MovementForm> {
       final base = _expense ? t('Guardar gasto') : t('Guardar ingreso');
       saveLabel = amount != null && amount > 0 ? '$base · ${format.money(amount)}' : base;
     }
+
+    // «Pagado con» y «Cuotas» (Anotar.jsx:684-714, TransactionForm.jsx:216-231). Cuotas solo con una
+    // tarjeta elegida de la lista.
+    final paidWith = <Widget>[
+      if (cards != null && cards.isNotEmpty) ...[
+        const SizedBox(height: RindeSpace.s5),
+        _PaidWithPicker(
+          cards: cards,
+          value: card,
+          error: problem('card'),
+          onChanged: (id) => _edit('card', () => _card = id),
+        ),
+        if (card != null && cards.any((c) => c.id == card)) ...[
+          const SizedBox(height: RindeSpace.s5),
+          RindeTextField(
+            controller: _installments,
+            focusNode: _installmentsFocus,
+            enabled: !_saving,
+            label: t('Cuotas'),
+            // La ayuda solo está en Anotar (en la edición de la web va sin ella).
+            helper: _editing ? null : t('De 1 a 48. A más de una cuota el banco suele cobrar intereses.'),
+            keyboardType: TextInputType.number,
+            maxLength: 2,
+            serverError: problem('installments'),
+            onChanged: (_) => _edit('installments', () {}),
+          ),
+        ],
+      ],
+    ];
 
     final date = _DateQuickPick(
       value: _date,
@@ -374,6 +480,7 @@ class _MovementFormState extends ConsumerState<MovementForm> {
         onShowAll: () => setState(() => _allCategories = true),
         onChanged: (c) => _edit('category', () => _category = c),
       ),
+      if (_editing) ...paidWith,
       if (_saved?.original case final original?) ...[
         const SizedBox(height: RindeSpace.s5),
         RindeBanner(
@@ -394,12 +501,13 @@ class _MovementFormState extends ConsumerState<MovementForm> {
               t('Ayer')
             else
               dayAndMonth(_date, region),
-            if (_expense) t('Efectivo o débito'),
+            if (_expense) card == null ? t('Efectivo o débito') : t('Tarjeta'),
             if (_expense && _kakeibo != null) t(_kakeiboLabel(_kakeibo!)),
           ].join(' · '),
           onToggle: () => setState(() => _details = !_details),
           children: [
             date,
+            ...paidWith,
             if (_expense) ...[
               const SizedBox(height: RindeSpace.s5),
               _KakeiboPicker(
@@ -639,6 +747,41 @@ class _CategoryPicker extends ConsumerWidget {
               style: RindeType.small.copyWith(color: p.inkMuted),
             ),
           ),
+        if (error != null) _ErrorText(error!),
+      ],
+    );
+  }
+}
+
+/// «Pagado con»: «Efectivo o débito» (null) o una tarjeta, con la etiqueta de la lista de Tarjetas.
+class _PaidWithPicker extends ConsumerWidget {
+  const _PaidWithPicker({required this.cards, required this.value, required this.onChanged, this.error});
+
+  final List<CreditCard> cards;
+  final String? value;
+  final String? error;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(trProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Legend(t('Pagado con')),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _Chip(label: t('Efectivo o débito'), selected: value == null, onTap: () => onChanged(null)),
+            for (final c in cards)
+              _Chip(
+                label: cardListLabel(t, network: c.network, name: c.name, last4: c.last4),
+                selected: value == c.id,
+                onTap: () => onChanged(c.id),
+              ),
+          ],
+        ),
         if (error != null) _ErrorText(error!),
       ],
     );

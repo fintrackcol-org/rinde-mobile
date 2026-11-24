@@ -30,6 +30,7 @@ class RindeTextField extends StatelessWidget {
     this.enabled = true,
     this.obscureText = false,
     this.autocorrect = true,
+    this.enableSuggestions = true,
     this.suffix,
   });
 
@@ -51,6 +52,9 @@ class RindeTextField extends StatelessWidget {
   final bool enabled;
   final bool obscureText;
   final bool autocorrect;
+
+  /// false: sin la barra de sugerencias del teclado (los últimos 4 de una tarjeta).
+  final bool enableSuggestions;
   final Widget? suffix;
 
   @override
@@ -80,7 +84,7 @@ class RindeTextField extends StatelessWidget {
             enabled: enabled,
             obscureText: obscureText,
             autocorrect: autocorrect && !obscureText,
-            enableSuggestions: !obscureText,
+            enableSuggestions: enableSuggestions && !obscureText,
             textCapitalization: textCapitalization,
             maxLength: maxLength,
             maxLengthEnforcement: MaxLengthEnforcement.enforced,

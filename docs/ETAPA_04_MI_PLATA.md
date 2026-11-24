@@ -1,7 +1,7 @@
 # Etapa 4 — Mi plata y planificación financiera
 
 Rama de trabajo: `feat/etapa-4-mi-plata` (sale de `main` en `798a462`). Cada bloque se sube a esa
-rama y a una PR hacia `main` **sin fusionar**: la fusión la decide David.
+rama y a una PR hacia `main`. David pidió fusionarla el 23 de noviembre de 2026: quedó en `main` como `a8f0541`.
 
 > Todas las capturas son **modo demostración** con datos sintéticos (usuario «Ana»). Nada se probó
 > contra QA con sesión: falta una cuenta de prueba autorizada (ver «Backend y QA»).
@@ -195,7 +195,7 @@ React y el backend no se tocaron.
 
 - Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
 - Commit: `75ec515` «feat: Mi plata con «Cómo te entra la plata» (etapa 4, bloque 4A)».
-- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), hacia `main`, **sin fusionar**.
+- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), hacia `main`, fusionada en `main` el 23 de noviembre de 2026 (`a8f0541`).
 - Respaldo: verificado en GitHub. `git ls-remote` devuelve el mismo `75ec515` que la rama local.
 
 ### Lo que falta o no se comprobó en 4A
@@ -397,7 +397,7 @@ React y el backend no se tocaron.
 
 - Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
 - Commit: `892f3ba` «feat: saldo y disponibilidad en Mi plata (etapa 4, bloque 4B)».
-- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A, **sin fusionar**.
+- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A, fusionada en `main` el 23 de noviembre de 2026 (`a8f0541`).
 - Respaldo: verificado en GitHub. `git ls-remote` devuelve el mismo `892f3ba` que la rama local.
 
 ### Lo que falta o no se comprobó en 4B
@@ -552,7 +552,7 @@ En el escenario fijo «Plan listo»:
 
 - Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
 - Commits: `0448eb5` (el bloque, subido al pausar) y `8d60a42` (botón de las filas, capturas e informe).
-- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A y 4B, **sin fusionar**.
+- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A y 4B, fusionada en `main` el 23 de noviembre de 2026 (`a8f0541`).
 - Respaldo: verificado en GitHub. `git ls-remote` devuelve el mismo `8d60a42` que la rama local.
 
 ### Lo que falta o no se comprobó en 4C
@@ -759,7 +759,7 @@ React y el backend no se tocaron.
 
 - Rama: `feat/etapa-4-mi-plata` en `fintrackcol-org/rinde-mobile`.
 - Commit: `8bae1f7` «feat: continuidad bienvenida → Mi plata → Inicio (etapa 4, bloque 4D)».
-- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A a 4C, **sin fusionar**.
+- PR: [fintrackcol-org/rinde-mobile#1](https://github.com/fintrackcol-org/rinde-mobile/pull/1), la misma de 4A a 4C, fusionada en `main` el 23 de noviembre de 2026 (`a8f0541`).
 - Respaldo: verificado en GitHub. `git ls-remote` devuelve el mismo `8bae1f7` que la rama local.
 
 ### Lo que falta o no se comprobó en 4D

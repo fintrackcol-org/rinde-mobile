@@ -1,6 +1,7 @@
 {
  "(cumplido)": "(met)",
  "(pendiente)": "(pending)",
+ ", vence {expiry}": ", expires {expiry}",
  ", ver gastos de {period}": ", view expenses for {period}",
  ", ver ingresos de {period}": ", view income for {period}",
  "Al mes": "Monthly",
@@ -18,6 +19,7 @@
  "Lo que ves puede estar desactualizado: es lo último que llegó.": "What you see may be out of date: it's the last thing we received.",
  "Modo demostración: esta acción no llega a ningún servidor.": "Demo mode: this action doesn't reach any server.",
  "Monto oculto": "Amount hidden",
+ "Monto pagado ({currency})": "Amount paid ({currency})",
  "Movimientos (pestaña)": "Activity",
  "No encontramos ese país.": "We couldn't find that country.",
  "No pudimos confirmar si se guardó. Revisa antes de intentarlo otra vez.": "We couldn't confirm whether it was saved. Check before trying again.",
@@ -30,6 +32,7 @@
  "Por ahora corrige tu saldo en la web de Rinde, con tu misma cuenta. En la app llega pronto.": "For now, fix your balance on the Rinde website, with the same account. It's coming to the app soon.",
  "Por ahora cámbialo en la web de Rinde, con tu misma cuenta.": "For now, change it on the Rinde website, with the same account.",
  "Primero terminemos de guardar tu bienvenida.": "Let's finish saving your welcome first.",
+ "Próximo pago {when}": "Next payment {when}",
  "Responder": "Answer",
  "Rinde tiene guardado {amount}. «Omitir» lo deja así; «Seguir» lo cambia por lo que escribas.": "Rinde has {amount} saved. “Skip” leaves it that way; “Continue” replaces it with what you type.",
  "Rinde, cargando": "Rinde, loading",
@@ -39,6 +42,7 @@
  "Si guardas sin ninguna, dejamos de calcular cuánto tienes libre.": "If you save with none, we stop calculating how much you have free.",
  "Son menos de {amount}. ¿Faltan ceros?": "That's less than {amount}. Missing zeros?",
  "Terminar": "Finish",
+ "Tiene que ser mayor que lo que ya se abonó ({paid})": "It has to be more than what has already been paid ({paid})",
  "Todavía no sabemos cuánta plata tienes.": "We don't know how much money you have yet.",
  "Tu plata cambió en otro dispositivo. Revisa y vuelve a guardar.": "Your money changed on another device. Check it and save again.",
  "Tus pagos ya quedaron guardados. Si quieres cambiarlos, hazlo luego en Mi plata.": "Your payments are already saved. To change them, do it later in My money.",
@@ -51,6 +55,9 @@
  "pasa el fin de mes": "past month-end",
  "{amount} cada quincena": "{amount} every two weeks",
  "{amount} cada semana": "{amount} a week",
+ "{tab}: pendientes": "{tab}: pending",
+ "{tab}: saldadas": "{tab}: settled",
  "¡Listo!": "All set!",
+ "¿Cuánto? ({currency})": "How much? ({currency})",
  "¿Eliminar {name}?": "Delete {name}?"
 }

@@ -158,6 +158,31 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('Gasto de Monto oculto')), findsNWidgets(2));
   });
 
+  testWidgets('la fila no dice con qué tarjeta se pagó y no hay filtro por tarjeta (MovementRow.jsx)', (
+    tester,
+  ) async {
+    repo.onList = (q) async => _pageOf(q, [
+      Movement(
+        id: 'm1',
+        type: MovementType.expense,
+        amount: 12500,
+        description: 'Almuerzo',
+        source: 'manual',
+        date: '2026-11-22',
+        category: 'alimentacion',
+        card: const MovementCard(id: 't1', name: 'Mi Visa', last4: '4242', deleted: false),
+        installments: 3,
+      ),
+    ]);
+    await _pump(tester, repo);
+    expect(find.text('Almuerzo'), findsOneWidget);
+    for (final text in ['Mi Visa', '4242', 'Tarjeta', 'Pagado con', 'Cuotas']) {
+      expect(find.textContaining(text), findsNothing, reason: text);
+    }
+    // Ni la consulta ni sus parámetros llevan tarjeta: el servidor tampoco filtra por ella.
+    expect(repo.queries.last.toParams().keys, isNot(contains('card')));
+  });
+
   testWidgets('sin movimientos dice el periodo, sin datos inventados', (tester) async {
     repo.onList = (q) async => _pageOf(q, const []);
     await _pump(tester, repo);
@@ -295,6 +320,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pendientes de sincronizar (1)'), findsOneWidget);
     expect(find.text('No se pudo sincronizar'), findsOneWidget);
+  });
+
+  testWidgets('cardDropped: la fila avisa que se guardó sin tarjeta, sin decir «No se pudo sincronizar»', (
+    tester,
+  ) async {
+    final store = MemoryJsonListStore()
+      ..data['a'] = jsonEncode([
+        {
+          ...PendingMovement(localId: 'm-local', input: inputOf, queuedAt: _now).toJson(),
+          'rejected': kCardDroppedMessage,
+          'cardDropped': true,
+        },
+      ]);
+    await _pump(tester, repo, store: store);
+    expect(find.text('Almuerzo · $kCardDroppedMessage'), findsOneWidget);
+    expect(find.textContaining('No se pudo sincronizar'), findsNothing);
+    expect(find.text('Descartar'), findsOneWidget);
   });
 
   testWidgets('320 de ancho con letra al doble: sin desbordes', (tester) async {

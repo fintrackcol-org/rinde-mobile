@@ -26,11 +26,8 @@ final _titles = {
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
   Routes.budgets: 'Presupuestos',
-  Routes.cards: 'Tarjetas',
-  Routes.card('t1'): 'Tarjeta',
   // Accesos de «Más de tu plata».
   Routes.calendar: 'Calendario',
-  Routes.debts: 'Cuentas',
   Routes.insights: 'Consejos',
   Routes.export: 'Exportar movimientos',
   Routes.renta: 'Renta y DIAN',
@@ -104,10 +101,7 @@ void main() {
       Routes.expenses,
       Routes.toConfirm,
       Routes.budgets,
-      Routes.cards,
-      '/app/tarjetas/:id',
       Routes.calendar,
-      Routes.debts,
       Routes.insights,
       Routes.export,
       Routes.renta,
@@ -170,7 +164,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
 
-    await _pump(tester, initial: Routes.card('t1'));
+    await _pump(tester, initial: Routes.income);
     expect(await tester.binding.handlePopRoute(), isTrue);
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);

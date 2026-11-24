@@ -12,8 +12,11 @@ import '../../../design/tokens/rinde_typography.dart';
 import '../../../design/widgets/rinde_button.dart';
 import '../../../design/widgets/rinde_segmented.dart';
 import '../../auth/application/session_controller.dart';
+import '../../cards/application/cards_providers.dart' show afterCardChange;
+import '../../cards/data/demo_cards_repository.dart' show DemoCardsOperation;
+import '../../debts/application/debts_providers.dart' show debtsProvider;
+import '../../debts/data/demo_debts_repository.dart' show DemoDebtsOperation;
 import '../../home/application/home_providers.dart';
-import '../../money/application/money_providers.dart';
 import '../../money/data/demo_money_repository.dart';
 import '../application/onboarding_controller.dart';
 import '../data/demo_onboarding_repository.dart';
@@ -131,6 +134,19 @@ class _DemoPanel extends ConsumerWidget {
       'Guardar en Mi plata',
       'PUT /money-profile/sources · POST, PUT y DELETE /money-profile/commitments · PUT /money-profile',
     ),
+    (DemoCardsOperation.list, 'Tarjetas: leer la lista', 'GET /cards'),
+    (DemoCardsOperation.detail, 'Tarjetas: leer el detalle', 'GET /cards/:id · /cards/:id/movements'),
+    (
+      DemoCardsOperation.write,
+      'Tarjetas: guardar',
+      'POST, PUT y DELETE /cards · POST y DELETE /cards/:id/payments · POST /cards/:id/sync-with-bank',
+    ),
+    (DemoDebtsOperation.list, 'Cuentas: leer', 'GET /debts'),
+    (
+      DemoDebtsOperation.write,
+      'Cuentas: guardar',
+      'POST, PUT y DELETE /debts · POST /debts/:id/settle · POST y DELETE /debts/:id/payments',
+    ),
   ];
 
   /// Países de prueba: peso sin decimales, dólar, real, euro y libra, en los tres idiomas.
@@ -150,7 +166,9 @@ class _DemoPanel extends ConsumerWidget {
     // Tampoco queda una bienvenida a medias de la cuenta anterior.
     if (userId != null) await container.read(draftStoreProvider).clear(userId);
     container.invalidate(pendingSourcesProvider);
-    afterMoneyChange(container);
+    // Mi plata y el Inicio también (afterCardChange los incluye).
+    afterCardChange(container);
+    container.invalidate(debtsProvider);
     if (mode != null) await container.read(onboardingControllerProvider(mode).notifier).restartDemo();
     if (context.mounted) Navigator.of(context).pop();
     if (mode != OnboardingMode.full) router?.go(Routes.app);
@@ -178,7 +196,7 @@ class _DemoPanel extends ConsumerWidget {
     await container.read(demoStateStoreProvider).update(userId, (state) => state.withRegion(region));
     await container.read(appRegionProvider.notifier).set(region, persist: false);
     // Los montos fijos cambian de escala con la moneda: los anteriores no se muestran mientras llegan.
-    afterMoneyChange(container, money: true);
+    afterCardChange(container, money: true);
   }
 
   /// La propuesta de saldo que quedó en el borrador es de la otra escala: se quita solo si nadie la
@@ -256,7 +274,7 @@ class _DemoPanel extends ConsumerWidget {
           onChanged: (offline) {
             notifier.setOffline(offline);
             // El Inicio y Mi plata se vuelven a pedir en el acto: se ve caer y volver sin deslizar.
-            if (home) afterMoneyChange(ProviderScope.containerOf(context, listen: false));
+            if (home) afterCardChange(ProviderScope.containerOf(context, listen: false));
           },
         ),
         if (home) ...[

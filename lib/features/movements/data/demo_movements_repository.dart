@@ -16,7 +16,8 @@ import 'movements_repository.dart';
 //  MODO DEMOSTRACIÓN / SIN BACKEND
 //  Movimientos sintéticos de un usuario demo, guardados en el teléfono con la forma del servidor y
 //  leídos con los mismos modelos que la API. Imita las reglas del servidor que se ven en pantalla
-//  (monto, descripción, fecha no futura, categoría del tipo, localId); no la IA ni las tarjetas.
+//  (monto, descripción, fecha no futura, categoría del tipo, localId, tarjeta de la demo y cuotas);
+//  no la IA.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const _incomeCategories = {'salario', 'freelance', 'inversion_rendimientos', 'otros_ingresos'};
@@ -88,6 +89,7 @@ class DemoMovementsRepository implements MovementsRepository {
   Future<Movement> create(MovementInput input, {required String localId}) async {
     await controls.simulate();
     final categories = await _categoryNames();
+    final cards = await home.demoCards();
     return _write((all) async {
       // Como el servidor (FT-0009): el mismo localId devuelve el que ya existe.
       if (all.where((m) => m.localId == localId).firstOrNull case final existing?) return existing;
@@ -95,6 +97,7 @@ class DemoMovementsRepository implements MovementsRepository {
       final created = _build(
         input,
         categories,
+        cards,
         id: 'demo-${List.generate(8, (_) => _random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}',
         localId: localId,
         createdAt: now,
@@ -109,11 +112,20 @@ class DemoMovementsRepository implements MovementsRepository {
   Future<Movement> update(String id, MovementInput input, {Movement? from}) async {
     await controls.simulate();
     final categories = await _categoryNames();
+    final cards = await home.demoCards();
     return _write((all) async {
       final current = all.where((m) => m.id == id).firstOrNull ?? (throw _notFound);
       final updated = _build(
         input,
         categories,
+        cards,
+        // La tarjeta ya guardada se conserva sin volver a validarla (transactions.service.js:296-297),
+        // también si se borró: al editar no se ofrece, y una pantalla vieja puede mandarla.
+        keep:
+            input.type == MovementType.expense &&
+                (input.card == null ? (current.card?.deleted ?? false) : input.card == current.card?.id)
+            ? current
+            : null,
         id: id,
         localId: current.localId,
         createdAt: current.createdAt,
@@ -152,7 +164,9 @@ class DemoMovementsRepository implements MovementsRepository {
 
   Movement _build(
     MovementInput input,
-    Map<String, String> categories, {
+    Map<String, String> categories,
+    List<Map<String, dynamic>> cards, {
+    Movement? keep,
     required String id,
     required String? localId,
     required DateTime? createdAt,
@@ -174,6 +188,18 @@ class DemoMovementsRepository implements MovementsRepository {
             _incomeCategories.contains(category) != (input.type == MovementType.income))) {
       fields['category'] = 'No es una categoría de ${input.type.wire} del catálogo';
     }
+    // Como transactions.service.js: la tarjeta tiene que ser una de las de la demo y solo en gastos.
+    var card = keep?.card;
+    if (input.card case final cardId? when cardId != card?.id) {
+      final found = cards.where((c) => c['id'] == cardId).firstOrNull;
+      if (input.type != MovementType.expense) {
+        fields['card'] = 'Solo un gasto puede llevar tarjeta';
+      } else if (found == null) {
+        fields['card'] = 'No es una de tus tarjetas';
+      } else {
+        card = MovementCard(id: cardId, name: '${found['name']}', last4: '${found['last4']}', deleted: false);
+      }
+    }
     if (fields.isNotEmpty) {
       throw ApiException(
         code: ApiCodes.validation,
@@ -194,6 +220,8 @@ class DemoMovementsRepository implements MovementsRepository {
       date: input.date,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      card: card,
+      installments: card == null ? null : (input.installments ?? keep?.installments ?? 1),
       emotion: expense ? input.emotion : null,
       kakeibo: expense ? input.kakeibo : null,
       original: original,

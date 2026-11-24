@@ -12,6 +12,8 @@ Map<String, String> _problems({
   String date = '2026-11-22',
   bool editing = false,
   String? savedDate,
+  String? card,
+  String installments = '1',
 }) => movementProblems(
   _t,
   type: type,
@@ -21,6 +23,8 @@ Map<String, String> _problems({
   today: '2026-11-22',
   editing: editing,
   savedDate: savedDate,
+  card: card,
+  installments: installments,
 );
 
 const _saved = Movement(
@@ -66,6 +70,16 @@ void main() {
       // Un movimiento viejo con fecha futura se puede seguir corrigiendo si no se toca la fecha.
       expect(_problems(date: '2026-12-01', editing: true, savedDate: '2026-12-01'), isEmpty);
     });
+
+    test('cuotas: de 1 a 48 y solo con tarjeta (lib/validation/transaction.js)', () {
+      expect(_problems(installments: ''), isEmpty, reason: 'sin tarjeta no se piden');
+      expect(_problems(card: 't1', installments: ''), {'installments': 'Ingresa las cuotas'});
+      for (final bad in ['0', '49', '2.5', 'x']) {
+        expect(_problems(card: 't1', installments: bad), {'installments': 'De 1 a 48 cuotas'}, reason: bad);
+      }
+      expect(_problems(card: 't1', installments: '48'), isEmpty);
+      expect(_problems(card: 't1', installments: ' 3 '), isEmpty);
+    });
   });
 
   test('needsBigConfirm: desde 5 millones y, al editar, solo si cambió', () {
@@ -82,13 +96,18 @@ void main() {
       String description = 'Mercado',
       String date = '2026-11-20',
       String? category = 'alimentacion',
+      Movement saved = _saved,
+      String? card,
+      int? installments,
     }) => editedInput(
-      _saved,
+      saved,
       type: type,
       amount: amount,
       description: description,
       date: date,
       category: category,
+      card: card,
+      installments: installments,
     );
 
     test('sin cambios no hay nada que mandar (espacios al final no cuentan)', () {
@@ -96,11 +115,13 @@ void main() {
       expect(edit(description: 'Mercado  '), isNull);
     });
 
-    test('conserva lo que el formulario no muestra', () {
-      final body = edit(description: 'Mercado grande')!.toJson(update: true);
+    test('conserva lo que el formulario no muestra; la tarjeta borrada no se toca', () {
+      final input = edit(description: 'Mercado grande')!;
+      final body = input.toJson(update: true);
       expect(body['description'], 'Mercado grande');
-      expect(body['card'], 'card-1');
-      expect(body['installments'], 3);
+      // Se ve como «Efectivo o débito» (TransactionForm.jsx:40-41) y, sin tocarla, no viaja.
+      expect(body['card'], isNull);
+      expect(input.changesFrom(_saved), {'description': 'Mercado grande'});
       expect(body['emotion'], 'normal');
       expect(body['kakeibo'], 'necesidad');
       expect(body['original'], {'currency': 'USD', 'amount': 12.5, 'rate': 4000});
@@ -114,6 +135,43 @@ void main() {
       expect(income['emotion'], isNull);
       expect(income['kakeibo'], isNull);
       expect(income['category'], isNull);
+    });
+
+    const withCard = Movement(
+      id: 'id-2',
+      type: MovementType.expense,
+      amount: 50000,
+      description: 'Mercado',
+      source: 'manual',
+      date: '2026-11-20',
+      category: 'alimentacion',
+      card: MovementCard(id: 'card-1', name: 'Visa', last4: '1234', deleted: false),
+      installments: 3,
+    );
+
+    test('un cambio de SOLO la tarjeta o las cuotas sí se guarda (antes se perdía)', () {
+      expect(edit(saved: withCard, card: 'card-1', installments: 3), isNull);
+      // Con otra tarjeta las cuotas viajan: sin ellas el servidor guarda 1 aunque se vean 3
+      // (transactions.service.js:299-300). Aquí la app se aparta de la web, que las pierde.
+      expect(edit(saved: withCard, card: 'card-2', installments: 3)!.changesFrom(withCard), {
+        'card': 'card-2',
+        'installments': 3,
+      });
+      expect(edit(saved: withCard, card: 'card-1', installments: 6)!.changesFrom(withCard), {
+        'installments': 6,
+      });
+      // A efectivo: la tarjeta va en null y el servidor quita las cuotas.
+      expect(edit(saved: withCard)!.changesFrom(withCard), {'card': null});
+      // De la tarjeta borrada a una nueva.
+      expect(edit(card: 'card-9', installments: 1)!.changesFrom(_saved), {
+        'card': 'card-9',
+        'installments': 1,
+      });
+      // Con las MISMAS cuotas que tenía la borrada (la web compara contra null: TransactionEdit.jsx:45).
+      expect(edit(card: 'card-9', installments: 3)!.changesFrom(_saved), {
+        'card': 'card-9',
+        'installments': 3,
+      });
     });
   });
 }

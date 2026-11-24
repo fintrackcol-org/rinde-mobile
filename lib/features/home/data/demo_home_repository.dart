@@ -8,6 +8,8 @@ import '../application/home_providers.dart' show clockProvider;
 import '../domain/home_dates.dart';
 import 'home_models.dart';
 import 'home_repository.dart';
+import '../../cards/data/demo_cards_repository.dart' show demoCardsJson, demoPlanListoCardJson;
+import '../../cards/data/demo_cards_store.dart' show demoCardsStoreProvider;
 import '../../movements/data/demo_movements_repository.dart'
     show demoMovementTotals, demoMovementsStoreProvider;
 import '../../movements/data/json_list_store.dart';
@@ -113,11 +115,16 @@ class DemoHomeRepository implements HomeRepository {
     required this.clock,
     required this.language,
     this.movements,
+    this.cardsStore,
   });
 
   /// Movimientos anotados en la demo (suman en «Este mes»). El plan y el saldo no se recalculan:
   /// son del servidor, y la demostración no los imita.
   final JsonListStore? movements;
+
+  /// Tarjetas de la demo: el aviso del Inicio lee del MISMO almacén que la pantalla de Tarjetas,
+  /// así los dos dicen lo mismo. Sin él, solo la semilla fija de `planListo`.
+  final JsonListStore? cardsStore;
 
   final String userId;
   final DemoStateStore store;
@@ -167,8 +174,30 @@ class DemoHomeRepository implements HomeRepository {
 
   @override
   Future<List<CardSummary>> cards() async => [
-    for (final item in _cards(await _read(DemoHomeOperation.secondary))) ?CardSummary.tryParse(item),
+    for (final item in await _cardsJson(await _read(DemoHomeOperation.secondary)))
+      ?CardSummary.tryParse(item),
   ];
+
+  /// La misma fuente que la pantalla de Tarjetas (demoCardsJson): la semilla fija de `planListo` o
+  /// lo guardado del recorrido. Agregar o pagar una tarjeta cambia el aviso del Inicio.
+  Future<List<Map<String, dynamic>>> _cardsJson(DemoState state) {
+    final store = cardsStore;
+    if (store == null) {
+      return Future.value(
+        scenario == DemoScenario.planListo ? _cards(state).whereType<Map<String, dynamic>>().toList() : [],
+      );
+    }
+    return demoCardsJson(
+      userId: userId,
+      state: state,
+      cardsStore: store,
+      movementsStore: movements ?? MemoryJsonListStore(),
+      clock: clock,
+    );
+  }
+
+  /// Las tarjetas como las da GET /cards, sin simular fallas: Anotar de la demo valida con ellas.
+  Future<List<Map<String, dynamic>>> demoCards() async => _cardsJson(await store.read(userId));
 
   @override
   Future<int> toConfirm() async =>
@@ -359,37 +388,9 @@ class DemoHomeRepository implements HomeRepository {
     };
   }
 
-  List<Object?> _cards(DemoState state) {
-    if (scenario != DemoScenario.planListo) return const [];
-    final m = state.fixed;
-    final now = clock();
-    return [
-      {
-        'id': 'demo-tarjeta',
-        'name': 'Mi Visa',
-        'network': 'visa',
-        'tier': 'gold',
-        'last4': '4242',
-        'limit': m(1500000),
-        'used': m(320000),
-        'available': m(1180000),
-        'paymentDay': DateTime(now.year, now.month, now.day + 2).day,
-        'cutoffDay': null,
-        'statementTotal': null,
-        'statementDueDate': null,
-        'nextPaymentDate': _day(2),
-        'daysToPayment': 2,
-        'paidThisCycle': false,
-        'paidDueDate': null,
-        'paidAmount': 0,
-        'reminderSentFor': null,
-        'expiryMonth': 3,
-        'expiryYear': now.year + 2,
-        'expiry': {'label': '03/${(now.year + 2) % 100}', 'expired': false, 'soon': false},
-        'expiryNotified': const <Object>[],
-      },
-    ];
-  }
+  /// La tarjeta de la semilla vive en demoPlanListoCardJson (cards/data): una sola fuente.
+  List<Object?> _cards(DemoState state) =>
+      scenario != DemoScenario.planListo ? const [] : [demoPlanListoCardJson(state, clock)];
 
   Map<String, dynamic> _pendingPayments(DemoState state) {
     final m = state.fixed;
@@ -456,5 +457,6 @@ final demoHomeRepositoryProvider = Provider.family<DemoHomeRepository, String>(
     clock: ref.watch(clockProvider),
     language: () => ref.read(displayLanguageProvider),
     movements: ref.watch(demoMovementsStoreProvider),
+    cardsStore: ref.watch(demoCardsStoreProvider),
   ),
 );
