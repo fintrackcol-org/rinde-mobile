@@ -17,8 +17,7 @@ abstract final class Routes {
   static const onboarding = '/app/bienvenida';
   static const onboardingQuestions = '/app/bienvenida/preguntas';
 
-  // Destinos del Inicio y de la barra de pestañas. Mismos nombres que Rinde Web. Los que aún no
-  // tienen pantalla propia muestran «En desarrollo» (ver app/pending_modules.dart).
+  // Destinos del Inicio y de la barra de pestañas. Mismos nombres que Rinde Web.
   static const movements = '/app/movimientos';
   static const plan = '/app/planear';
   static const account = '/app/cuenta';
@@ -38,7 +37,12 @@ abstract final class Routes {
   static String budget(String category, String month) =>
       '$budgets/${Uri.encodeComponent(category)}?mes=$month';
   static const goals = '/app/metas';
+  static String goal(String id) => '$goals/${Uri.encodeComponent(id)}';
   static const vacas = '/app/vacas';
+  static String vaca(String id) => '$vacas/${Uri.encodeComponent(id)}';
+
+  /// A donde lleva el enlace de invitación (VacaJoin.jsx); en la app se llega con el código.
+  static String vacaJoin(String code) => '$vacas/unirse/${Uri.encodeComponent(code)}';
   static const cards = '/app/tarjetas';
   static String card(String id) => '/app/tarjetas/$id';
 

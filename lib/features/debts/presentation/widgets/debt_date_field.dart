@@ -21,6 +21,7 @@ class DebtDateField extends ConsumerWidget {
     required this.onChanged,
     this.optional = false,
     this.lastIsToday = false,
+    this.firstIsToday = false,
     this.enabled = true,
     this.error,
     this.focusNode,
@@ -33,6 +34,9 @@ class DebtDateField extends ConsumerWidget {
   final ValueChanged<String?> onChanged;
   final bool optional;
   final bool lastIsToday;
+
+  /// Como el `min` de la web: no deja elegir días pasados (la fecha límite de una meta).
+  final bool firstIsToday;
   final bool enabled;
   final String? error;
   final FocusNode? focusNode;
@@ -41,12 +45,14 @@ class DebtDateField extends ConsumerWidget {
     final now = ref.read(clockProvider)();
     final today = DateTime(now.year, now.month, now.day);
     final current = value == null ? today : DateTime.parse(value!);
-    final initial = lastIsToday && current.isAfter(today) ? today : current;
+    final initial = (lastIsToday && current.isAfter(today)) || (firstIsToday && current.isBefore(today))
+        ? today
+        : current;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       // El servidor acepta cualquier año (uno mal escrito en la web): el calendario debe poder abrirlo.
-      firstDate: initial.isBefore(DateTime(2000)) ? initial : DateTime(2000),
+      firstDate: firstIsToday ? today : (initial.isBefore(DateTime(2000)) ? initial : DateTime(2000)),
       lastDate: lastIsToday ? today : (initial.isAfter(DateTime(2100)) ? initial : DateTime(2100)),
       helpText: label,
     );

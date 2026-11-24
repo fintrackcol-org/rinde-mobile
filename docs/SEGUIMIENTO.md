@@ -16,6 +16,7 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 | 7 | Planear: pestaña con accesos, Presupuestos (lista, detalle, crear/editar/borrar), Calendario (pagos fijos, tarjetas, cuentas, cobros) y Próximos días (proyección del servidor). Fuera: Metas y Vacas (siguen «En desarrollo») | Validado parcial | analyze, formato, 578 pruebas de plan, inicio, movimientos y demo; gitleaks | ver git log |
 | 8 | Ingresos y Gastos del periodo (total, tabla, por categoría, Kakeibo, lista) y Por confirmar (confirmar con categoría, descartar; un envío a la vez y duda resuelta releyendo). Fuera: salto directo de periodo, «Conectar mi iPhone» | Validado parcial | analyze, formato, 19 pruebas nuevas + 823 de movimientos/inicio/shell/money + router y l10n; gitleaks | ver git log |
 | 9 | Notificaciones (bandeja), Consejos (IA del servidor, reflexión Kakeibo, chat), Exportar (vista previa del servidor + archivo a la hoja de compartir, dependencia `share_plus`) y Renta y DIAN. Fuera: «Salud financiera / Tu mes en números», tarjetas sin historial, maquetas de formatos de Exportar | Validado parcial | analyze, formato, 151 pruebas de lo tocado (14 nuevas), my_money_screen, gitleaks, APK de depuración compila | ver git log |
+| 10 | Metas (colchón, metas, apartar plata) y Vacas (lista, crear, detalle, aportar, invitar, miembros, unirse con código). Se quitó el mecanismo «En desarrollo»: ya no queda ningún módulo pendiente. Fuera: cola sin conexión de aportes, refresco cada 15 s, pestaña Calendario de la vaca, Negocios, enlaces profundos | Validado parcial | analyze, formato, 194 pruebas de lo tocado (15 nuevas, aportes sin duplicar con `localId`), router y cuenta, gitleaks | ver git log |
 
 ## Validaciones pendientes para la estabilización
 
@@ -23,6 +24,7 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 - 5C: emulador y capturas del aviso «Otra ••1234»; revisión independiente (se omitió por la directiva).
 - App contra la API de QA con la cuenta sintética (tarjetas y cuentas).
 - iOS (no hay Mac), teléfono real, TalkBack/VoiceOver.
+- 10: contra el backend real crear, unirse con código, aportar (ver el gasto en Movimientos y Mi plata), salirse, eliminar y pasar a Metas; en dispositivo el código en mayúsculas, copiar/compartir, lector y tema oscuro del detalle.
 - 9: abrir .xlsx/.pdf/.csv desde la hoja de compartir en Android e iPhone (iPad: hoja junto al botón); consejos, reflexión y límite del chat con datos reales; pantallas nuevas a 320 px con letra al doble y en oscuro.
 - 8: ver en dispositivo Inicio → Ingresos/Gastos → Por confirmar (claro, oscuro, montos ocultos); confirmar un pago real contra el backend.
 - 7: emulador con letra grande y dos temas; presupuesto contra el servidor (crear, editar, borrar, 409 BUDGET_EXISTS); calendario con tarjetas, cuentas y vacas; gráfica de Próximos días sin ejes ni cifras (dibujo propio); calendario de la demo sin tarjeta ni cuentas.
@@ -38,3 +40,4 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 - 7: iniciales de los días (L M M J V S D) en español aunque la app esté en inglés o portugués, como la web; en Mi plata los presupuestos llevan a la lista y no al detalle. Textos nuevos de la 7 sin aprobar.
 - 8: **riesgo de doble conteo abierto (backend):** confirmar en «Por confirmar» un gasto pagado con tarjeta de crédito resta de Mi plata y otra vez al pagar la tarjeta; `POST /pending-payments/:id/confirm` no acepta tarjeta. Propuesta: aceptar `credit_card_id`. Web: el Kakeibo de Ingresos/Gastos pide pageSize 200 (el servidor acepta 100) y siempre falla.
 - 9: ¿se portan «Salud financiera / Tu mes en números» (~550 líneas en la web) y las tarjetas de Consejos sin historial (la web las calcula en el navegador)? Dependencia nueva `share_plus` por aprobar. Quedan «En desarrollo» solo Metas y Vacas.
+- 10: enlaces de invitación que abran la app (deep links / App Links); ¿cola sin conexión de aportes, refresco cada 15 s, pestaña Calendario de la vaca y Negocios?; ¿encender el tutorial para cuentas reales (`kCoachTourForRealAccounts`)? La demo de Metas y Vacas solo lee (en todos los escenarios).
