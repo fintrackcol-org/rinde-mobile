@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/region/region.dart';
 import '../../../core/region/region_provider.dart';
+import '../../account/data/demo_account_repository.dart' show demoAccountRepositoryProvider;
 import '../../auth/application/session_controller.dart';
 import '../../cards/data/demo_cards_store.dart' show demoCardsStoreProvider;
 import '../../debts/data/demo_debts_store.dart' show demoDebtsStoreProvider;
@@ -601,6 +602,8 @@ final demoOnboardingRepositoryProvider = Provider.family<DemoOnboardingRepositor
       unawaited(ref.read(demoCardsStoreProvider).write(userId, const []));
       unawaited(ref.read(demoDebtsStoreProvider).write(userId, const []));
       unawaited(ref.read(pendingStoreProvider).write(userId, const []));
+      // Los avisos y el WhatsApp de «Yo» (en memoria) también vuelven a los de una cuenta nueva.
+      ref.invalidate(demoAccountRepositoryProvider(userId));
     },
     hasMovements: () => demoHasMovements(ref.read(demoMovementsStoreProvider), userId),
   ),

@@ -10,6 +10,9 @@ abstract class JsonListStore {
   Future<List<Object?>?> read(String userId);
 
   Future<void> write(String userId, List<Object?> items);
+
+  /// Borra la lista de ese usuario (al eliminar su cuenta no queda ni la llave).
+  Future<void> clear(String userId);
 }
 
 class SecureJsonListStore implements JsonListStore {
@@ -33,6 +36,15 @@ class SecureJsonListStore implements JsonListStore {
   @override
   Future<void> write(String userId, List<Object?> items) =>
       _storage.write(key: '$prefix$userId', value: jsonEncode(items));
+
+  @override
+  Future<void> clear(String userId) async {
+    try {
+      await _storage.delete(key: '$prefix$userId');
+    } catch (_) {
+      // Si el llavero falla al borrar, igual se sigue con lo demás.
+    }
+  }
 }
 
 /// En memoria, para pruebas. Guarda el JSON, como el almacenamiento real.
@@ -51,4 +63,7 @@ class MemoryJsonListStore implements JsonListStore {
 
   @override
   Future<void> write(String userId, List<Object?> items) async => data[userId] = jsonEncode(items);
+
+  @override
+  Future<void> clear(String userId) async => data.remove(userId);
 }

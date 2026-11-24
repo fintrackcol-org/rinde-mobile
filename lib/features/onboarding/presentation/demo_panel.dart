@@ -11,6 +11,7 @@ import '../../../design/tokens/rinde_layout.dart';
 import '../../../design/tokens/rinde_typography.dart';
 import '../../../design/widgets/rinde_button.dart';
 import '../../../design/widgets/rinde_segmented.dart';
+import '../../account/data/demo_account_repository.dart' show DemoAccountOperation;
 import '../../auth/application/session_controller.dart';
 import '../../cards/application/cards_providers.dart' show afterCardChange;
 import '../../cards/data/demo_cards_repository.dart' show DemoCardsOperation;
@@ -146,6 +147,12 @@ class _DemoPanel extends ConsumerWidget {
       DemoDebtsOperation.write,
       'Cuentas: guardar',
       'POST, PUT y DELETE /debts · POST /debts/:id/settle · POST y DELETE /debts/:id/payments',
+    ),
+    (DemoAccountOperation.read, 'Yo: leer', 'GET /users/me/reminder-settings · GET /whatsapp/link'),
+    (
+      DemoAccountOperation.write,
+      'Yo: guardar',
+      'PATCH /users/me · PUT /users/me/reminder-settings · /whatsapp/link · /categories',
     ),
   ];
 

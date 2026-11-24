@@ -9,6 +9,8 @@ import 'package:rinde_mobile/app/pending_modules.dart';
 import 'package:rinde_mobile/app/router.dart';
 import 'package:rinde_mobile/app/routes.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
+import 'package:rinde_mobile/features/account/application/account_providers.dart';
+import 'package:rinde_mobile/features/account/data/account_models.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/auth/presentation/login_screen.dart';
@@ -80,6 +82,7 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
         cardsProvider.overrideWith((ref, _) => Completer<List<CreditCard>>().future),
         cardDetailProvider.overrideWith((ref, _) => Completer<CardDetailData>().future),
         debtsProvider.overrideWith((ref, _) => Completer<DebtsList>().future),
+        whatsappLinkProvider.overrideWith((ref, _) => Completer<WhatsappLink>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -102,12 +105,12 @@ void main() {
     }
   });
 
-  test('estas pruebas recorren exactamente los pendientes; Mi plata, Pagos, Corregir saldo, Tarjetas y Cuentas ya no lo son', () {
+  test('estas pruebas recorren exactamente los pendientes; Mi plata, Pagos, Corregir saldo, Tarjetas, Cuentas y Yo ya no lo son', () {
     expect(
       {for (final m in pendingModules) m.path},
       {
         for (final route in [..._tabRoutes.keys, ..._pushedRoutes.keys])
-          if (route != Routes.movements) route,
+          if (route != Routes.movements && route != Routes.account) route,
       },
     );
     for (final route in [
@@ -117,6 +120,7 @@ void main() {
       Routes.cards,
       Routes.card(':id'),
       Routes.debts,
+      Routes.account,
     ]) {
       expect(pendingModules.map((m) => m.path), isNot(contains(route)), reason: route);
     }
@@ -155,12 +159,8 @@ void main() {
       await _settle(tester);
       expect(_location(router), route);
       expect(tester.widget<RindeTabScaffold>(find.byType(RindeTabScaffold)).current, tab, reason: route);
-      // Movimientos ya es pantalla real (etapa 3); Planear y Yo siguen pendientes.
-      expect(
-        find.text('En desarrollo'),
-        route == Routes.movements ? findsNothing : findsOneWidget,
-        reason: route,
-      );
+      // Movimientos (etapa 3) y Yo (etapa 6) ya son pantallas reales; Planear sigue pendiente.
+      expect(find.text('En desarrollo'), route == Routes.plan ? findsOneWidget : findsNothing, reason: route);
       expect(find.byType(EntryScreen), findsNothing, reason: route);
     }
   });

@@ -16,7 +16,11 @@ Future<void> main() async {
   // para abrir con el idioma y el formato de dinero correctos. También si los montos van ocultos:
   // así ninguna cifra alcanza a verse antes de saberlo.
   final translations = await Translations.load(rootBundle);
-  final (saved, hidden) = await (RegionStore().read(), const HiddenAmountsStore().read()).wait;
+  final (saved, hidden, theme) = await (
+    RegionStore().read(),
+    const HiddenAmountsStore().read(),
+    ThemeStore().read(),
+  ).wait;
   final locales = PlatformDispatcher.instance.locales;
   // Sin región guardada (como la web): país sugerido y el idioma del sistema si la app lo tiene.
   final systemLanguage = locales.isEmpty ? 'es' : locales.first.languageCode;
@@ -34,6 +38,7 @@ Future<void> main() async {
         translationsProvider.overrideWithValue(translations),
         initialRegionProvider.overrideWithValue(region),
         initialHiddenAmountsProvider.overrideWithValue(hidden),
+        initialThemeModeProvider.overrideWithValue(theme),
       ],
       child: const RindeApp(),
     ),

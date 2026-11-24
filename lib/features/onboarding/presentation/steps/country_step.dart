@@ -61,7 +61,7 @@ class _CountryStepState extends ConsumerState<CountryStep> {
           child: Text(t('País'), style: RindeType.label.copyWith(color: p.inkLabel)),
         ),
         const SizedBox(height: RindeSpace.s2),
-        _CountryField(
+        CountryField(
           label: t('País'),
           value: country.name(language),
           onTap: busy ? null : () => _openCountries(country.code, language),
@@ -95,8 +95,8 @@ class _CountryStepState extends ConsumerState<CountryStep> {
 }
 
 /// Campo que parece un select de la web (48 de alto, radio 12, borde field-line) y abre la hoja.
-class _CountryField extends StatelessWidget {
-  const _CountryField({required this.label, required this.value, required this.onTap});
+class CountryField extends StatelessWidget {
+  const CountryField({super.key, required this.label, required this.value, required this.onTap});
   final String label;
   final String value;
   final VoidCallback? onTap;
