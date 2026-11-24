@@ -9,9 +9,8 @@ import 'package:rinde_mobile/app/routes.dart';
 import 'package:rinde_mobile/core/config/app_config.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
 import 'package:rinde_mobile/design/theme/rinde_theme.dart';
-import 'package:rinde_mobile/features/auth/application/session_controller.dart';
+import 'package:rinde_mobile/design/widgets/rinde_button.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
-import 'package:rinde_mobile/features/home/application/home_providers.dart';
 import 'package:rinde_mobile/features/shell/presentation/pending_module_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 
@@ -20,7 +19,6 @@ const _honest = 'Esta parte todavía no está en la app. Ya funciona en la web d
 /// Título esperado de cada destino (los de Rinde Web), por la ruta con que se abre.
 final _titles = {
   Routes.plan: 'Planear',
-  Routes.account: 'Tu cuenta',
   Routes.notifications: 'Notificaciones',
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
@@ -33,7 +31,7 @@ final _titles = {
   Routes.renta: 'Renta y DIAN',
   Routes.liquidity: 'Tu plata en los próximos días',
 };
-const _tabs = {Routes.plan: RindeTab.plan, Routes.account: RindeTab.account};
+const _tabs = {Routes.plan: RindeTab.plan};
 
 /// Los destinos pendientes con un router mínimo; el Inicio es un marcador.
 Future<GoRouter> _pump(
@@ -86,16 +84,12 @@ Future<GoRouter> _pump(
   return router;
 }
 
-ProviderContainer _container(WidgetTester tester) =>
-    ProviderScope.containerOf(tester.element(find.byType(PendingModuleScreen)));
-
 void main() {
   test('la lista cubre todos los destinos del Inicio y de la barra, sin repetir rutas', () {
     final paths = pendingModules.map((m) => m.path).toList();
     expect(paths.toSet().length, paths.length);
     expect(paths.toSet(), {
       Routes.plan,
-      Routes.account,
       Routes.notifications,
       Routes.income,
       Routes.expenses,
@@ -107,7 +101,7 @@ void main() {
       Routes.renta,
       Routes.liquidity,
     });
-    expect({for (final m in pendingModules) ?m.tab}, {RindeTab.plan, RindeTab.account});
+    expect({for (final m in pendingModules) ?m.tab}, {RindeTab.plan});
   });
 
   testWidgets('cada destino dice «En desarrollo» con su título y sin datos ni acciones de mentira', (
@@ -131,10 +125,8 @@ void main() {
         expect(tester.widget<RindeTabScaffold>(scaffold).current, tab, reason: route);
         expect(find.byTooltip('Volver'), findsNothing, reason: route);
       }
-      // Solo «Yo» ofrece algo, porque no hay otra forma de salir.
-      final actions = route == Routes.account ? findsOneWidget : findsNothing;
-      expect(find.text('Ver el tutorial otra vez'), actions, reason: route);
-      expect(find.text('Cerrar sesión'), actions, reason: route);
+      // Ninguno ofrece acciones: «Yo» ya tiene su pantalla (account_screen_test.dart).
+      expect(find.byType(RindeButton), findsNothing, reason: route);
     }
   });
 
@@ -170,41 +162,13 @@ void main() {
     expect(find.text('INICIO'), findsOneWidget);
   });
 
-  testWidgets('«Ver el tutorial otra vez» lo pide y va al Inicio', (tester) async {
-    await _pump(tester, initial: Routes.account);
-    final container = _container(tester);
-    expect(container.read(tourRequestedProvider), isFalse);
-    await tester.tap(find.text('Ver el tutorial otra vez'));
-    await tester.pumpAndSettle();
-    expect(container.read(tourRequestedProvider), isTrue);
-    expect(find.text('INICIO'), findsOneWidget);
-  });
-
-  testWidgets('«Cerrar sesión» cierra la sesión', (tester) async {
-    // Sesión de demostración: cerrar no sale a la red.
-    await _pump(tester, initial: Routes.account, session: Session.demo('nuevo'));
-    final container = _container(tester);
-    expect(container.read(sessionControllerProvider).value?.signedIn, isTrue);
-    await tester.tap(find.text('Cerrar sesión'));
-    await tester.pumpAndSettle();
-    expect(container.read(sessionControllerProvider).value?.signedIn, isFalse);
-  });
-
   for (final (name, theme) in [('claro', RindeTheme.light), ('oscuro', RindeTheme.dark)]) {
     testWidgets('320 de ancho y letra al doble, tema $name: nada se desborda', (tester) async {
-      for (final route in [Routes.account, Routes.plan, Routes.liquidity, Routes.income]) {
+      for (final route in [Routes.plan, Routes.liquidity, Routes.income]) {
         await _pump(tester, initial: route, size: const Size(320, 568), textScale: 2, theme: theme);
         expect(tester.takeException(), isNull, reason: route);
         expect(find.text('En desarrollo'), findsOneWidget, reason: route);
       }
-      // En «Yo» se llega hasta «Cerrar sesión» desplazando, por encima de la barra.
-      await _pump(tester, initial: Routes.account, size: const Size(320, 568), textScale: 2, theme: theme);
-      await tester.ensureVisible(find.text('Cerrar sesión'));
-      await tester.pumpAndSettle();
-      expect(
-        tester.getRect(find.text('Cerrar sesión')).bottom,
-        lessThanOrEqualTo(tester.getRect(find.bySemanticsLabel('Secciones')).top),
-      );
     });
   }
 }

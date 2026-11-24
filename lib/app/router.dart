@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/account/presentation/account_screen.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -85,6 +86,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               : MovementType.expense,
           initialCard: state.uri.queryParameters['tarjeta'],
         ),
+      ),
+      GoRoute(
+        path: Routes.account,
+        pageBuilder: (_, state) => NoTransitionPage(key: state.pageKey, child: const AccountScreen()),
       ),
       GoRoute(path: Routes.myMoney, builder: (_, _) => const MyMoneyScreen()),
       GoRoute(path: Routes.fixBalance, builder: (_, _) => const FixBalanceScreen()),

@@ -1,18 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../app/pending_modules.dart';
-import '../../../app/routes.dart';
 import '../../../core/i18n/tr.dart';
 import '../../../design/tokens/rinde_colors.dart';
 import '../../../design/tokens/rinde_layout.dart';
 import '../../../design/tokens/rinde_typography.dart';
-import '../../../design/widgets/rinde_button.dart';
 import '../../../design/widgets/rinde_feedback.dart';
 import '../../../design/widgets/rinde_icon.dart';
-import '../../auth/application/session_controller.dart';
-import '../../home/application/home_providers.dart';
 import 'pushed_frame.dart';
 import 'rinde_tab_scaffold.dart';
 
@@ -71,11 +66,6 @@ class PendingModuleScreen extends ConsumerWidget {
                 textAlign: TextAlign.center,
                 style: RindeType.small.copyWith(color: p.inkMuted),
               ),
-              // Sin la pantalla de cuenta no habría cómo salir ni repetir el tutorial.
-              if (tab == RindeTab.account) ...[
-                const SizedBox(height: RindeSpace.s8),
-                const _AccountActions(),
-              ],
             ],
           ),
         ),
@@ -86,51 +76,5 @@ class PendingModuleScreen extends ConsumerWidget {
       return RindeTabScaffold(current: tab, child: body(RindeTabScaffold.bottomInset(context)));
     }
     return PushedFrame(child: body(RindeSpace.s6));
-  }
-}
-
-/// Lo único de «Yo» que no puede esperar a la pantalla de cuenta.
-class _AccountActions extends ConsumerStatefulWidget {
-  const _AccountActions();
-
-  @override
-  ConsumerState<_AccountActions> createState() => _AccountActionsState();
-}
-
-class _AccountActionsState extends ConsumerState<_AccountActions> {
-  bool _leaving = false;
-
-  Future<void> _signOut() async {
-    // Avisar al servidor puede tardar unos segundos si está dormido.
-    setState(() => _leaving = true);
-    await ref.read(sessionControllerProvider.notifier).signOut();
-    if (mounted) setState(() => _leaving = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(trProvider);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        RindeButton(
-          label: t('Ver el tutorial otra vez'),
-          variant: RindeButtonVariant.outline,
-          onPressed: _leaving
-              ? null
-              : () {
-                  ref.read(tourRequestedProvider.notifier).request();
-                  context.go(Routes.app);
-                },
-        ),
-        const SizedBox(height: RindeSpace.s3),
-        RindeButton(
-          label: t('Cerrar sesión'),
-          variant: RindeButtonVariant.ghost,
-          loading: _leaving,
-          onPressed: _signOut,
-        ),
-      ],
-    );
   }
 }

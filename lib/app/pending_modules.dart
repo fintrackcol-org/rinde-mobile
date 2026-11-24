@@ -23,12 +23,6 @@ class PendingModule {
 
 final pendingModules = <PendingModule>[
   PendingModule(path: Routes.plan, title: (t, _) => t('Planear'), web: 'Planear.jsx', tab: RindeTab.plan),
-  PendingModule(
-    path: Routes.account,
-    title: (t, _) => t('Tu cuenta'),
-    web: 'Account.jsx',
-    tab: RindeTab.account,
-  ),
   PendingModule(path: Routes.notifications, title: (t, _) => t('Notificaciones'), web: 'Notifications.jsx'),
   PendingModule(path: Routes.income, title: (t, _) => t('Ingresos'), web: 'PeriodDetail.jsx (ingreso)'),
   PendingModule(path: Routes.expenses, title: (t, _) => t('Gastos'), web: 'PeriodDetail.jsx (gasto)'),

@@ -145,7 +145,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(trProvider);
-    final expired = ref.watch(sessionControllerProvider).value?.expired ?? false;
+    final session = ref.watch(sessionControllerProvider).value;
+    final expired = session?.expired ?? false;
+    final deleted = session?.deleted ?? false;
     final muted = RindeBrand.white.withValues(alpha: 0.55);
     final clock = '${_cooldown ~/ 60}:${(_cooldown % 60).toString().padLeft(2, '0')}';
 
@@ -166,6 +168,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ],
       ),
       children: [
+        if (deleted && _error == null) ...[
+          RindeBanner(
+            message: t('Eliminamos tu cuenta y tus datos. Te enviamos un correo de confirmación.'),
+            tone: RindeBannerTone.neutral,
+          ),
+          const SizedBox(height: RindeSpace.s6),
+        ],
         // La web no explica por qué volvió al login; aquí sí, si venció la sesión.
         if (expired && _error == null) ...[
           RindeBanner(message: t(ApiMessages.sessionExpired), tone: RindeBannerTone.neutral),

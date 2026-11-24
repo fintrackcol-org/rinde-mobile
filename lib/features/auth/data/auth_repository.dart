@@ -45,6 +45,11 @@ class AuthRepository {
     _asMap(await _api.post('/users/me/terms', body: {'version': legalVersion}, auth: true)),
   );
 
+  /// DELETE /users/me {password} → 204 (FT-0017). Borra la cuenta y todos sus datos; no se puede
+  /// deshacer. 403 `CONFIRMATION_FAILED` si la contraseña no coincide. La web también confirma con
+  /// Google; en la app el ingreso con Google aún no existe, así que quien está dentro tiene contraseña.
+  Future<void> deleteAccount(String password) => _api.delete('/users/me', body: {'password': password});
+
   /// POST /auth/logout (con sesión) → 204. Revoca solo el refresh token de este dispositivo.
   Future<void> logout(String refreshToken) =>
       _api.post('/auth/logout', body: {'refreshToken': refreshToken}, auth: true);

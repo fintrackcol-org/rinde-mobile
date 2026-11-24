@@ -53,7 +53,8 @@ class ApiClient {
     ),
   );
 
-  Future<dynamic> delete(String path) => _send(() => authed.delete<dynamic>(path));
+  Future<dynamic> delete(String path, {Object? body}) =>
+      _send(() => authed.delete<dynamic>(path, data: body));
 
   Future<dynamic> get(String path, {bool auth = true, Map<String, dynamic>? query}) =>
       _send(() => (auth ? authed : public).get<dynamic>(path, queryParameters: query));

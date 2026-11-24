@@ -14,13 +14,16 @@ import '../data/auth_models.dart';
 import '../data/auth_repository.dart';
 
 class SessionState {
-  const SessionState({this.session, this.expired = false});
+  const SessionState({this.session, this.expired = false, this.deleted = false});
 
   final Session? session;
 
   /// La sesión terminó porque el servidor rechazó la renovación (no porque la persona salió).
   /// El login lo usa para explicar por qué volvió ahí, cosa que la web no hace.
   final bool expired;
+
+  /// La persona acaba de eliminar su cuenta: el login lo dice (ACCOUNT_DELETED_KEY de la web).
+  final bool deleted;
 
   bool get signedIn => session != null;
 }
@@ -80,6 +83,15 @@ class SessionController extends AsyncNotifier<SessionState> {
 
   /// Cierra la sesión en el servidor si se puede; en el dispositivo, siempre.
   Future<void> signOut() => _leaving ??= _signOut().whenComplete(() => _leaving = null);
+
+  /// Después de eliminar la cuenta (en el servidor, o la demostración ya reiniciada): sale sin avisar al
+  /// servidor (los tokens ya no sirven). Lo guardado de la cuenta en el teléfono lo borra AccountWriter.
+  Future<void> leaveDeleted() async {
+    final current = _holder.current;
+    await _holder.clear();
+    state = AsyncData(SessionState(deleted: !(current?.demo ?? false)));
+    _forget(demo: current?.demo ?? false);
+  }
 
   /// Una sola salida en curso: una segunda, al terminar tarde, borraría el ingreso que se hizo entre medias.
   Future<void>? _leaving;
