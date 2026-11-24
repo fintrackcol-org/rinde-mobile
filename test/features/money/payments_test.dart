@@ -251,6 +251,53 @@ void main() {
       },
     );
 
+    test(
+      'tarjetas, cuentas, cobros y cardDates no cambian «Falta por pagar» ni la lista (MoneyPayments.jsx)',
+      () async {
+        Future<List<CalendarPayment>> read(Map<String, Object?> calendar) async {
+          final (c, _) = await openApi((_) => jsonBody(200, calendar));
+          return c.read(paymentCalendarProvider(c.read(accountProvider)).future);
+        }
+
+        final events = _calendar['events']! as List;
+        final only = await read({
+          ..._calendar,
+          'events': [
+            for (final e in events)
+              if ((e as Map)['kind'] == 'compromiso') e,
+          ],
+        });
+        Map<String, Object?> event(String kind, String id, num amount, String status) => {
+          'date': '2026-11-25',
+          'kind': kind,
+          'id': id,
+          'name': 'Tío Jorge',
+          'amount': amount,
+          'status': status,
+          'balanceAfter': null,
+          'risk': null,
+        };
+        final mixed = await read({
+          ..._calendar,
+          'events': [
+            ...events,
+            event('card', 't2', 50000, 'atrasado'),
+            event('cuenta', 'd1', 120000, 'pendiente'),
+            event('cobro', 'd2', 60000, 'pendiente'),
+          ],
+          'cardDates': [
+            {...event('corte', 't1', 0, 'pendiente'), 'amount': null, 'status': null},
+            {...event('limite', 't2', 0, 'pendiente'), 'amount': null, 'status': null},
+          ],
+          // Lo que el servidor suma con tarjetas y cuentas: la app no lo usa.
+          'totals': {'pending': 501900.75, 'paid': 900000},
+        });
+        expect([for (final p in mixed) p.id], [for (final p in only) p.id]);
+        expect(paymentTotals(mixed), paymentTotals(only));
+        expect(paymentTotals(mixed), (pending: 91900.75, paid: 900000));
+      },
+    );
+
     test('POST /commitments: siempre con kind, frequency y month, y nunca reminder', () async {
       final (c, adapter) = await openApi((_) => jsonBody(201, {..._form, 'id': 'nuevo'}));
       final yearly = readCommitment(

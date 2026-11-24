@@ -25,6 +25,8 @@ import 'package:rinde_mobile/features/money/data/money_models.dart';
 import 'package:rinde_mobile/features/money/presentation/fix_balance_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/payments_screen.dart';
+import 'package:rinde_mobile/features/money/presentation/widgets/money_shortcuts.dart';
+import 'package:rinde_mobile/features/shell/presentation/pending_module_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 
 const _session = Session(
@@ -328,6 +330,38 @@ void main() {
     await _settle(tester);
     expect(_location(router), Routes.plan);
   });
+
+  testWidgets(
+    '«Más de tu plata»: Tarjetas y Cuentas abren sus pantallas; Calendario, Por confirmar y Próximos '
+    'días siguen «En desarrollo»',
+    (tester) async {
+      final router = await _pumpApp(tester, session: _session);
+      router.go(Routes.myMoney);
+      await _settle(tester);
+      for (final (hint, screen) in [
+        ('Cupo y fechas de pago', CardsScreen),
+        ('Lo que te deben y debes', DebtsScreen),
+        ('Pagos fijos del mes', PendingModuleScreen),
+        ('Gastos que llegaron solos', PendingModuleScreen),
+        ('Lo que entra y sale', PendingModuleScreen),
+      ]) {
+        final shortcut = find.descendant(of: find.byType(MoneyShortcuts), matching: find.text(hint));
+        await tester.ensureVisible(shortcut);
+        await tester.pump();
+        await tester.tap(shortcut);
+        await _settle(tester);
+        expect(find.byType(screen), findsOneWidget, reason: hint);
+        expect(
+          find.text('En desarrollo'),
+          screen == PendingModuleScreen ? findsOneWidget : findsNothing,
+          reason: hint,
+        );
+        await tester.tap(find.byTooltip('Volver'));
+        await _settle(tester);
+        expect(_location(router), Routes.myMoney, reason: hint);
+      }
+    },
+  );
 
   testWidgets('«Anotar» con ?tarjeta= llega a Anotar (la tarjeta la toma el formulario)', (tester) async {
     final router = await _pumpApp(tester, session: _session);

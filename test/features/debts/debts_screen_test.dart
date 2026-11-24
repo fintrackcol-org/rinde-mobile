@@ -427,6 +427,13 @@ void main() {
         await _tap(tester, find.text(region.language == 'en' ? 'Add' : 'Adicionar'));
         expect(find.text(region.language == 'en' ? 'How much? (USD)' : 'Quanto? (BRL)'), findsOneWidget);
       });
+
+      testWidgets('montos ocultos en ${region.currency}: la máscara de su moneda', (tester) async {
+        final f = formatFor(region);
+        await _pump(tester, hidden: true, region: region);
+        expect(find.textContaining('${f.prefix}••••••${f.suffix}'), findsWidgets);
+        expect(find.textContaining(f.money(200000)), findsNothing);
+      });
     }
 
     testWidgets('en inglés, «· due Jan 1 2027» con el mes en mayúscula (salía «due jan» en el emulador)', (

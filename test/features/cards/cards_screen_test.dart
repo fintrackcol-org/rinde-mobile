@@ -321,6 +321,19 @@ void main() {
         expect(find.text(next), findsOneWidget);
         expect(find.text(formatFor(region).money(1116000.5)), findsOneWidget);
       });
+
+      testWidgets('montos ocultos en ${region.currency}: la máscara de su moneda en la lista y el detalle', (
+        tester,
+      ) async {
+        final f = formatFor(region);
+        final mask = '${f.prefix}••••••${f.suffix}';
+        for (final route in [Routes.cards, Routes.card('t2')]) {
+          await _pump(tester, route: route, hidden: true, region: region);
+          expect(find.textContaining(mask), findsWidgets, reason: route);
+          expect(find.textContaining(f.money(1116000.5)), findsNothing, reason: route);
+          await tester.pumpWidget(const SizedBox());
+        }
+      });
     }
   });
 

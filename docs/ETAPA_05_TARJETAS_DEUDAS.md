@@ -375,7 +375,9 @@ Traducciones de la web que conviene revisar (no se tocaron; la app usa las misma
 
 ## 7. Bloque 5C — Integración
 
-Pendiente.
+Cerrado con la metodología rápida del 24-nov-2026: el registro está en `docs/SEGUIMIENTO.md`.
+Único cambio visible: el aviso del Inicio usa la misma etiqueta que la lista y el detalle
+(«Otra ••1234», como la web). El resto ya estaba de 5A y 5B; se agregaron pruebas de integración.
 
 ## 8. Contratos de backend
 
@@ -732,4 +734,28 @@ Modificados:
 
 ## 19. Recomendación para la siguiente etapa
 
-Pendiente de cerrar los tres bloques.
+**Antes de empezar la etapa 6 (decisiones de David):**
+
+1. **Revisar y fusionar la PR #2** cuando lo decida. La etapa 6 debe salir de `main` ya con la etapa 5
+   adentro, como se hizo con la etapa 4.
+2. **Aprobar los textos nuevos** de 5A (§5) y 5B (§6) y **confirmar las decisiones** que se tomaron
+   con la recomendación del plan (§6 y la pregunta 5 del §7).
+3. **Backend:** aprobar B1 y B2 (llave de reintento para pagos de tarjeta y abonos) y B4 (no aceptar
+   un monto menor o igual a lo abonado). Son la única protección completa contra un pago o un abono
+   doble, y hoy la app solo los mitiga.
+4. **Probar la app contra QA** con la cuenta sintética (los contratos ya se verificaron; la app no).
+
+**Etapa 6 recomendada: «Yo» (Cuenta) y Notificaciones.** Razones:
+
+- **Es requisito de las tiendas.** Google Play y la App Store exigen que una app que permite crear
+  cuenta también permita **borrarla desde la app**. Hoy «Yo» dice «En desarrollo», así que sin esta
+  etapa la app no se puede publicar.
+- Ahí viven piezas que Tarjetas y Cuentas ya necesitan: el interruptor «Pago de tarjetas» y los
+  avisos (hoy solo llegan a la web), además de idioma, país, tema y cerrar sesión.
+- Es acotada y no toca la plata, así que se puede cerrar rápido.
+
+**Después (etapa 7): Planear, con Calendario, Presupuestos y Próximos días.** Son el destino de
+«volver» desde Tarjetas, Cuentas y Pagos (hoy caen en «En desarrollo»), y el Calendario y Próximos
+días ya dependen de lo que trajo esta etapa (fechas de tarjetas y lo que se debe). **Por confirmar**
+conviene dejarlo para cuando se decida cómo evitar el doble conteo que tiene la web con los gastos
+de tarjeta (§9).

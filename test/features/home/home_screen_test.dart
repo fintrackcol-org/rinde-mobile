@@ -702,7 +702,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     }
 
-    testWidgets('tarjeta: atrasada, hoy, mañana, en N días, y la red «otra» usa el nombre de la tarjeta', (
+    testWidgets('tarjeta: atrasada, hoy, mañana, en N días, y la red «otra» dice «Otra» como la lista', (
       tester,
     ) async {
       _Server cards(CardSummary card) => _Server()..repo.onCards = () async => [card];
@@ -747,7 +747,7 @@ void main() {
             paidThisCycle: false,
           ),
         ),
-        title: 'Tu La del banco ••1234 se paga en 2 días',
+        title: 'Tu Otra ••1234 se paga en 2 días',
         detail: 'Debes ${_m(90000)}',
         route: Routes.card('3'),
       );

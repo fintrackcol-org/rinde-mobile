@@ -14,6 +14,7 @@ import '../../domain/home_notice.dart';
 import 'home_money.dart';
 import 'home_tap.dart';
 import '../../../auth/application/session_controller.dart';
+import '../../../cards/domain/card_rules.dart' show cardListLabel, dueWhen;
 
 /// El único aviso del Inicio. Los textos son los de lib/homeNotice.js; cuál aviso gana ya lo
 /// decidió `pickHomeNotice`.
@@ -30,22 +31,9 @@ class HomeNoticeCard extends ConsumerWidget {
     final card = notice.card;
     final budget = notice.budget;
 
-    String cardName(CardSummary card) {
-      // Con la red «otra» el nombre que le puso la persona dice más que «Otra».
-      final brand = switch (card.network) {
-        'visa' => t('Visa'),
-        'mastercard' => t('Mastercard'),
-        'amex' => t('Amex'),
-        _ => card.name.isEmpty ? t('Tarjeta') : card.name,
-      };
-      return card.last4.isEmpty ? brand : '$brand ••${card.last4}';
-    }
-
-    String when(int days) => switch (days) {
-      0 => t('hoy'),
-      1 => t('mañana'),
-      _ => t('en {days} días', {'days': days}),
-    };
+    // La etiqueta común de Tarjetas («Otra ••1234» también): el aviso, la lista y el detalle dicen lo mismo.
+    String cardName(CardSummary card) =>
+        cardListLabel(t, network: card.network, name: card.name, last4: card.last4);
 
     // Si el nombre traducido no llegó, la clave de la categoría (como la web).
     String category(BudgetStatus budget) =>
@@ -60,7 +48,7 @@ class HomeNoticeCard extends ConsumerWidget {
       HomeNoticeKind.cardSoon || HomeNoticeKind.cardNext => (
         t('Tu {nextCard} se paga {daysToPayment}', {
           'nextCard': cardName(card!),
-          'daysToPayment': when(card.daysToPayment),
+          'daysToPayment': dueWhen(t, card.daysToPayment),
         }),
         t('Debes {used}', {'used': money(card.used)}),
       ),
