@@ -14,7 +14,6 @@ import '../../../../design/tokens/rinde_layout.dart';
 import '../../../../design/tokens/rinde_typography.dart';
 import '../../../../design/widgets/rinde_button.dart';
 import '../../../../design/widgets/rinde_icon.dart';
-import '../../../../design/widgets/rinde_segmented.dart';
 import '../../../../design/widgets/rinde_spinner.dart';
 import '../../../auth/application/session_controller.dart';
 import '../../../home/application/home_providers.dart';
@@ -29,6 +28,7 @@ import '../../domain/movement.dart';
 import 'adjustment_row.dart';
 import 'movement_dates.dart';
 import 'movement_row.dart';
+import 'period_bar.dart';
 
 /// Pausa tras dejar de escribir antes de buscar (SEARCH_DELAY_MS de la web).
 const _searchDelay = Duration(milliseconds: 300);
@@ -391,12 +391,6 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    Widget arrow(String tooltip, RindeIcons icon, VoidCallback? onTap) => IconButton(
-      onPressed: onTap,
-      tooltip: tooltip,
-      style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
-      icon: RindeIcon(icon, size: 20, color: onTap == null ? p.ink.withValues(alpha: 0.3) : p.ink),
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -405,30 +399,13 @@ class _Header extends StatelessWidget {
           child: Text(t('¿En qué se te fue?'), style: RindeType.headline.copyWith(color: p.ink)),
         ),
         const SizedBox(height: RindeSpace.s4),
-        RindeSegmented<MovementPeriod>(
-          semanticLabel: t('Periodo del resumen'),
-          options: {
-            MovementPeriod.week: t('Semana'),
-            MovementPeriod.month: t('Mes'),
-            MovementPeriod.year: t('Año'),
-          },
-          value: period,
-          onChanged: onPeriod,
-        ),
-        const SizedBox(height: RindeSpace.s2),
-        Row(
-          children: [
-            arrow(t('Periodo anterior'), RindeIcons.chevronLeft, () => onShift(-1)),
-            Expanded(
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: RindeType.bodyMedium.w(FontWeight.w600).copyWith(color: p.ink),
-              ),
-            ),
-            // No deja ir más allá del periodo actual.
-            arrow(t('Periodo siguiente'), RindeIcons.chevronRight, atCurrent ? null : () => onShift(1)),
-          ],
+        PeriodBar(
+          t: t,
+          period: period,
+          label: label,
+          atCurrent: atCurrent,
+          onPeriod: onPeriod,
+          onShift: onShift,
         ),
         const SizedBox(height: RindeSpace.s2),
         Semantics(
@@ -480,8 +457,8 @@ class _Header extends StatelessWidget {
                 (MovementType.expense, t('Gastos')),
                 (MovementType.income, t('Ingresos')),
               ])
-                _Chip(label: text, selected: type == value, onTap: () => onType(value)),
-              _Chip(
+                FilterPill(label: text, selected: type == value, onTap: () => onType(value)),
+              FilterPill(
                 label: categoryName ?? t('Categoría'),
                 selected: categoryName != null,
                 trailing: RindeIcons.chevronDown,
@@ -491,57 +468,6 @@ class _Header extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.selected, required this.onTap, this.trailing});
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final RindeIcons? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    final color = selected ? p.brand : p.ink;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: Material(
-        color: selected ? p.brandSoft : p.surface,
-        shape: StadiumBorder(
-          side: BorderSide(color: selected ? p.brand : p.lineStrong, width: selected ? 2 : 1),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: RindeSize.tapTarget),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: RindeSpace.s3),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: RindeSpace.s1,
-                children: [
-                  Text(
-                    label,
-                    style: RindeType.small
-                        .w(selected ? FontWeight.w600 : FontWeight.w500)
-                        .copyWith(color: color),
-                  ),
-                  if (trailing != null) RindeIcon(trailing!, size: 16, color: color),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

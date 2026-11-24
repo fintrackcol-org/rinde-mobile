@@ -30,6 +30,10 @@ import 'package:rinde_mobile/features/money/presentation/payments_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/widgets/money_shortcuts.dart';
 import 'package:rinde_mobile/features/home/data/home_models.dart';
 import 'package:rinde_mobile/features/movements/domain/movement.dart';
+import 'package:rinde_mobile/features/movements/application/movements_controller.dart';
+import 'package:rinde_mobile/features/period/application/period_providers.dart';
+import 'package:rinde_mobile/features/period/data/period_models.dart';
+import 'package:rinde_mobile/features/period/presentation/period_screen.dart';
 import 'package:rinde_mobile/features/plan/application/plan_providers.dart';
 import 'package:rinde_mobile/features/plan/data/plan_models.dart';
 import 'package:rinde_mobile/features/plan/presentation/budget_detail_screen.dart';
@@ -39,6 +43,9 @@ import 'package:rinde_mobile/features/plan/presentation/liquidity_screen.dart';
 import 'package:rinde_mobile/features/plan/presentation/plan_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/pending_module_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
+import 'package:rinde_mobile/features/to_confirm/application/to_confirm_writer.dart';
+import 'package:rinde_mobile/features/to_confirm/data/to_confirm_repository.dart';
+import 'package:rinde_mobile/features/to_confirm/presentation/to_confirm_screen.dart';
 
 const _session = Session(
   user: AuthUser(id: 'u1', email: 'ana@rinde.co'),
@@ -55,9 +62,6 @@ const _tabRoutes = {
 /// Destinos que se abren encima de una pestaña, con el título que deben mostrar.
 final _pushedRoutes = {
   Routes.notifications: 'Notificaciones',
-  Routes.income: 'Ingresos',
-  Routes.expenses: 'Gastos',
-  Routes.toConfirm: 'Por confirmar',
   Routes.goals: 'Metas',
   Routes.vacas: 'Vacas',
   Routes.insights: 'Consejos',
@@ -95,6 +99,11 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
         calendarMonthProvider.overrideWith((ref, _) => Completer<PaymentCalendar>().future),
         liquidityProvider.overrideWith((ref, _) => Completer<Liquidity>().future),
         whatsappLinkProvider.overrideWith((ref, _) => Completer<WhatsappLink>().future),
+        periodSummaryProvider.overrideWith((ref, _) => Completer<PeriodSummary>().future),
+        periodMovementsProvider.overrideWith((ref, _) => Completer<MovementPage>().future),
+        periodKakeiboProvider.overrideWith((ref, _) => Completer<MovementPage>().future),
+        movementCategoriesProvider.overrideWith((ref, _) => Completer<CategoryLists>().future),
+        toConfirmListProvider.overrideWith((ref, _) => Completer<List<IncomingPayment>>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -120,6 +129,9 @@ void main() {
   test('estas pruebas recorren exactamente los pendientes; Mi plata, Pagos, Corregir saldo, Tarjetas, Cuentas, Yo y Planear ya no lo son', () {
     expect({for (final m in pendingModules) m.path}, _pushedRoutes.keys.toSet());
     for (final route in [
+      Routes.income,
+      Routes.expenses,
+      Routes.toConfirm,
       Routes.plan,
       Routes.budgets,
       Routes.calendar,
@@ -154,6 +166,9 @@ void main() {
       Routes.calendar,
       Routes.liquidity,
       Routes.movement('m1'),
+      Routes.income,
+      Routes.expenses,
+      Routes.toConfirm,
     ]) {
       router.go(route);
       await _settle(tester);
@@ -226,6 +241,42 @@ void main() {
     expect(_location(router), Routes.plan);
     expect(find.text('Planear'), findsWidgets);
   });
+
+  testWidgets(
+    'Ingresos, Gastos y Por confirmar ya son pantallas reales; por enlace directo, atrás va al Inicio y a Movimientos',
+    (tester) async {
+      final router = await _pumpApp(tester, session: _session);
+      for (final (route, screen) in [
+        (Routes.income, PeriodScreen),
+        (Routes.expenses, PeriodScreen),
+        (Routes.toConfirm, ToConfirmScreen),
+      ]) {
+        router.go(Routes.plan);
+        await _settle(tester);
+        unawaited(router.push(route));
+        await _settle(tester);
+        expect(find.byType(screen), findsOneWidget, reason: route);
+        expect(find.text('En desarrollo'), findsNothing, reason: route);
+        expect(find.byType(RindeTabScaffold), findsNothing, reason: route);
+        await tester.tap(find.byTooltip('Volver'));
+        await _settle(tester);
+        expect(_location(router), Routes.plan, reason: route);
+      }
+
+      // Sin pantalla anterior (backPath de la web): Ingresos y Gastos → Inicio; Por confirmar → Movimientos.
+      for (final (route, back) in [
+        (Routes.income, Routes.app),
+        (Routes.expenses, Routes.app),
+        (Routes.toConfirm, Routes.movements),
+      ]) {
+        router.go(route);
+        await _settle(tester);
+        expect(await tester.binding.handlePopRoute(), isTrue, reason: route);
+        await _settle(tester);
+        expect(_location(router), back, reason: route);
+      }
+    },
+  );
 
   testWidgets('Mi plata ya es pantalla real: se abre encima, sin barra, y «Volver» regresa', (tester) async {
     final router = await _pumpApp(tester, session: _session);
@@ -345,8 +396,8 @@ void main() {
     expect(_location(router), Routes.plan);
   });
 
-  testWidgets('«Más de tu plata»: Tarjetas, Cuentas, Calendario y Próximos días abren sus pantallas; Por '
-      'confirmar sigue «En desarrollo»', (tester) async {
+  testWidgets('«Más de tu plata»: Tarjetas, Cuentas, Calendario, Por confirmar y Próximos días abren sus '
+      'pantallas', (tester) async {
     final router = await _pumpApp(tester, session: _session);
     router.go(Routes.myMoney);
     await _settle(tester);
@@ -355,7 +406,7 @@ void main() {
       ('Lo que te deben y debes', DebtsScreen),
       ('Topes por categoría', BudgetsScreen),
       ('Pagos fijos del mes', CalendarScreen),
-      ('Gastos que llegaron solos', PendingModuleScreen),
+      ('Gastos que llegaron solos', ToConfirmScreen),
       ('Lo que entra y sale', LiquidityScreen),
     ]) {
       final shortcut = find.descendant(of: find.byType(MoneyShortcuts), matching: find.text(hint));

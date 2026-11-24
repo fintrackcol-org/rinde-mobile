@@ -23,9 +23,6 @@ class PendingModule {
 
 final pendingModules = <PendingModule>[
   PendingModule(path: Routes.notifications, title: (t, _) => t('Notificaciones'), web: 'Notifications.jsx'),
-  PendingModule(path: Routes.income, title: (t, _) => t('Ingresos'), web: 'PeriodDetail.jsx (ingreso)'),
-  PendingModule(path: Routes.expenses, title: (t, _) => t('Gastos'), web: 'PeriodDetail.jsx (gasto)'),
-  PendingModule(path: Routes.toConfirm, title: (t, _) => t('Por confirmar'), web: 'PendingPayments.jsx'),
   // De Planear y del Calendario.
   PendingModule(path: Routes.goals, title: (t, _) => t('Metas'), web: 'Metas.jsx'),
   PendingModule(path: Routes.vacas, title: (t, _) => t('Vacas'), web: 'Vacas.jsx'),
