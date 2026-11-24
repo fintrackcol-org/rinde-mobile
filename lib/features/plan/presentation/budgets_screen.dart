@@ -157,7 +157,11 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                   budget: b,
                   name: names[b.category] ?? b.category,
                   money: money,
-                  onTap: () => context.push(Routes.budget(b.category, _month)),
+                  onTap: () {
+                    // El aviso de lo anterior («Presupuesto … creado.») no debe seguir al volver.
+                    setState(() => _notice = null);
+                    context.push(Routes.budget(b.category, _month));
+                  },
                 ),
               ],
             ],

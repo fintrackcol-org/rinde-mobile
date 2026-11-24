@@ -57,7 +57,13 @@ Future<void> _pump(WidgetTester tester, Widget home, List<Override> overrides) a
   addTearDown(tester.view.reset);
   // PushedFrame necesita el router.
   final router = GoRouter(
-    routes: [GoRoute(path: '/', builder: (_, _) => home)],
+    routes: [
+      GoRoute(path: '/', builder: (_, _) => home),
+      GoRoute(
+        path: '/app/presupuestos/:c',
+        builder: (_, _) => const Scaffold(body: Text('DETALLE')),
+      ),
+    ],
   );
   addTearDown(router.dispose);
   await tester.pumpWidget(
@@ -147,5 +153,37 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.textContaining('creado'), findsNothing);
+  });
+
+  testWidgets('el aviso «Presupuesto … creado.» no sigue ahí al volver del detalle (se vio contra QA)', (
+    tester,
+  ) async {
+    const ocio = BudgetStatus(
+      id: 'p2',
+      category: 'ocio',
+      amount: 50000,
+      consumed: 0,
+      percentage: 0,
+      level: BudgetLevel.none,
+    );
+    var reads = 0;
+    await _pump(tester, const BudgetsScreen(), [
+      budgetsWriterProvider.overrideWith(_Writer.new),
+      budgetsMonthProvider.overrideWith((ref, _) async => reads++ == 0 ? const [_food] : const [_food, ocio]),
+    ]);
+    await tester.tap(find.text('Nuevo presupuesto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ocio'));
+    await tester.enterText(find.byType(EditableText), '50000');
+    await tester.tap(find.text('Crear presupuesto'));
+    await tester.pumpAndSettle();
+    expect(find.text('Presupuesto de Ocio creado.'), findsOneWidget);
+
+    await tester.tap(find.text('Ocio'));
+    await tester.pumpAndSettle();
+    expect(find.text('DETALLE'), findsOneWidget);
+    GoRouter.of(tester.element(find.text('DETALLE'))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('Presupuesto de Ocio creado.'), findsNothing);
   });
 }
