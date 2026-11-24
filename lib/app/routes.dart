@@ -33,6 +33,12 @@ abstract final class Routes {
   static const expenses = '/app/gastos';
   static const toConfirm = '/app/por-confirmar';
   static const budgets = '/app/presupuestos';
+
+  /// Detalle de un presupuesto: `/app/presupuestos/{categoría}?mes=AAAA-MM` (BudgetDetail.jsx).
+  static String budget(String category, String month) =>
+      '$budgets/${Uri.encodeComponent(category)}?mes=$month';
+  static const goals = '/app/metas';
+  static const vacas = '/app/vacas';
   static const cards = '/app/tarjetas';
   static String card(String id) => '/app/tarjetas/$id';
 

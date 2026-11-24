@@ -20,6 +20,7 @@ import 'package:rinde_mobile/features/movements/data/demo_movements_repository.d
 import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
+import 'package:rinde_mobile/features/plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider;
 
 /// «Yo» con una cuenta de demostración (no sale a la red) y un router mínimo.
 Future<ProviderContainer> _pump(
@@ -55,6 +56,7 @@ Future<ProviderContainer> _pump(
         demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         demoCardsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         demoDebtsStoreProvider.overrideWithValue(MemoryJsonListStore()),
+        demoBudgetsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
         draftStoreProvider.overrideWithValue(MemoryDraftStore()),
         tourSeenStoreProvider.overrideWithValue(MemoryTourSeenStore()),

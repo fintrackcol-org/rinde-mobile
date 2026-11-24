@@ -23,8 +23,9 @@ import '../../data/money_models.dart';
 import 'paid_button.dart' show moneyErrorText;
 
 /// Abre «Nuevo pago» o, con [commitment], «Editar pago». Devuelve un aviso para la pantalla (el pago
-/// cambió en otro lado y se está recargando) o null.
-Future<String?> showCommitmentSheet(BuildContext context, {Commitment? commitment}) =>
+/// cambió en otro lado y se está recargando) o null. [day] y [month] precargan uno nuevo (el
+/// «Agregar a este día» del Calendario).
+Future<String?> showCommitmentSheet(BuildContext context, {Commitment? commitment, int? day, int? month}) =>
     showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -33,16 +34,20 @@ Future<String?> showCommitmentSheet(BuildContext context, {Commitment? commitmen
       // PopScope, y el resultado no se vería.
       enableDrag: false,
       backgroundColor: context.palette.surface,
-      builder: (_) => CommitmentSheet(commitment: commitment),
+      builder: (_) => CommitmentSheet(commitment: commitment, day: day, month: month),
     );
 
 /// El formulario de un pago fijo o suscripción (CommitmentDialog de MiPlata.jsx), sin el bloque
 /// «Avisarme»: la app no tiene notificaciones y, al editar, sin `reminder` el aviso guardado sigue
 /// igual. Un pago creado aquí nace sin aviso (en la web, con «1 día antes»).
 class CommitmentSheet extends ConsumerStatefulWidget {
-  const CommitmentSheet({super.key, this.commitment});
+  const CommitmentSheet({super.key, this.commitment, this.day, this.month});
 
   final Commitment? commitment;
+
+  /// Día del mes y mes (1 a 12, solo si se vuelve anual) con que arranca uno nuevo.
+  final int? day;
+  final int? month;
 
   @override
   ConsumerState<CommitmentSheet> createState() => _CommitmentSheetState();
@@ -58,11 +63,11 @@ class _CommitmentSheetState extends ConsumerState<CommitmentSheet> {
   };
 
   late final _name = TextEditingController(text: widget.commitment?.name ?? '');
-  late final _day = TextEditingController(text: '${widget.commitment?.dayOfMonth ?? ''}');
+  late final _day = TextEditingController(text: '${widget.commitment?.dayOfMonth ?? widget.day ?? ''}');
   late String _amount = widget.commitment == null ? '' : '${readMoney(widget.commitment!.amount)}';
   late String _kind = widget.commitment?.kind ?? 'fixed';
   late String _frequency = widget.commitment?.frequency ?? 'monthly';
-  late int? _month = widget.commitment?.month;
+  late int? _month = widget.commitment?.month ?? widget.month;
   final _focus = {for (final field in _fieldOf.values) field: FocusNode()};
 
   /// Problema por campo (`name`, `amount`, `dayOfMonth`, `month`): local o del servidor.

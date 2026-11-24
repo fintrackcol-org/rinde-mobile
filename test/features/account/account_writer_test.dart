@@ -21,6 +21,7 @@ import 'package:rinde_mobile/features/movements/data/demo_movements_repository.d
 import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
+import 'package:rinde_mobile/features/plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider;
 
 const _ana = Session(
   user: AuthUser(id: 'ana', email: 'ana@rinde.co', name: 'Ana'),
@@ -114,6 +115,7 @@ void main() {
         demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         demoCardsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         demoDebtsStoreProvider.overrideWithValue(MemoryJsonListStore()),
+        demoBudgetsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         ...extra.cast(),
       ],
     );

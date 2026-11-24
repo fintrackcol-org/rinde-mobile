@@ -151,6 +151,7 @@ enum BudgetLevel { none, warning, exceeded }
 /// Un presupuesto del mes con su avance (GET /budgets?month=).
 class BudgetStatus {
   const BudgetStatus({
+    this.id = '',
     required this.category,
     required this.amount,
     required this.consumed,
@@ -158,6 +159,8 @@ class BudgetStatus {
     required this.level,
   });
 
+  /// Para cambiarlo o borrarlo (PUT y DELETE /budgets/:id).
+  final String id;
   final String category;
   final num amount;
   final num consumed;
@@ -185,6 +188,7 @@ class BudgetStatus {
     if (amount == null || consumed == null || alert is! Map || category is! String) return null;
     final percentage = alert['percentage'];
     return BudgetStatus(
+      id: '${raw['id'] ?? ''}',
       category: category,
       amount: amount,
       consumed: consumed,

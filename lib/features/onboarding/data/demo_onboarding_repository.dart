@@ -11,6 +11,7 @@ import '../../account/data/demo_account_repository.dart' show demoAccountReposit
 import '../../auth/application/session_controller.dart';
 import '../../cards/data/demo_cards_store.dart' show demoCardsStoreProvider;
 import '../../debts/data/demo_debts_store.dart' show demoDebtsStoreProvider;
+import '../../plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider;
 import '../../home/application/tour_controller.dart' show tourSeenStoreProvider;
 import '../../home/data/home_models.dart' show readMoney;
 import 'onboarding_repository.dart';
@@ -601,6 +602,7 @@ final demoOnboardingRepositoryProvider = Provider.family<DemoOnboardingRepositor
       unawaited(ref.read(demoMovementsStoreProvider).write(userId, const []));
       unawaited(ref.read(demoCardsStoreProvider).write(userId, const []));
       unawaited(ref.read(demoDebtsStoreProvider).write(userId, const []));
+      unawaited(ref.read(demoBudgetsStoreProvider).write(userId, const []));
       unawaited(ref.read(pendingStoreProvider).write(userId, const []));
       // Los avisos y el WhatsApp de «Yo» (en memoria) también vuelven a los de una cuenta nueva.
       ref.invalidate(demoAccountRepositoryProvider(userId));

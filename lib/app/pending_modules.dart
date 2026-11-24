@@ -22,20 +22,15 @@ class PendingModule {
 }
 
 final pendingModules = <PendingModule>[
-  PendingModule(path: Routes.plan, title: (t, _) => t('Planear'), web: 'Planear.jsx', tab: RindeTab.plan),
   PendingModule(path: Routes.notifications, title: (t, _) => t('Notificaciones'), web: 'Notifications.jsx'),
   PendingModule(path: Routes.income, title: (t, _) => t('Ingresos'), web: 'PeriodDetail.jsx (ingreso)'),
   PendingModule(path: Routes.expenses, title: (t, _) => t('Gastos'), web: 'PeriodDetail.jsx (gasto)'),
   PendingModule(path: Routes.toConfirm, title: (t, _) => t('Por confirmar'), web: 'PendingPayments.jsx'),
-  PendingModule(path: Routes.budgets, title: (t, _) => t('Presupuestos'), web: 'Budgets.jsx'),
+  // De Planear y del Calendario.
+  PendingModule(path: Routes.goals, title: (t, _) => t('Metas'), web: 'Metas.jsx'),
+  PendingModule(path: Routes.vacas, title: (t, _) => t('Vacas'), web: 'Vacas.jsx'),
   // Accesos de «Más de tu plata».
-  PendingModule(path: Routes.calendar, title: (t, _) => t('Calendario'), web: 'Calendar.jsx'),
   PendingModule(path: Routes.insights, title: (t, _) => t('Consejos'), web: 'Insights.jsx'),
   PendingModule(path: Routes.export, title: (t, _) => t('Exportar movimientos'), web: 'Export.jsx'),
   PendingModule(path: Routes.renta, title: (t, _) => t('Renta y DIAN'), web: 'Renta.jsx'),
-  PendingModule(
-    path: Routes.liquidity,
-    title: (t, _) => t('Tu plata en los próximos días'),
-    web: 'Liquidity.jsx',
-  ),
 ];

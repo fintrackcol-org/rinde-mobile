@@ -36,6 +36,7 @@ import 'package:rinde_mobile/features/onboarding/application/onboarding_controll
     show systemLocalesProvider;
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
+import 'package:rinde_mobile/features/plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider;
 
 import '../support/fake_http.dart';
 
@@ -107,6 +108,7 @@ void main() {
           ),
           demoCardsStoreProvider.overrideWithValue(cards),
           demoDebtsStoreProvider.overrideWithValue(debts),
+          demoBudgetsStoreProvider.overrideWithValue(MemoryJsonListStore()),
           demoMovementsStoreProvider.overrideWithValue(movements),
           pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
           systemLocalesProvider.overrideWithValue(const [Locale('es', 'CO')]),

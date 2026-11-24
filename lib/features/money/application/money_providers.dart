@@ -8,6 +8,7 @@ import '../../auth/data/auth_models.dart';
 import '../../home/application/home_providers.dart';
 import '../../home/domain/home_dates.dart';
 import '../../movements/data/json_list_store.dart';
+import '../../plan/application/plan_providers.dart';
 import '../data/money_models.dart';
 import '../data/money_repository.dart';
 import '../domain/money_view.dart';
@@ -121,5 +122,10 @@ void afterMoneyChange(ProviderContainer container, {bool money = false}) {
   invalidate(paymentCalendarProvider);
   // Corregir el saldo deja un ajuste en Movimientos.
   invalidate(balanceAdjustmentsProvider);
+  // Lo abierto de Planear: el calendario y los próximos días (pagos), los presupuestos (gastos).
+  invalidate(calendarMonthProvider);
+  invalidate(liquidityProvider);
+  invalidate(budgetsMonthProvider);
+  invalidate(budgetMovementsProvider);
   invalidateHome(invalidate);
 }

@@ -1,6 +1,7 @@
 import 'package:rinde_mobile/features/money/data/money_models.dart';
 import 'package:rinde_mobile/features/money/data/money_repository.dart';
 import 'package:rinde_mobile/features/onboarding/domain/income_sources.dart';
+import 'package:rinde_mobile/features/plan/data/plan_models.dart';
 
 /// Repositorio de Mi plata con respuestas a la medida. Guarda cada llamada y lo que se envió.
 class FakeMoneyRepository implements MoneyRepository {
@@ -19,6 +20,15 @@ class FakeMoneyRepository implements MoneyRepository {
   Future<void> Function(Map<String, dynamic> body) onCreateCommitment = (_) async {};
   Future<void> Function(Map<String, dynamic> body) onSaveProfile = (_) async {};
   Future<List<CalendarPayment>> Function(String month) onCalendar = (_) async => const [];
+  Future<PaymentCalendar> Function(String month) onMonthCalendar = (month) async => PaymentCalendar(
+    month: month,
+    today: '$month-15',
+    events: const [],
+    cardDates: const [],
+    pending: 0,
+    payments: const [],
+  );
+  Future<Liquidity> Function() onLiquidity = () async => const Liquidity(ready: false);
   Future<void> Function(String id, Map<String, dynamic> body) onUpdateCommitment = (_, _) async {};
   Future<void> Function(String id) onDeleteCommitment = (_) async {};
   Future<List<BalanceAdjustment>> Function(String from, String to) onAdjustments = (_, _) async => const [];
@@ -52,6 +62,18 @@ class FakeMoneyRepository implements MoneyRepository {
     calls.add('createCommitment');
     sentCommitments.add(body);
     return onCreateCommitment(body);
+  }
+
+  @override
+  Future<PaymentCalendar> monthCalendar(String month) {
+    calls.add('monthCalendar $month');
+    return onMonthCalendar(month);
+  }
+
+  @override
+  Future<Liquidity> liquidity() {
+    calls.add('liquidity');
+    return onLiquidity();
   }
 
   @override

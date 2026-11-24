@@ -31,6 +31,21 @@ class MoneyShortcuts extends ConsumerWidget {
       (Routes.renta, t('Renta y DIAN'), t('Si te toca declarar'), RindeIcons.landmark),
       (Routes.liquidity, t('Próximos días'), t('Lo que entra y sale'), RindeIcons.trendingUp),
     ];
+    return ShortcutGrid(title: t('Más de tu plata'), items: items);
+  }
+}
+
+/// Una cuadrícula de accesos (common/ShortcutGrid.jsx): «Más de tu plata» y «Tus planes».
+class ShortcutGrid extends StatelessWidget {
+  const ShortcutGrid({super.key, required this.title, required this.items});
+
+  final String title;
+
+  /// (ruta, nombre, para qué sirve, ícono), en el orden de la web.
+  final List<(String, String, String, RindeIcons)> items;
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Dos columnas como la web; una con la letra agrandada o si la palabra más larga no cabe entera
@@ -42,7 +57,7 @@ class MoneyShortcuts extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            HomeSectionTitle(t('Más de tu plata')),
+            HomeSectionTitle(title),
             const SizedBox(height: RindeSpace.s3),
             for (var i = 0; i < items.length; i += columns) ...[
               if (i > 0) const SizedBox(height: 10),

@@ -13,6 +13,7 @@ import '../../cards/data/demo_cards_store.dart' show demoCardsStoreProvider;
 import '../../movements/data/demo_movements_repository.dart'
     show demoMovementTotals, demoMovementsStoreProvider;
 import '../../movements/data/json_list_store.dart';
+import '../../plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider, demoJourneyBudgets;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODO DEMOSTRACIÓN / SIN BACKEND
@@ -116,6 +117,7 @@ class DemoHomeRepository implements HomeRepository {
     required this.language,
     this.movements,
     this.cardsStore,
+    this.budgetsStore,
   });
 
   /// Movimientos anotados en la demo (suman en «Este mes»). El plan y el saldo no se recalculan:
@@ -125,6 +127,9 @@ class DemoHomeRepository implements HomeRepository {
   /// Tarjetas de la demo: el aviso del Inicio lee del MISMO almacén que la pantalla de Tarjetas,
   /// así los dos dicen lo mismo. Sin él, solo la semilla fija de `planListo`.
   final JsonListStore? cardsStore;
+
+  /// Presupuestos que los recorridos crearon en la demo (Planear → Presupuestos).
+  final JsonListStore? budgetsStore;
 
   final String userId;
   final DemoStateStore store;
@@ -168,7 +173,7 @@ class DemoHomeRepository implements HomeRepository {
 
   @override
   Future<List<BudgetStatus>> budgets(String month) async => [
-    for (final item in _budgets(month, await _read(DemoHomeOperation.secondary)))
+    for (final item in await _budgets(month, await _read(DemoHomeOperation.secondary)))
       ?BudgetStatus.tryParse(item),
   ];
 
@@ -370,8 +375,25 @@ class DemoHomeRepository implements HomeRepository {
 
   // ── GET /budgets, /cards, /pending-payments, /notifications, /categories ───
 
-  /// Lo consumido es lo gastado este mes en esa categoría ([_month]).
-  List<Object?> _budgets(String month, DemoState state) {
+  /// Lo consumido es lo gastado este mes en esa categoría ([_month]). Los escenarios fijos traen su
+  /// presupuesto sembrado solo en el mes en curso; los recorridos, lo que crearon en Presupuestos.
+  Future<List<Object?>> _budgets(String month, DemoState state) async {
+    final current = month == isoMonth(clock());
+    final budgetsStore = this.budgetsStore;
+    if (budgetsStore != null &&
+        const {DemoScenario.nuevo, DemoScenario.movimientos, DemoScenario.sinPlan}.contains(scenario)) {
+      return demoJourneyBudgets(
+        store: budgetsStore,
+        movements: movements ?? MemoryJsonListStore(),
+        userId: userId,
+        month: month,
+        spentCents: {
+          if (current)
+            for (final MapEntry(:key, :value) in _month.$2.entries) key: (state.fixed(value) * 100).round(),
+        },
+      );
+    }
+    if (!current) return const [];
     Map<String, dynamic> budget(String category, num amount, num consumed, num percentage, String level) => {
       'id': 'demo-presupuesto',
       'category': category,
@@ -458,5 +480,6 @@ final demoHomeRepositoryProvider = Provider.family<DemoHomeRepository, String>(
     language: () => ref.read(displayLanguageProvider),
     movements: ref.watch(demoMovementsStoreProvider),
     cardsStore: ref.watch(demoCardsStoreProvider),
+    budgetsStore: ref.watch(demoBudgetsStoreProvider),
   ),
 );

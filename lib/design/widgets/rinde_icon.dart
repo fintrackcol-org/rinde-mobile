@@ -30,6 +30,7 @@ enum RindeIcons {
   download('download'),
   eye('eye'),
   eyeOff('eye-off'),
+  flag('flag'),
   gift('gift'),
   globe('globe'),
   graduationCap('graduation-cap'),
@@ -39,6 +40,7 @@ enum RindeIcons {
   keyRound('key-round'),
   landmark('landmark'),
   languages('languages'),
+  lightbulb('lightbulb'),
   list('list'),
   loader('loader-circle'),
   logOut('log-out'),
@@ -50,6 +52,7 @@ enum RindeIcons {
   pencil('pencil'),
   plus('plus'),
   refreshCw('refresh-cw'),
+  repeat('repeat'),
   rotateCcw('rotate-ccw'),
 
   /// Ajuste de saldo: no es ingreso ni gasto.
@@ -61,6 +64,7 @@ enum RindeIcons {
   target('target'),
   trash2('trash-2'),
   trendingUp('trending-up'),
+  triangleAlert('triangle-alert'),
   userRound('user-round'),
   users('users'),
   wallet('wallet'),
