@@ -350,43 +350,48 @@ class DemoDebtsRepository implements DebtsRepository {
   });
 
   @override
-  Future<void> pay(String id, {required num amount, required String date, required bool createTransaction}) =>
-      _write((all) async {
-        final raw = _find(all, id);
-        if (raw['settledAt'] != null) throw _alreadySettled;
-        if (amount <= 0) throw _invalid({'amount': 'Debe ser un número mayor que 0'});
-        if (date.compareTo(isoDay(clock())) > 0) throw _invalid({'date': 'No puede ser una fecha futura'});
-        final pending = _progress(raw).pending;
-        if (_cents(amount) > _cents(pending)) {
-          throw _invalid({'amount': 'No puede pasar de lo pendiente ($pending)'});
-        }
-        final receivable = raw['kind'] == 'receivable';
-        final transactionId = createTransaction
-            ? await _addMovement(
-                income: receivable,
-                amount: amount,
-                date: date,
-                description: receivable ? 'Abono de ${raw['person']}' : 'Abono a ${raw['person']}',
-              )
-            : null;
-        final next = {
-          ...raw,
-          'payments': [
-            ..._payments(raw),
-            {
-              'id': _rand('demo-a'),
-              'amount': readMoney(amount),
-              'date': date,
-              'transactionId': transactionId,
-              'createdAt': _now,
-            },
-          ],
-          'updatedAt': _now,
-        };
-        // El abono que completa la salda sin un segundo movimiento (markSettled, transactionId null).
-        if (_cents(_progress(next).pending) == 0) next['settledAt'] = _now;
-        await _save([for (final d in all) d['id'] == id ? next : d]);
-      });
+  Future<void> pay(
+    String id, {
+    required num amount,
+    required String date,
+    required bool createTransaction,
+    String? idempotencyKey,
+  }) => _write((all) async {
+    final raw = _find(all, id);
+    if (raw['settledAt'] != null) throw _alreadySettled;
+    if (amount <= 0) throw _invalid({'amount': 'Debe ser un número mayor que 0'});
+    if (date.compareTo(isoDay(clock())) > 0) throw _invalid({'date': 'No puede ser una fecha futura'});
+    final pending = _progress(raw).pending;
+    if (_cents(amount) > _cents(pending)) {
+      throw _invalid({'amount': 'No puede pasar de lo pendiente ($pending)'});
+    }
+    final receivable = raw['kind'] == 'receivable';
+    final transactionId = createTransaction
+        ? await _addMovement(
+            income: receivable,
+            amount: amount,
+            date: date,
+            description: receivable ? 'Abono de ${raw['person']}' : 'Abono a ${raw['person']}',
+          )
+        : null;
+    final next = {
+      ...raw,
+      'payments': [
+        ..._payments(raw),
+        {
+          'id': _rand('demo-a'),
+          'amount': readMoney(amount),
+          'date': date,
+          'transactionId': transactionId,
+          'createdAt': _now,
+        },
+      ],
+      'updatedAt': _now,
+    };
+    // El abono que completa la salda sin un segundo movimiento (markSettled, transactionId null).
+    if (_cents(_progress(next).pending) == 0) next['settledAt'] = _now;
+    await _save([for (final d in all) d['id'] == id ? next : d]);
+  });
 
   @override
   Future<void> settle(String id, {required bool createTransaction}) => _write((all) async {

@@ -4,16 +4,16 @@ import '../../../core/network/api_exception.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_models.dart';
 import '../../money/application/money_writer.dart' show inDoubt;
-import '../../movements/application/movement_saver.dart' show afterMovementChange;
+import '../../movements/application/movement_saver.dart' show MovementSaver, afterMovementChange;
 import '../../onboarding/data/onboarding_repository.dart' show pendingSourcesProvider;
 import '../data/card_models.dart';
 import '../data/cards_repository.dart';
 import '../domain/card_rules.dart';
 import 'cards_providers.dart';
 
-/// Escrituras de Tarjetas. Ningún endpoint de tarjetas es idempotente, así que se aplica el patrón
-/// de MoneyWriter (no se extrae a un módulo común para no tocar MoneyWriter ni sus pruebas; se
-/// reusa `inDoubt`, que ya es público):
+/// Escrituras de Tarjetas. Solo el pago tiene llave de reintento (`Idempotency-Key`, ver [pay]); para
+/// todo se aplica el patrón de MoneyWriter (no se extrae a un módulo común para no tocar MoneyWriter
+/// ni sus pruebas; se reusa `inDoubt`, que ya es público):
 /// - un solo envío a la vez por operación y cuenta ([_once]);
 /// - «en duda» (espera vencida o 5xx) se confirma VOLVIENDO A LEER, nunca reintentando solo;
 /// - para los POST sin llave de reintento, foto previa de los ids ANTES de enviar (P5 del plan):
@@ -24,6 +24,11 @@ class CardsWriter {
   CardsWriter(this._ref);
   final Ref _ref;
   final _running = <String, Future<Object?>>{};
+
+  /// Llave de los pagos que quedaron en duda, por borrador (cuenta, tarjeta, monto y fecha): un
+  /// reintento a mano del MISMO pago la reusa y el servidor no lo aplica dos veces; un pago nuevo (o
+  /// uno ya confirmado o rechazado) saca otra. Vive mientras la app está abierta.
+  final _payKeys = <String, String>{};
 
   CardsRepository get _repo => _ref.read(cardsRepositoryProvider);
 
@@ -149,12 +154,17 @@ class CardsWriter {
     _refresh(movement: true);
   });
 
-  /// POST /cards/:id/payments: RESTA de Mi plata y el servidor no tiene llave de reintento
-  /// (riesgo ALTO). Foto previa de los pagos; en duda, «guardado» = un pago NUEVO con el mismo
-  /// monto y fecha. Si no se puede confirmar, UNCONFIRMED y nada se reintenta: el historial queda a
-  /// la vista para borrar un pago doble.
+  /// POST /cards/:id/payments: RESTA de Mi plata (riesgo ALTO). Va con `Idempotency-Key`, una por
+  /// borrador ([_payKeys]): reintentar a mano el mismo pago tras una duda no paga dos veces, y una
+  /// repetición (`Idempotent-Replayed`) es una respuesta 2xx más: hecho. Igual se conserva la foto
+  /// previa de los pagos para un servidor sin la llave; en duda, «guardado» = un pago NUEVO con el
+  /// mismo monto y fecha. Si no se puede confirmar, UNCONFIRMED y nada se reintenta solo: el
+  /// historial queda a la vista para borrar un pago doble.
   Future<void> pay(String id, {required num amount, required String date}) => _once('card-pay $id', () async {
     final account = _ref.read(accountProvider);
+    final draft = '${account?.user.id} $id ${_cents(amount)} $date';
+    // El localId de Anotar sirve de llave: 128 bits al azar con el formato que acepta el servidor.
+    final key = _payKeys[draft] ?? MovementSaver.newLocalId();
     await _welcomeDone();
     Set<String>? before;
     try {
@@ -167,9 +177,12 @@ class CardsWriter {
     }
     _sameAccount(account);
     try {
-      await _repo.pay(id, amount: amount, date: date);
+      await _repo.pay(id, amount: amount, date: date, idempotencyKey: key);
     } on ApiException catch (e, stack) {
-      if (!inDoubt(e)) rethrow;
+      if (!inDoubt(e)) {
+        _payKeys.remove(draft); // Rechazado: no se aplicó; el próximo intento es otro pago.
+        rethrow;
+      }
       var confirmed = false;
       try {
         final snapshot = before;
@@ -186,6 +199,8 @@ class CardsWriter {
         // Tampoco se pudo leer.
       }
       if (!confirmed) {
+        // Sigue en duda: el próximo intento del mismo pago va con esta misma llave.
+        _payKeys[draft] = key;
         _refresh(money: true);
         Error.throwWithStackTrace(
           ApiException(code: ApiCodes.unconfirmed, status: e.status, serverMessage: unconfirmedText),
@@ -193,6 +208,7 @@ class CardsWriter {
         );
       }
     }
+    _payKeys.remove(draft);
     _refresh(money: true);
   });
 

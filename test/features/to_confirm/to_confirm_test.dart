@@ -1,4 +1,4 @@
-// Por confirmar (etapa 8): el contrato (lo que se manda al confirmar, sin tarjeta), el writer (un envío
+// Por confirmar (etapa 8): el contrato (lo que se manda al confirmar, con o sin tarjeta), el writer (un envío
 // a la vez por pago, en duda se relee y nunca se reintenta solo, 409 = ya resuelto, bienvenida pendiente
 // bloquea, tras confirmar se recarga lo que depende de la plata) y la demo (sin servidor).
 import 'dart:convert';
@@ -24,6 +24,7 @@ import 'package:rinde_mobile/features/onboarding/domain/onboarding_draft.dart';
 import 'package:rinde_mobile/features/to_confirm/application/to_confirm_writer.dart';
 import 'package:rinde_mobile/features/to_confirm/data/to_confirm_repository.dart';
 
+import '../../support/card_fixtures.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_http.dart';
 import '../../support/fake_money_repository.dart';
@@ -64,8 +65,8 @@ class _FakeToConfirm implements ToConfirmRepository {
   }
 
   @override
-  Future<void> confirm(String id, {required String description, String? category}) {
-    sent.add('confirm $id $description $category');
+  Future<void> confirm(String id, {required String description, String? category, String? card}) {
+    sent.add('confirm $id $description $category${card == null ? '' : ' $card'}');
     return onSend();
   }
 
@@ -119,31 +120,49 @@ void main() {
       expect(http.requests.single.path, '/pending-payments');
     });
 
-    test(
-      'confirmar manda SOLO descripción y categoría: el contrato no recibe tarjeta (riesgo de doble conteo)',
-      () async {
-        // Documenta el comportamiento de la web: el gasto se crea sin tarjeta y resta de Mi plata. Si en
-        // realidad se pagó con tarjeta de crédito, al pagar la tarjeta vuelve a restar. Cuando el backend
-        // acepte la tarjeta, esta prueba debe cambiar junto con «Pagado con» en la hoja.
-        final http = FakeHttpAdapter((_) => jsonBody(200, {'payment': {}, 'transaction': {}}));
-        await repo(http).confirm('p1', description: 'Taxi al trabajo');
-        await repo(http).confirm('p1', description: 'Taxi', category: 'transporte');
-        await repo(http).discard('p1');
-        expect(
-          [for (final r in http.requests) '${r.method} ${r.path}'],
-          [
-            'POST /pending-payments/p1/confirm',
-            'POST /pending-payments/p1/confirm',
-            'POST /pending-payments/p1/discard',
-          ],
-        );
-        expect(jsonDecode(jsonEncode(http.requests[0].data)), {'description': 'Taxi al trabajo'});
-        expect(jsonDecode(jsonEncode(http.requests[1].data)), {
-          'description': 'Taxi',
-          'category': 'transporte',
-        });
-      },
-    );
+    test('confirmar con tarjeta manda `card` (no resta de Mi plata: sin doble conteo al pagar la tarjeta); '
+        'sin tarjeta, solo descripción y categoría (efectivo o débito)', () async {
+      final http = FakeHttpAdapter((_) => jsonBody(200, {'payment': {}, 'transaction': {}}));
+      await repo(http).confirm('p1', description: 'Taxi al trabajo');
+      await repo(http).confirm('p1', description: 'Taxi', category: 'transporte');
+      await repo(http).confirm('p1', description: 'Taxi', card: 'k1');
+      await repo(http).discard('p1');
+      expect(
+        [for (final r in http.requests) '${r.method} ${r.path}'],
+        [
+          'POST /pending-payments/p1/confirm',
+          'POST /pending-payments/p1/confirm',
+          'POST /pending-payments/p1/confirm',
+          'POST /pending-payments/p1/discard',
+        ],
+      );
+      expect(jsonDecode(jsonEncode(http.requests[0].data)), {'description': 'Taxi al trabajo'});
+      expect(jsonDecode(jsonEncode(http.requests[1].data)), {
+        'description': 'Taxi',
+        'category': 'transporte',
+      });
+      expect(jsonDecode(jsonEncode(http.requests[2].data)), {'description': 'Taxi', 'card': 'k1'});
+    });
+  });
+
+  group('walletCardMatch', () {
+    final visa = cardOfJson(cardJson(id: 'visa', last4: '4242'));
+    final master = cardOfJson(cardJson(id: 'master', network: 'mastercard', last4: '1111'));
+
+    test('la tarjeta de Wallet con los mismos últimos 4 queda elegida', () {
+      expect(walletCardMatch('Visa Bancolombia 4242', [visa, master]), 'visa');
+      expect(walletCardMatch('•••• 1111', [visa, master]), 'master');
+    });
+
+    test('si no es inequívoco, «Efectivo o débito» (null)', () {
+      expect(walletCardMatch(null, [visa]), isNull);
+      expect(walletCardMatch('Mi Visa', [visa]), isNull, reason: 'sin cifras no se adivina');
+      expect(walletCardMatch('Visa 9999', [visa, master]), isNull, reason: 'ninguna termina así');
+      expect(walletCardMatch('4242 o 1111', [visa, master]), isNull, reason: 'dos grupos de cifras');
+      expect(walletCardMatch('Visa 424242', [visa]), isNull, reason: 'no son 4 cifras sueltas');
+      final twin = cardOfJson(cardJson(id: 'otra', last4: '4242'));
+      expect(walletCardMatch('Visa 4242', [visa, twin]), isNull, reason: 'dos tarjetas con esos 4');
+    });
   });
 
   group('ToConfirmWriter', () {
@@ -187,6 +206,8 @@ void main() {
           writer.confirm(_taxi, description: 'Taxi'),
         ]);
         expect(repo.sent, ['confirm p1 Taxi null']);
+        await writer.confirm(_taxi, description: 'Taxi', category: 'transporte', card: 'k1');
+        expect(repo.sent.last, 'confirm p1 Taxi transporte k1', reason: 'la tarjeta llega al repositorio');
         await c.read(homeToConfirmProvider(_ana).future);
         await c.read(toConfirmListProvider(_ana).future);
         expect(home.count('toConfirm'), greaterThan(homeBefore));

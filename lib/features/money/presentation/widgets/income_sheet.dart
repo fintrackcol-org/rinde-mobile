@@ -65,15 +65,24 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
 
   IncomeOverview? get _income => ref.read(incomeOverviewProvider(ref.read(accountProvider))).value;
 
+  /// La `version` del perfil al empezar a editar: el PUT la manda como `expectedVersion` y no pisa un
+  /// cambio de otro dispositivo. null si el perfil no está leído o se está recargando (tras guardar
+  /// aquí mismo seguiría la vieja y chocaría solo): entonces se guarda como antes.
+  int? _version;
+
   @override
   void initState() {
     super.initState();
     if (widget.edit) _forms = _formsOf(_income);
   }
 
-  Map<IncomeKind, IncomeSourceForm> _formsOf(IncomeOverview? income) => {
-    for (final s in income?.sources ?? const <IncomeSource>[]) s.kind: IncomeSourceForm.fromServer(s),
-  };
+  Map<IncomeKind, IncomeSourceForm> _formsOf(IncomeOverview? income) {
+    final profile = ref.read(moneyProfileProvider(ref.read(accountProvider)));
+    _version = profile.isLoading ? null : profile.value?.version;
+    return {
+      for (final s in income?.sources ?? const <IncomeSource>[]) s.kind: IncomeSourceForm.fromServer(s),
+    };
+  }
 
   String _message(ApiException e) => ref
       .read(trProvider)
@@ -82,6 +91,7 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
           byCode: const {
             ApiCodes.unauthorized: ApiMessages.sessionExpired,
             ApiCodes.tokenExpired: ApiMessages.sessionExpired,
+            ApiCodes.profileChanged: 'Tu plata cambió en otro dispositivo. Revisa y vuelve a guardar.',
           },
           fallback: ApiMessages.generic,
         ),
@@ -109,7 +119,9 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
       _fieldErrors = const {};
     });
     try {
-      await ref.read(moneyWriterProvider).saveSources([for (final f in forms.values) f.toApi()]);
+      await ref.read(moneyWriterProvider).saveSources([
+        for (final f in forms.values) f.toApi(),
+      ], expectedVersion: _version);
       if (!mounted) return;
       // La vista espera lo releído: con lo de antes, «Cambiar» volvería a enviar lo que se quitó.
       await ref
@@ -118,6 +130,14 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
       if (mounted) _view();
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (e.code == ApiCodes.profileChanged) {
+        // Lo de la pantalla ya no es lo vigente: el próximo «Guardar», tras revisar, va con la nueva.
+        final account = ref.read(accountProvider);
+        _version = await ref
+            .read(moneyProfileProvider(account).future)
+            .then((p) => p.version, onError: (Object _) => null);
+        if (!mounted) return;
+      }
       final fields = <IncomeKind, Map<String, String>>{};
       var unplaced = false;
       for (final MapEntry(:key, :value) in e.fields.entries) {

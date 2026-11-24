@@ -7,6 +7,9 @@ import 'package:rinde_mobile/features/plan/data/plan_models.dart';
 class FakeMoneyRepository implements MoneyRepository {
   final calls = <String>[];
   final sentSources = <List<Map<String, dynamic>>>[];
+
+  /// El `expectedVersion` de cada PUT de fuentes.
+  final sentSourceVersions = <int?>[];
   final sentCommitments = <Map<String, dynamic>>[];
   final sentProfiles = <Map<String, dynamic>>[];
 
@@ -51,9 +54,10 @@ class FakeMoneyRepository implements MoneyRepository {
   }
 
   @override
-  Future<void> saveSources(List<Map<String, dynamic>> sources) {
+  Future<void> saveSources(List<Map<String, dynamic>> sources, {int? expectedVersion}) {
     calls.add('saveSources');
     sentSources.add(sources);
+    sentSourceVersions.add(expectedVersion);
     return onSaveSources(sources);
   }
 

@@ -406,7 +406,7 @@ class _MovementFormState extends ConsumerState<MovementForm> {
     final paidWith = <Widget>[
       if (cards != null && cards.isNotEmpty) ...[
         const SizedBox(height: RindeSpace.s5),
-        _PaidWithPicker(
+        PaidWithPicker(
           cards: cards,
           value: card,
           error: problem('card'),
@@ -780,8 +780,15 @@ class MovementCategoryPicker extends ConsumerWidget {
 }
 
 /// «Pagado con»: «Efectivo o débito» (null) o una tarjeta, con la etiqueta de la lista de Tarjetas.
-class _PaidWithPicker extends ConsumerWidget {
-  const _PaidWithPicker({required this.cards, required this.value, required this.onChanged, this.error});
+/// También lo usa la hoja «Confirmar pago» de Por confirmar.
+class PaidWithPicker extends ConsumerWidget {
+  const PaidWithPicker({
+    super.key,
+    required this.cards,
+    required this.value,
+    required this.onChanged,
+    this.error,
+  });
 
   final List<CreditCard> cards;
   final String? value;

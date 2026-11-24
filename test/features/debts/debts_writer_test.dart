@@ -702,4 +702,34 @@ void main() {
     await expectLater(writer.deletePayment(debtOf(_afterPayment), debtOf().payments.single), pending);
     expect(adapter.requests, isEmpty);
   });
+
+  group('Idempotency-Key del abono', () {
+    test('el mismo abono tras una duda reusa la llave; un abono nuevo saca otra', () async {
+      var timeout = true;
+      final (c, adapter) = await open((o) {
+        if (o.method != 'POST') return _list([_created]);
+        return timeout
+            ? _timeout(o)
+            : jsonBody(201, {'debt': _afterPayment, 'payment': {}, 'transaction': null});
+      });
+      final writer = c.read(debtsWriterProvider);
+      Future<void> pay({bool record = true}) =>
+          writer.pay(_id, amount: 100000, date: '2026-11-23', createTransaction: record);
+
+      // En duda y la relectura no muestra el abono: UNCONFIRMED.
+      await expectLater(
+        pay(),
+        throwsA(isA<ApiException>().having((e) => e.code, 'code', ApiCodes.unconfirmed)),
+      );
+      timeout = false;
+      // Reintento a mano, aunque cambie la casilla: misma llave (el servidor responde 409 y no abona dos veces).
+      await pay(record: false);
+      await pay(); // un abono nuevo, con el anterior ya hecho: otra llave
+      final keys = [for (final r in posts(adapter, '$_debt/payments')) r.headers['Idempotency-Key']];
+      expect(keys, hasLength(3));
+      expect(keys[0], isA<String>());
+      expect(keys[1], keys[0]);
+      expect(keys[2], isNot(keys[0]));
+    });
+  });
 }

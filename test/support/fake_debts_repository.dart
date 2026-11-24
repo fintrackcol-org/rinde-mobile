@@ -6,6 +6,9 @@ class FakeDebtsRepository implements DebtsRepository {
   final calls = <String>[];
   final bodies = <Map<String, dynamic>>[];
 
+  /// La cabecera `Idempotency-Key` de cada abono.
+  final payKeys = <String?>[];
+
   Future<DebtsList> Function() onList = () async => const DebtsList(items: [], receivable: 0, payable: 0);
   Future<void> Function(Map<String, dynamic> body) onCreate = (body) async {};
   Future<void> Function(String id, Map<String, dynamic> body) onUpdate = (id, body) async {};
@@ -59,8 +62,15 @@ class FakeDebtsRepository implements DebtsRepository {
   }
 
   @override
-  Future<void> pay(String id, {required num amount, required String date, required bool createTransaction}) {
+  Future<void> pay(
+    String id, {
+    required num amount,
+    required String date,
+    required bool createTransaction,
+    String? idempotencyKey,
+  }) {
     calls.add('pay $id');
+    payKeys.add(idempotencyKey);
     bodies.add({'amount': amount, 'date': date, 'createTransaction': createTransaction});
     return onPay(id, amount, date, createTransaction);
   }

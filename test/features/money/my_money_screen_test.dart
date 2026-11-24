@@ -435,6 +435,38 @@ void main() {
       expect(home.count('plan'), plans + 1);
     });
 
+    testWidgets(
+      'con versión el PUT lleva expectedVersion; un 409 PROFILE_CHANGED avisa y el siguiente va con la nueva',
+      (tester) async {
+        var version = 3;
+        repo.onProfile = () async => MoneyProfile(welcomeDone: true, money: 400000, version: version);
+        await _pump(tester);
+        await _edit(tester);
+        repo.onSaveSources = (_) async {
+          version = 4; // otro dispositivo guardó mientras tanto
+          throw const ApiException(
+            code: ApiCodes.profileChanged,
+            status: 409,
+            serverMessage: 'Tu plata cambió en otro dispositivo. Revisa y vuelve a guardar.',
+          );
+        };
+        await _tap(tester, find.text('Guardar'));
+        expect(find.text('Tu plata cambió en otro dispositivo. Revisa y vuelve a guardar.'), findsOneWidget);
+        expect(find.text('Guardar'), findsOneWidget, reason: 'sigue editando para revisar');
+        repo.onSaveSources = (_) async {};
+        await _tap(tester, find.text('Guardar'));
+        expect(repo.sentSourceVersions, [3, 4]);
+        expect(find.text('Guardar'), findsNothing);
+      },
+    );
+
+    testWidgets('sin versión (servidor viejo) el PUT de fuentes no lleva expectedVersion', (tester) async {
+      await _pump(tester);
+      await _edit(tester);
+      await _tap(tester, find.text('Guardar'));
+      expect(repo.sentSourceVersions, [null]);
+    });
+
     testWidgets('un 422 se marca en su casilla, sin aviso general', (tester) async {
       repo.onIncome = () async => incomeOf(sources: const [_sueldo]);
       repo.onSaveSources = (_) async => throw const ApiException(

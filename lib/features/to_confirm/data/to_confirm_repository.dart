@@ -58,10 +58,12 @@ abstract interface class ToConfirmRepository {
   /// GET /pending-payments → `items` (solo los pendientes, del más nuevo al más viejo).
   Future<List<IncomingPayment>> list();
 
-  /// POST /pending-payments/:id/confirm `{description, category?}`: crea el gasto. Sin categoría la
-  /// elige la IA. El contrato no recibe tarjeta: el gasto queda como pagado en efectivo o débito.
-  /// 409 `ALREADY_RESOLVED` si ya se confirmó o descartó (también el reintento de uno que sí llegó).
-  Future<void> confirm(String id, {required String description, String? category});
+  /// POST /pending-payments/:id/confirm `{description, category?, card?}`: crea el gasto. Sin
+  /// categoría la elige la IA. Con [card] (id de una tarjeta propia) el gasto va a esa tarjeta y no
+  /// resta de Mi plata hasta pagarla; sin ella, efectivo o débito. Una tarjeta ajena o borrada da 422
+  /// en `card`. 409 `ALREADY_RESOLVED` si ya se confirmó o descartó (también el reintento de uno que
+  /// sí llegó).
+  Future<void> confirm(String id, {required String description, String? category, String? card});
 
   /// POST /pending-payments/:id/discard: no se anota nada. 409 `ALREADY_RESOLVED` como arriba.
   Future<void> discard(String id);
@@ -83,8 +85,11 @@ class ApiToConfirmRepository implements ToConfirmRepository {
   ];
 
   @override
-  Future<void> confirm(String id, {required String description, String? category}) =>
-      _api.post(_path(id, 'confirm'), body: {'description': description, 'category': ?category}, auth: true);
+  Future<void> confirm(String id, {required String description, String? category, String? card}) => _api.post(
+    _path(id, 'confirm'),
+    body: {'description': description, 'category': ?category, 'card': ?card},
+    auth: true,
+  );
 
   @override
   Future<void> discard(String id) => _api.post(_path(id, 'discard'), auth: true);
@@ -115,7 +120,7 @@ class DemoToConfirmRepository implements ToConfirmRepository {
   ];
 
   @override
-  Future<void> confirm(String id, {required String description, String? category}) async {
+  Future<void> confirm(String id, {required String description, String? category, String? card}) async {
     await controls.simulate();
     throw _noBackend;
   }
