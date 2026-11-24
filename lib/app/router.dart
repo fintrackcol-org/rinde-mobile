@@ -26,8 +26,10 @@ import '../features/plan/presentation/budget_detail_screen.dart';
 import '../features/plan/presentation/budgets_screen.dart';
 import '../features/plan/presentation/calendar_screen.dart';
 import '../features/plan/presentation/liquidity_screen.dart';
+import '../features/period/presentation/period_screen.dart';
 import '../features/plan/presentation/plan_screen.dart';
 import '../features/shell/presentation/pending_module_screen.dart';
+import '../features/to_confirm/presentation/to_confirm_screen.dart';
 import '../features/welcome/presentation/welcome_screen.dart';
 import 'pending_modules.dart';
 import 'routes.dart';
@@ -117,6 +119,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: Routes.calendar, builder: (_, _) => const CalendarScreen()),
+      GoRoute(
+        path: Routes.income,
+        builder: (_, _) => const PeriodScreen(type: MovementType.income),
+      ),
+      GoRoute(
+        path: Routes.expenses,
+        builder: (_, _) => const PeriodScreen(type: MovementType.expense),
+      ),
+      GoRoute(path: Routes.toConfirm, builder: (_, _) => const ToConfirmScreen()),
       GoRoute(path: Routes.liquidity, builder: (_, _) => const LiquidityScreen()),
       GoRoute(
         path: Routes.card(':id'),

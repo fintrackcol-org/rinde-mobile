@@ -69,6 +69,7 @@
  "{amount} cada semana": "{amount} por semana",
  "{tab}: pendientes": "{tab}: pendentes",
  "{tab}: saldadas": "{tab}: quitadas",
+ "{ungrouped} gastos no tienen": "{ungrouped} gastos não têm",
  "¡Listo!": "Tudo pronto!",
  "¿Cuánto? ({currency})": "Quanto? ({currency})",
  "¿Eliminar {name}?": "Excluir {name}?"

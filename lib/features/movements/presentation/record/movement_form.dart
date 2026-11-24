@@ -479,7 +479,7 @@ class _MovementFormState extends ConsumerState<MovementForm> {
       ),
       const SizedBox(height: RindeSpace.s5),
       if (_editing) ...[date, const SizedBox(height: RindeSpace.s5)],
-      _CategoryPicker(
+      MovementCategoryPicker(
         type: _type,
         value: _category,
         showAll: _allCategories,
@@ -679,8 +679,9 @@ class _ErrorText extends StatelessWidget {
 }
 
 /// Categoría: «Que la elija la IA» (null, la decide el servidor al guardar) o una del catálogo.
-class _CategoryPicker extends ConsumerWidget {
-  const _CategoryPicker({
+class MovementCategoryPicker extends ConsumerWidget {
+  const MovementCategoryPicker({
+    super.key,
     required this.type,
     required this.value,
     required this.showAll,

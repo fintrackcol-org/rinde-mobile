@@ -13,6 +13,7 @@ import '../../cards/data/demo_cards_store.dart' show demoCardsStoreProvider;
 import '../../movements/data/demo_movements_repository.dart'
     show demoMovementTotals, demoMovementsStoreProvider;
 import '../../movements/data/json_list_store.dart';
+import '../../movements/domain/movement.dart' show Movement;
 import '../../plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider, demoJourneyBudgets;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -205,8 +206,64 @@ class DemoHomeRepository implements HomeRepository {
   Future<List<Map<String, dynamic>>> demoCards() async => _cardsJson(await store.read(userId));
 
   @override
-  Future<int> toConfirm() async =>
-      readList(_pendingPayments(await _read(DemoHomeOperation.secondary))['items']).length;
+  Future<int> toConfirm() async => (await demoPendingPayments()).length;
+
+  /// GET /pending-payments `items` de la demo: los de `planListo`; los recorridos no tienen.
+  Future<List<Object?>> demoPendingPayments() async =>
+      readList(_pendingPayments(await _read(DemoHomeOperation.secondary))['items']);
+
+  /// GET /transactions/summary?period= de Ingresos y Gastos, de [from] a [to]: la semilla del mes del
+  /// escenario cuenta en el mes y el año que contienen hoy (no tiene día a día: en la semana no), y lo
+  /// anotado en la demo, en su fecha. Lo apartado no es gasto. Suma en centavos.
+  Future<Map<String, dynamic>> demoPeriodSummary(String period, DateTime from, DateTime to) async {
+    final state = await _read(DemoHomeOperation.summary);
+    final first = isoDay(from), last = isoDay(to), today = isoDay(clock());
+    final income = <String?, int>{}, expense = <String?, int>{};
+    var savings = 0;
+    void add(Map<String?, int> side, String? category, num amount) =>
+        side[category] = (side[category] ?? 0) + (amount * 100).round();
+    if (period != 'week' && first.compareTo(today) <= 0 && last.compareTo(today) >= 0) {
+      final (seedIncome, seedExpense) = _month;
+      seedIncome.forEach((key, value) => add(income, key, state.fixed(value)));
+      seedExpense.forEach((key, value) => add(expense, key, state.fixed(value)));
+    }
+    for (final raw in await movements?.read(userId) ?? const <Object?>[]) {
+      final m = Movement.fromJson(raw);
+      if (m.date.compareTo(first) < 0 || m.date.compareTo(last) > 0) continue;
+      if (m.isIncome) {
+        add(income, m.category, m.amount);
+      } else if (m.category == 'ahorro_inversion') {
+        savings += (m.amount * 100).round();
+      } else {
+        add(expense, m.category, m.amount);
+      }
+    }
+    Map<String, dynamic> side(Map<String?, int> cents) {
+      final total = cents.values.fold(0, (a, b) => a + b);
+      final rows = cents.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      return {
+        'total': readMoney(total / 100),
+        'byCategory': [
+          for (final MapEntry(:key, :value) in rows)
+            {
+              'category': key,
+              'total': readMoney(value / 100),
+              'percentage': total == 0 ? 0 : (value * 1000 / total).round() / 10,
+            },
+        ],
+      };
+    }
+
+    return {
+      'period': period,
+      'from': first,
+      'to': last,
+      'income': side(income),
+      'expense': side(expense),
+      'savings': {'total': readMoney(savings / 100)},
+      'timeSeries': const <Object>[],
+    };
+  }
 
   @override
   Future<int> unread() async {

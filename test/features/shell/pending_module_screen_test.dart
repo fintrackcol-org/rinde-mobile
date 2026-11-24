@@ -19,9 +19,6 @@ const _honest = 'Esta parte todavía no está en la app. Ya funciona en la web d
 /// Título esperado de cada destino (los de Rinde Web), por la ruta con que se abre.
 final _titles = {
   Routes.notifications: 'Notificaciones',
-  Routes.income: 'Ingresos',
-  Routes.expenses: 'Gastos',
-  Routes.toConfirm: 'Por confirmar',
   // De Planear y del Calendario.
   Routes.goals: 'Metas',
   Routes.vacas: 'Vacas',
@@ -90,9 +87,6 @@ void main() {
     expect(paths.toSet().length, paths.length);
     expect(paths.toSet(), {
       Routes.notifications,
-      Routes.income,
-      Routes.expenses,
-      Routes.toConfirm,
       Routes.goals,
       Routes.vacas,
       Routes.insights,
@@ -138,9 +132,9 @@ void main() {
     expect(find.text('INICIO'), findsOneWidget);
     expect(find.text('En desarrollo'), findsNothing);
 
-    unawaited(router.push(Routes.income));
+    unawaited(router.push(Routes.goals));
     await tester.pumpAndSettle();
-    expect(find.text('Ingresos'), findsOneWidget);
+    expect(find.text('Metas'), findsOneWidget);
     expect(await tester.binding.handlePopRoute(), isTrue);
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
@@ -154,7 +148,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
 
-    await _pump(tester, initial: Routes.income);
+    await _pump(tester, initial: Routes.goals);
     expect(await tester.binding.handlePopRoute(), isTrue);
     await tester.pumpAndSettle();
     expect(find.text('INICIO'), findsOneWidget);
@@ -162,7 +156,7 @@ void main() {
 
   for (final (name, theme) in [('claro', RindeTheme.light), ('oscuro', RindeTheme.dark)]) {
     testWidgets('320 de ancho y letra al doble, tema $name: nada se desborda', (tester) async {
-      for (final route in [Routes.goals, Routes.renta, Routes.income]) {
+      for (final route in [Routes.goals, Routes.renta, Routes.vacas]) {
         await _pump(tester, initial: route, size: const Size(320, 568), textScale: 2, theme: theme);
         expect(tester.takeException(), isNull, reason: route);
         expect(find.text('En desarrollo'), findsOneWidget, reason: route);

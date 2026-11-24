@@ -8,6 +8,7 @@ import '../../auth/data/auth_models.dart';
 import '../../home/application/home_providers.dart';
 import '../../home/domain/home_dates.dart';
 import '../../movements/data/json_list_store.dart';
+import '../../period/application/period_providers.dart';
 import '../../plan/application/plan_providers.dart';
 import '../data/money_models.dart';
 import '../data/money_repository.dart';
@@ -127,5 +128,9 @@ void afterMoneyChange(ProviderContainer container, {bool money = false}) {
   invalidate(liquidityProvider);
   invalidate(budgetsMonthProvider);
   invalidate(budgetMovementsProvider);
+  // Ingresos y Gastos del periodo abiertos.
+  invalidate(periodSummaryProvider);
+  invalidate(periodMovementsProvider);
+  invalidate(periodKakeiboProvider);
   invalidateHome(invalidate);
 }

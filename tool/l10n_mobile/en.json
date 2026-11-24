@@ -68,6 +68,7 @@
  "{amount} cada semana": "{amount} a week",
  "{tab}: pendientes": "{tab}: pending",
  "{tab}: saldadas": "{tab}: settled",
+ "{ungrouped} gastos no tienen": "{ungrouped} expenses don't have a",
  "¡Listo!": "All set!",
  "¿Cuánto? ({currency})": "How much? ({currency})",
  "¿Eliminar {name}?": "Delete {name}?"
