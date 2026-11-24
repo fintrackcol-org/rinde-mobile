@@ -1,10 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../../../../design/tokens/rinde_colors.dart';
-import '../../../../design/tokens/rinde_layout.dart';
-import '../../../../design/tokens/rinde_typography.dart';
-import '../../../../design/widgets/rinde_button.dart';
-import '../../../../design/widgets/rinde_icon.dart';
+import '../tokens/rinde_colors.dart';
+import '../tokens/rinde_layout.dart';
+import '../tokens/rinde_typography.dart';
+import 'rinde_button.dart';
+import 'rinde_icon.dart';
 
 /// Botón con confirmación EN LÍNEA (common/ConfirmButton.jsx): primero el botón rojo; al tocarlo,
 /// la pregunta con «Sí, eliminar» y «Cancelar» en el mismo lugar, y el error ahí dentro si falla.
@@ -18,6 +18,7 @@ class ConfirmInline extends StatefulWidget {
     required this.onConfirm,
     required this.errorText,
     this.compact = false,
+    this.questionSemantics,
   });
 
   final String label;
@@ -31,6 +32,9 @@ class ConfirmInline extends StatefulWidget {
 
   /// true: el botón inicial es pequeño (el de una fila del historial).
   final bool compact;
+
+  /// Lo que oye el lector en vez de [question] (con montos ocultos: «Monto oculto», no la máscara).
+  final String? questionSemantics;
 
   @override
   State<ConfirmInline> createState() => _ConfirmInlineState();
@@ -93,7 +97,11 @@ class _ConfirmInlineState extends State<ConfirmInline> {
             // El botón tocado desaparece: la pregunta se anuncia para que el lector sepa qué pasó.
             Semantics(
               liveRegion: true,
-              child: Text(widget.question, style: RindeType.small.copyWith(color: p.ink)),
+              child: Text(
+                widget.question,
+                semanticsLabel: widget.questionSemantics,
+                style: RindeType.small.copyWith(color: p.ink),
+              ),
             ),
             if (_error case final error?) ...[
               const SizedBox(height: RindeSpace.s2),

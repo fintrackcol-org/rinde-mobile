@@ -9,6 +9,7 @@ import '../../../core/region/region.dart';
 import '../../../core/region/region_provider.dart';
 import '../../auth/application/session_controller.dart';
 import '../../cards/data/demo_cards_store.dart' show demoCardsStoreProvider;
+import '../../debts/data/demo_debts_store.dart' show demoDebtsStoreProvider;
 import '../../home/application/tour_controller.dart' show tourSeenStoreProvider;
 import '../../home/data/home_models.dart' show readMoney;
 import 'onboarding_repository.dart';
@@ -598,6 +599,7 @@ final demoOnboardingRepositoryProvider = Provider.family<DemoOnboardingRepositor
       // Lo anotado y lo pendiente de esta cuenta demo también se borran.
       unawaited(ref.read(demoMovementsStoreProvider).write(userId, const []));
       unawaited(ref.read(demoCardsStoreProvider).write(userId, const []));
+      unawaited(ref.read(demoDebtsStoreProvider).write(userId, const []));
       unawaited(ref.read(pendingStoreProvider).write(userId, const []));
     },
     hasMovements: () => demoHasMovements(ref.read(demoMovementsStoreProvider), userId),

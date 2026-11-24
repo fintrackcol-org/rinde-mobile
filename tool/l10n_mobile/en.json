@@ -42,6 +42,7 @@
  "Si guardas sin ninguna, dejamos de calcular cuánto tienes libre.": "If you save with none, we stop calculating how much you have free.",
  "Son menos de {amount}. ¿Faltan ceros?": "That's less than {amount}. Missing zeros?",
  "Terminar": "Finish",
+ "Tiene que ser mayor que lo que ya se abonó ({paid})": "It has to be more than what has already been paid ({paid})",
  "Todavía no sabemos cuánta plata tienes.": "We don't know how much money you have yet.",
  "Tu plata cambió en otro dispositivo. Revisa y vuelve a guardar.": "Your money changed on another device. Check it and save again.",
  "Tus pagos ya quedaron guardados. Si quieres cambiarlos, hazlo luego en Mi plata.": "Your payments are already saved. To change them, do it later in My money.",
@@ -54,6 +55,9 @@
  "pasa el fin de mes": "past month-end",
  "{amount} cada quincena": "{amount} every two weeks",
  "{amount} cada semana": "{amount} a week",
+ "{tab}: pendientes": "{tab}: pending",
+ "{tab}: saldadas": "{tab}: settled",
  "¡Listo!": "All set!",
+ "¿Cuánto? ({currency})": "How much? ({currency})",
  "¿Eliminar {name}?": "Delete {name}?"
 }

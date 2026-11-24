@@ -43,6 +43,7 @@
  "Si guardas sin ninguna, dejamos de calcular cuánto tienes libre.": "Se salvar sem nenhuma, deixamos de calcular quanto você tem livre.",
  "Son menos de {amount}. ¿Faltan ceros?": "É menos de {amount}. Faltam zeros?",
  "Terminar": "Concluir",
+ "Tiene que ser mayor que lo que ya se abonó ({paid})": "Tem que ser maior do que o que já foi pago ({paid})",
  "Todavía no sabemos cuánta plata tienes.": "Ainda não sabemos quanto dinheiro você tem.",
  "Tu plata cambió en otro dispositivo. Revisa y vuelve a guardar.": "Seu dinheiro mudou em outro dispositivo. Confira e salve de novo.",
  "Tus pagos ya quedaron guardados. Si quieres cambiarlos, hazlo luego en Mi plata.": "Seus pagamentos já foram salvos. Se quiser mudá-los, faça isso depois em Meu dinheiro.",
@@ -55,6 +56,9 @@
  "pasa el fin de mes": "passa do fim do mês",
  "{amount} cada quincena": "{amount} por quinzena",
  "{amount} cada semana": "{amount} por semana",
+ "{tab}: pendientes": "{tab}: pendentes",
+ "{tab}: saldadas": "{tab}: quitadas",
  "¡Listo!": "Tudo pronto!",
+ "¿Cuánto? ({currency})": "Quanto? ({currency})",
  "¿Eliminar {name}?": "Excluir {name}?"
 }

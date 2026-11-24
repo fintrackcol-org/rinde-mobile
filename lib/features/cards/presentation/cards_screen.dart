@@ -19,6 +19,7 @@ import '../../home/presentation/widgets/home_tap.dart';
 import '../../money/presentation/widgets/income_overview_card.dart' show moneyOf;
 import '../../money/presentation/widgets/paid_button.dart' show moneyErrorText;
 import '../application/cards_providers.dart';
+import '../data/card_models.dart';
 import '../domain/card_rules.dart';
 import '../../shell/presentation/pushed_frame.dart';
 import 'widgets/card_row.dart';
@@ -36,6 +37,24 @@ class CardsScreen extends ConsumerStatefulWidget {
 }
 
 class _CardsScreenState extends ConsumerState<CardsScreen> {
+  /// La copia en memoria de una visita anterior: no se muestra hasta volver a pedirla.
+  late bool _stale = ref.read(cardsProvider(ref.read(accountProvider)).exists);
+
+  @override
+  void initState() {
+    super.initState();
+    // Al entrar se vuelve a pedir, con la carga, como la web al montar: la copia puede ser de antes
+    // de un pago hecho en otro lado. Tras el primer cuadro: Riverpod no deja invalidar mientras se
+    // construye.
+    if (_stale) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.invalidate(cardsProvider(ref.read(accountProvider)), asReload: true);
+        setState(() => _stale = false);
+      });
+    }
+  }
+
   Future<void> _add() async {
     await showCardSheet(context);
   }
@@ -48,7 +67,7 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
     final t = ref.watch(trProvider);
     final p = context.palette;
     final account = ref.watch(accountProvider);
-    final async = ref.watch(cardsProvider(account));
+    final async = _stale ? const AsyncLoading<List<CreditCard>>() : ref.watch(cardsProvider(account));
     final cards = async.isReloading ? null : async.value;
     final money = moneyOf(ref);
 

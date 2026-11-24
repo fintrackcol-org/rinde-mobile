@@ -13,7 +13,7 @@ fusión la decide David.
 | Bloque | Estado |
 |---|---|
 | 5A — Tarjetas, y tarjeta + cuotas en Movimientos | Terminado, probado y revisado; en PR sin fusionar (§17) |
-| 5B — Deudas (pantalla «Cuentas») | Pendiente |
+| 5B — Deudas (pantalla «Cuentas») | Terminado, probado y revisado; en la misma PR sin fusionar (§17) |
 | 5C — Integración con Inicio, Mi plata y Movimientos | Pendiente |
 
 ## 2. Estado heredado de la etapa 4
@@ -243,7 +243,135 @@ Texto de la web que conviene revisar (no se tocó): «Se paga {v1}» está tradu
 
 ## 6. Bloque 5B — Deudas
 
-Pendiente.
+**Estado:** terminado, probado y revisado. Subido a `feat/etapa-5-tarjetas-deudas`, en la misma PR
+hacia `main`, **sin fusionar** (ver §17).
+
+### Qué tenía React (rama `main` de la web)
+
+- `/app/cuentas` (`Debts.jsx`): una sola pantalla, «Me deben» | «Debo» con el total de cada lado,
+  tarjetas por cuenta (persona con iniciales, lo que falta, línea de avance, «Pagado {x} de {y} · {n}
+  de {m} cuotas», próxima cuota o vencida, último abono), «Registrar abono», «Ya me pagó todo» / «Ya
+  pagué todo», sección «Saldadas» con «ver el movimiento». Vacío por lado y «Todo está saldado.».
+- `DebtForm.jsx`: tres pasos («Quién y cuánto», «Cómo se paga», «Cuándo avisar»); al editar, la
+  sección «Abonos» y «Borrar cuenta».
+- `PaymentForm.jsx`: monto que propone la próxima cuota o lo que falta, «Todo lo que falta», fecha y
+  la casilla para anotar el movimiento.
+- `lib/debts.js` y `lib/debtSchedule.js`: textos de cada lado, fechas cortas y el calendario de
+  cuotas (copia del servidor, solo para la vista previa).
+
+### Qué se hizo
+
+- **Pantalla:** `lib/features/debts/` con la lista, las dos pestañas con su total, las tarjetas de
+  cada cuenta, «Saldadas» y todos los estados (cargando, vacío por lado, todo saldado, error sin
+  datos, datos viejos con aviso y «Reintentar»).
+- **Hojas:** crear y editar en **dos pasos** («Paso 1 de 2 · Quién y cuánto», «Cómo se paga»), con
+  la vista previa «{n} cuotas de {monto} · la última el {fecha}» y la nota «Esto no cambia lo que
+  tienes en Mi plata hasta que registres un abono.»; «Registrar abono»; «Ya me pagó todo» / «Ya pagué
+  todo»; borrar un abono y borrar la cuenta con confirmación en línea.
+- **Entrada:** «Cuentas» en «Más de tu plata» (Mi plata) ya no dice «En desarrollo».
+- **Componente común:** `ConfirmInline` pasó de `cards/` a `lib/design/widgets/` para usarlo en las
+  dos pantallas.
+- **De paso, en Tarjetas (5A):** la lista y el detalle vuelven a pedir los datos cada vez que se
+  entra. Antes, si se pagaba desde la web, «Abonar» podía sugerir una deuda vieja (hallazgo de la
+  segunda verificación del 5B, que aplicaba igual a 5A).
+
+### Escrituras y salvaguardas
+
+`DebtsWriter` sigue el patrón de `CardsWriter`:
+
+- **Un envío a la vez** por operación y cuenta; la cuenta se lee antes de todo y se comprueba antes
+  de enviar; con la bienvenida a medias no se escribe.
+- **Crear y abonar no son idempotentes** en el servidor. Antes de enviar se toma una foto (ids de las
+  cuentas o de los abonos de esa cuenta). Si queda en duda, solo se da por hecho si aparece un id
+  **nuevo** con lo mismo que se mandó; si no, «No pudimos confirmar si se guardó. Revisa antes de
+  intentarlo otra vez.» y nunca se reintenta solo.
+- **Saldar:** un 409 solo cuenta como hecho si antes hubo una duda **y** la cuenta quedó saldada con
+  lo que se pide ahora (con o sin movimiento). Si no, se recarga y se muestra el mensaje del servidor.
+- **Borrar un abono:** un 404 o una duda obligan a releer; nunca se dice «borrado» si la cuenta quedó
+  saldada.
+- **Editar:** con cuotas se manda la **primera** cuota (`firstDueDate`), no la próxima que devuelve el
+  servidor (la trampa de contrato verificada contra QA el 23-nov).
+- **Refrescos:** la lista siempre vuelve a cargar mostrando la carga (no la cifra vieja, para que
+  «Registrar abono» no sugiera lo ya abonado). Solo cuando hay movimiento de por medio (abono o saldo
+  con la casilla, o borrar un abono que tenía uno) se vuelven a pedir Movimientos y Mi plata.
+- **Lista vieja:** si la recarga falla y se ve lo último que llegó, «Registrar abono», «Ya me pagó
+  todo» y el lápiz quedan desactivados hasta «Reintentar».
+
+### Decisiones tomadas con la recomendación del plan (David no las ha contestado)
+
+1. Se llama **«Cuentas»**, como el título de la web.
+2. La fecha por defecto del abono y del préstamo es **la del teléfono**, como la web.
+3. El paso **«Avisarme» no se porta**: la app no tiene notificaciones. El servidor igual avisa 1 día
+   antes por defecto, y al editar se conserva el aviso que se eligió en la web.
+4. **Borrar una cuenta** usa el texto de la web tal cual (la web no dice que los movimientos de sus
+   abonos se quedan).
+5. **B4 en la app:** no se deja guardar un monto **menor o igual** a lo ya abonado (en la web eso
+   deja la cuenta trabada y saldar da 500). Necesita un texto nuevo.
+6. En la demo se puede abonar y saldar aunque la plata de la demo no cambie.
+
+### Textos nuevos que requieren aprobación
+
+| Español | Inglés | Portugués | Por qué |
+|---|---|---|---|
+| «Tiene que ser mayor que lo que ya se abonó ({paid})» | «It has to be more than what has already been paid ({paid})» | «Tem que ser maior do que o que já foi pago ({paid})» | B4 (decisión 5) |
+| «¿Cuánto? ({currency})» | «How much? ({currency})» | «Quanto? ({currency})» | La web deja «(COP)» fijo |
+| «{tab}: pendientes» | «{tab}: pending» | «{tab}: pendentes» | En la web va sin traducir (`Debts.jsx:198`) |
+| «{tab}: saldadas» | «{tab}: settled» | «{tab}: quitadas» | En la web va sin traducir (`Debts.jsx:218`) |
+
+Traducciones de la web que conviene revisar (no se tocaron; la app usa las mismas): «Borrar cuenta»
+→ «Delete account» (suena a borrar la cuenta de usuario), «· cuota» → «· share», «Cuentas» →
+«Debts» y «el» → «the» («Last payment: $20 the Nov 9»).
+
+### Revisión adversarial
+
+1. **Primera ronda (4 revisores independientes):** paridad con la web, escrituras y plata, demo y
+   fechas, interfaz y pruebas. **12 hallazgos: 11 corregidos y 1 que queda como limitación**, cada
+   corrección con una prueba que falla sin ella. Los de más peso:
+   - Saldar tomaba **cualquier** 409 como hecho, también en el primer intento.
+   - En la demo, si no se podía leer el almacén de movimientos, abonar o saldar **borraba todos los
+     movimientos de la demo**.
+   - La casilla «anotar en Movimientos» se podía cambiar mientras guardaba.
+   - Accesibilidad: «Todo lo que falta» sin acción para el lector; el botón de fecha sin el nombre
+     del campo.
+   - Septiembre salía «sep» y la web dice «sept».
+   - **Limitación (no corregida):** los movimientos que crea la demo quedan en español aunque la app
+     esté en inglés o portugués (en 5A pasa igual con «Cargos del banco»).
+2. **Segunda ronda (3 verificadores nuevos):** **4 hallazgos, todos corregidos:**
+   - Un 409 al saldar tras una duda se daba por hecho aunque el reintento pidiera otra cosa con la
+     casilla (Mi plata quedaba sin el movimiento pedido).
+   - Guardar y borrar a la vez en «Editar cuenta» sacaban a la persona de Cuentas.
+   - **Al volver a entrar a Cuentas no se pedían los datos otra vez**: si se abonaba desde la web,
+     «Registrar abono» sugería otra vez la cuota ya pagada (abono doble). Corregido también en
+     Tarjetas.
+3. **Emulador (revisión mía):** en inglés, la misma tarjeta decía «due dec 9» y «the 9 Nov». Ahora el
+   mes va primero y con mayúscula («due Dec 4», «Nov 12»), con prueba que falla sin la corrección.
+
+### Lo que se vio en el emulador (demo, Android 16)
+
+- «Plan listo»: Laura (me debe, 3 cuotas, un abono) y Tío Jorge (le debo, de una vez), con sus
+  totales.
+- Recorrido «Usuario con movimientos»: vacío por lado → crear «Ana Pérez», 300.000 en 4 cuotas
+  mensuales desde el 30 nov → vista previa «4 cuotas de $ 75.000 · la última el 28 feb 2027» (el fin
+  de mes bien) → guardar con doble toque = **una** cuenta.
+- Abonar 75.000 con doble toque → **un** abono, próxima cuota el 30 dic, y el ingreso «Abono de Ana
+  Pérez» en Movimientos.
+- Editar con monto 75.000 → «Tiene que ser mayor que lo que ya se abonó ($ 75.000)».
+- «Ya me pagó todo» → saldada, con «ver el movimiento» que abre «Ana Pérez me pagó» por **solo**
+  $ 225.000 (lo que faltaba). Ingresos del mes pasa de 2,5 a 2,8 millones.
+- Error del servidor simulado al abonar → «No pudimos confirmar si se guardó…», nada guardado.
+- Montos ocultos en pestañas, tarjetas y hojas; tema oscuro; letra al 130 %; inglés con USD.
+- Borrar un abono (el abono y su gasto desaparecen) y borrar la cuenta → vacío de «Debo».
+
+### Lo que falta o no se comprobó en 5B
+
+- **No se probó la app contra la API de QA** (los contratos de deudas sí se verificaron el 23-nov).
+- **Abono doble** si un abono queda en duda y tampoco se puede leer: la app avisa y no reintenta; la
+  garantía real es la llave de reintento en el backend (propuesta B2, sin aprobar).
+- Con la pantalla abierta, un abono hecho desde la web no se ve hasta salir y volver a entrar o tocar
+  «Reintentar».
+- Si la app se cierra entre una duda al saldar y su reintento, se pierde el registro de la duda: el
+  409 sale como «Esta cuenta ya está saldada» y la lista la muestra saldada (no se pierde plata).
+- iOS, un teléfono real y un lector de pantalla real.
 
 ## 7. Bloque 5C — Integración
 
@@ -295,6 +423,21 @@ Pendiente.
   plata sale de valores fijos desde la etapa 4. En cuentas reales la calcula el servidor y la app la
   vuelve a pedir después de cada escritura (con prueba).
 
+### 5B
+
+- Las cuentas de la demo van en su propio almacén por cuenta sintética (`rinde.demo.cuentas.<id>`);
+  «Reiniciar demostración» lo borra.
+- **Plan listo** trae dos cuentas: «Laura» (me debe 60.000 en 3 cuotas mensuales, con un abono de
+  20.000) y «Tío Jorge» (le debo 120.000 de una vez, con fecha). Sus abonos no dicen venir de ningún
+  movimiento, para que cuadren con Movimientos. Como todo escenario fijo, **no guarda**.
+- **Recorridos:** crear, editar, abonar, saldar, borrar abonos y borrar cuentas se guardan, con el
+  calendario de cuotas de la web (fin de mes y quincena = 15 días). Con la casilla marcada, el
+  movimiento («Abono de X», «Abono a X», «X me pagó», «Le pagué a X») entra a los Movimientos de la
+  demo; borrar el abono lo borra.
+- **Panel:** «Cuentas: leer» y «Cuentas: guardar» para simular «Sin conexión» o «Error del servidor».
+- **Limitaciones:** la plata de la demo no cambia al abonar o saldar (igual que en 5A), y los
+  movimientos que crea la demo quedan en español aunque la app esté en inglés o portugués.
+
 ## 11. Pruebas
 
 Etiquetas: **lógica real** (el código de la app con repositorios falsos), **contrato QA** (respuestas
@@ -324,6 +467,29 @@ Pruebas nuevas en `test/features/cards/`: `card_rules_test.dart` (reglas y cuerp
 (pantallas y hojas) y `demo_cards_test.dart` (la demo). Ajustadas o ampliadas: `router_test`,
 `pending_module_screen_test`, `demo_home_repository_test`, `record_form_test`, `record_screen_test`,
 `data_saver_test` y `list_screen_test`.
+
+### 5B
+
+| Comprobación | Resultado | Tipo |
+|---|---|---|
+| `flutter analyze` | Sin hallazgos | — |
+| `dart format --line-length 110` | Sin cambios pendientes | — |
+| `flutter test` completo | **1466 de 1466 en verde** (después de 5A: 1342) | Lógica real |
+| Contratos de `/debts` (POST sin `reminder`, PUT sin `kind`, `dueDate` = primera cuota al editar, saldar sin fecha, montos como número) | En verde | Contrato QA |
+| Validaciones de la web, B4 y el calendario de cuotas (fin de mes, quincena, casos de `debtSchedule.test.js`) | En verde | Lógica real |
+| Doble envío, abono y cuenta en duda, saldar con 409, 404 de abono en cuenta saldada | En verde | Lógica real |
+| Refrescos: con casilla vuelven a pedir Movimientos y Mi plata; sin casilla, no; tras escribir, la lista muestra la carga | En verde | Lógica real |
+| Volver a entrar a Cuentas y a Tarjetas vuelve a pedir los datos | En verde | Lógica real |
+| 320 px con letra al doble y datos extremos (nombre de 60, nota de 200, 60 cuotas, 30 cuentas por lado), claro y oscuro, montos ocultos, inglés y portugués | En verde | Lógica real |
+| Recorrido completo en el emulador | Bien, con 1 error de fechas en inglés encontrado y corregido | Demo |
+| `gitleaks` en `lib`, `test`, `docs`, `tool` y `assets/l10n` | Sin hallazgos | — |
+| La app contra la API de QA | **No se hizo** (los contratos sí, el 23-nov) | QA pendiente |
+| iOS | Sin compilar ni probar | Pendiente iOS |
+
+Pruebas nuevas en `test/features/debts/`: `debt_rules_test.dart`, `debts_writer_test.dart`,
+`debts_screen_test.dart` y `demo_debts_test.dart`, con `test/support/debt_fixtures.dart` (formas
+reales de QA) y `fake_debts_repository.dart`. Ajustadas: `router_test`, `pending_module_screen_test`,
+`demo_home_repository_test` y `cards_screen_test` (volver a entrar).
 
 ## 12. Capturas
 
@@ -364,6 +530,36 @@ Pruebas nuevas en `test/features/cards/`: `card_rules_test.dart` (reglas y cuerp
 | `30-escenario-fijo-no-guarda.jpg` | Escenario fijo: la escritura no llega a ningún servidor |
 | `31-detalle-en-usd.jpg` | Detalle en inglés con USD |
 
+### 5B (`docs/etapa-05/`, demo en el emulador)
+
+| Archivo | Qué muestra |
+|---|---|
+| `40-cuentas-me-deben.jpg` | «Plan listo»: Laura, con cuotas y un abono |
+| `41-cuentas-debo.jpg` | «Plan listo»: Tío Jorge, de una vez |
+| `42-cuentas-vacia.jpg` | Vacío de «Me deben» |
+| `43-agregar-paso-1.jpg` | Paso 1 de 2: quién y cuánto |
+| `44-agregar-validacion.jpg` | Validación con el foco en el nombre |
+| `45-agregar-paso-2.jpg` | Paso 2 de 2: cómo se paga |
+| `46-agregar-cuotas-vista-previa.jpg` | En cuotas, con la vista previa (fin de mes) |
+| `47-cuenta-creada.jpg` | Una sola cuenta tras doble toque |
+| `48-registrar-abono.jpg` | «Registrar abono» con la casilla marcada |
+| `49-tras-abono.jpg` | Un solo abono; próxima cuota |
+| `50-editar-cuenta.jpg` | «Editar cuenta» con «Abonos» y «Borrar cuenta» |
+| `51-validacion-b4.jpg` | B4: el monto tiene que ser mayor que lo abonado |
+| `52-ya-me-pago-todo.jpg` | «Ya me pagó todo» |
+| `53-cuenta-saldada.jpg` | «Saldadas» con «ver el movimiento» |
+| `54-ver-el-movimiento.jpg` | El ingreso solo por lo que faltaba |
+| `55-movimientos-abono-y-saldo.jpg` | El abono y el saldo en Movimientos, uno de cada uno |
+| `56-abono-en-duda-oscuro.jpg` | Abono en duda (tema oscuro) |
+| `57-cuentas-montos-ocultos.jpg` | Montos ocultos en la lista |
+| `58-abono-montos-ocultos.jpg` | Montos ocultos en la hoja de abono |
+| `59-borrar-abono-confirmar.jpg` | Confirmación de «Borrar abono» |
+| `60-tras-borrar-abono.jpg` | El abono ya no está |
+| `61-borrar-cuenta-confirmar.jpg` | Confirmación de «Borrar cuenta» |
+| `62-tras-borrar-cuenta.jpg` | Vacío de «Debo» |
+| `63-cuentas-letra-130.jpg` | Letra al 130 % |
+| `64-cuentas-ingles-usd.jpg` | Inglés con USD, «due Dec 4» |
+
 ## 13. QA y pendientes
 
 - API de QA revisada el 23-nov-2026: `/health` 200, CORS correcto, certificado hasta el 14-feb-2027.
@@ -372,8 +568,8 @@ Pruebas nuevas en `test/features/cards/`: `card_rules_test.dart` (reglas y cuerp
   verificaron los contratos de arriba.
 - El backend de QA sigue sin la idempotencia de la bienvenida y sin la versión del perfil.
 - El `appUrl` del backend de QA es `https://qa.rindecol.online` (lo mostró el correo de verificación).
-- **5A:** la app no se probó contra QA; su recorrido fue en la demo. Los contratos de tarjetas sí se
-  verificaron contra QA (§8).
+- **5A y 5B:** la app no se probó contra QA; su recorrido fue en la demo. Los contratos de tarjetas
+  y deudas sí se verificaron contra QA (§8).
 
 ## 14. iOS y pendientes
 
@@ -419,6 +615,26 @@ Sin cambios: no hay Mac disponible; iOS sigue sin compilar ni probar.
     «Pago eliminado.».
 22. **Botones de la confirmación en línea con 48 de alto táctil**, con el aspecto pequeño de la web.
 
+### 5B
+
+1. **Dos pasos en vez de tres:** sin «Cuándo avisar» (la app no tiene notificaciones; el servidor
+   igual avisa 1 día antes y conserva el aviso elegido en la web).
+2. **Sin barra de pestañas:** la pantalla se abre empujada y «atrás» va a Planear, como Tarjetas.
+3. **«Agregar» va bajo la descripción**, no en el encabezado, y siempre visible (la app no detecta
+   la conexión).
+4. **Pestañas propias** con dos líneas y el total, para que el lector oiga «Monto oculto» y no la
+   máscara.
+5. **Meses en el idioma de la app** (la web los deja en español), con el mes primero en inglés.
+6. **«¿Cuánto?» lleva la moneda de la persona.**
+7. **B4:** el monto al editar tiene que ser mayor que lo abonado.
+8. **Montos ocultos** también en la vista previa del plan y en los errores con montos.
+9. **Escrituras con salvaguardas:** sin confirmar, 409 o 404 cierran la hoja y dejan el aviso en la
+   lista; un 409 al saldar solo es «hecho» si coincide con lo que se pidió; con la lista vieja no se
+   puede escribir sobre esos datos.
+10. **Volver a entrar recarga** la lista (también en Tarjetas), para no sugerir una cuota ya pagada.
+11. **Botones del formulario apilados** («Siguiente/Guardar» arriba, «Atrás» abajo) para que no se
+    desborden con la letra grande.
+
 ## 16. Archivos
 
 ### 5A
@@ -455,6 +671,32 @@ Modificados:
 
 No se tocó: el backend, la web (React), producción, ni la cuenta de QA fuera de lo descrito en §13.
 
+### 5B
+
+Nuevos:
+
+- `lib/features/debts/data/`: `debt_models.dart`, `debts_repository.dart`,
+  `demo_debts_repository.dart`, `demo_debts_store.dart`.
+- `lib/features/debts/domain/`: `debt_schedule.dart`, `debt_rules.dart`.
+- `lib/features/debts/application/`: `debts_providers.dart`, `debts_writer.dart`.
+- `lib/features/debts/presentation/`: `debts_screen.dart` y en `widgets/`: `side_switch`,
+  `debt_card`, `debt_sheet`, `debt_payment_sheet`, `settle_sheet`, `debt_date_field`.
+- `lib/design/widgets/confirm_inline.dart` (movido desde `cards/presentation/widgets/`).
+- `test/features/debts/`: `debt_rules_test`, `debts_writer_test`, `debts_screen_test`,
+  `demo_debts_test`; `test/support/`: `debt_fixtures.dart`, `fake_debts_repository.dart`.
+- `docs/etapa-05/` 40 a 64 (25 capturas).
+
+Modificados:
+
+- `lib/app/router.dart`, `lib/app/pending_modules.dart`.
+- `lib/features/cards/presentation/`: `cards_screen.dart` y `card_detail_screen.dart` (volver a
+  pedir al entrar), `widgets/card_history.dart` (import de `ConfirmInline`).
+- `lib/features/onboarding/data/demo_onboarding_repository.dart`,
+  `lib/features/onboarding/presentation/demo_panel.dart`.
+- `tool/l10n_mobile/{en,pt}.json` y `assets/l10n/{en,pt}.json` (regenerados).
+- Pruebas: `router_test`, `pending_module_screen_test`, `demo_home_repository_test`,
+  `cards_screen_test`.
+
 ## 17. Commits y PR
 
 ### 5A
@@ -462,6 +704,13 @@ No se tocó: el backend, la web (React), producción, ni la cuenta de QA fuera d
 - Rama: `feat/etapa-5-tarjetas-deudas` (sale de `main` en `a8f0541`).
 - Commit del bloque: `c5ef34b` (verificado en GitHub con `git ls-remote`).
 - PR: [fintrackcol-org/rinde-mobile#2](https://github.com/fintrackcol-org/rinde-mobile/pull/2) hacia `main`, **sin fusionar** (la fusión la decide David).
+
+### 5B
+
+- Rama: la misma, `feat/etapa-5-tarjetas-deudas`.
+- Commit del bloque: <<COMMIT5B>>.
+- PR: la misma, [fintrackcol-org/rinde-mobile#2](https://github.com/fintrackcol-org/rinde-mobile/pull/2),
+  **sin fusionar**.
 
 ## 18. Riesgos abiertos
 
@@ -473,6 +722,13 @@ No se tocó: el backend, la web (React), producción, ni la cuenta de QA fuera d
   documenta como diferencia.
 - En inglés, la web traduce «Se paga {v1}» como «Paid {v1}» («Paid in 2 days»), que se lee como ya
   pagada. La app usa la misma traducción; conviene corregirla en la web («Due {v1}»).
+
+- **Abono doble** si un abono queda en duda y tampoco se puede leer (sin idempotencia en el backend;
+  propuesta B2 sin aprobar). Lo mismo al crear una cuenta, aunque esa no toca la plata.
+- Con Cuentas abierta, un abono hecho desde la web no se ve hasta volver a entrar o tocar
+  «Reintentar».
+- Traducciones de la web que se leen mal en inglés y la app hereda: «Delete account» (borrar cuenta
+  de deuda), «· share» (cuota), «the» (fecha del último abono).
 
 ## 19. Recomendación para la siguiente etapa
 

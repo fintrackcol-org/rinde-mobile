@@ -14,6 +14,8 @@ import '../../../design/widgets/rinde_segmented.dart';
 import '../../auth/application/session_controller.dart';
 import '../../cards/application/cards_providers.dart' show afterCardChange;
 import '../../cards/data/demo_cards_repository.dart' show DemoCardsOperation;
+import '../../debts/application/debts_providers.dart' show debtsProvider;
+import '../../debts/data/demo_debts_repository.dart' show DemoDebtsOperation;
 import '../../home/application/home_providers.dart';
 import '../../money/data/demo_money_repository.dart';
 import '../application/onboarding_controller.dart';
@@ -139,6 +141,12 @@ class _DemoPanel extends ConsumerWidget {
       'Tarjetas: guardar',
       'POST, PUT y DELETE /cards · POST y DELETE /cards/:id/payments · POST /cards/:id/sync-with-bank',
     ),
+    (DemoDebtsOperation.list, 'Cuentas: leer', 'GET /debts'),
+    (
+      DemoDebtsOperation.write,
+      'Cuentas: guardar',
+      'POST, PUT y DELETE /debts · POST /debts/:id/settle · POST y DELETE /debts/:id/payments',
+    ),
   ];
 
   /// Países de prueba: peso sin decimales, dólar, real, euro y libra, en los tres idiomas.
@@ -160,6 +168,7 @@ class _DemoPanel extends ConsumerWidget {
     container.invalidate(pendingSourcesProvider);
     // Mi plata y el Inicio también (afterCardChange los incluye).
     afterCardChange(container);
+    container.invalidate(debtsProvider);
     if (mode != null) await container.read(onboardingControllerProvider(mode).notifier).restartDemo();
     if (context.mounted) Navigator.of(context).pop();
     if (mode != OnboardingMode.full) router?.go(Routes.app);

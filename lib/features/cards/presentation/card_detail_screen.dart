@@ -29,7 +29,7 @@ import 'widgets/bank_sync_sheet.dart';
 import 'widgets/card_history.dart';
 import 'widgets/card_row.dart' show CardUsageBar;
 import 'widgets/card_sheet.dart';
-import 'widgets/confirm_inline.dart';
+import '../../../design/widgets/confirm_inline.dart';
 import 'widgets/expiry_badge.dart';
 import 'widgets/pay_card_sheet.dart';
 
@@ -53,6 +53,24 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
   var _noticeTone = RindeBannerTone.success;
 
   (Session?, String) get _key => (ref.read(accountProvider), widget.cardId);
+
+  /// La copia en memoria de una visita anterior: no se muestra hasta volver a pedirla.
+  late bool _stale = ref.read(cardDetailProvider(_key).exists);
+
+  @override
+  void initState() {
+    super.initState();
+    // Al entrar se vuelve a pedir, con la carga, como la web al montar: «Abonar» sugeriría la deuda
+    // de antes de un pago hecho en otro lado. Tras el primer cuadro: Riverpod no deja invalidar
+    // mientras se construye.
+    if (_stale) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.invalidate(cardDetailProvider(_key), asReload: true);
+        setState(() => _stale = false);
+      });
+    }
+  }
 
   Future<void> _refresh() => ref.refresh(cardDetailProvider(_key).future).then<void>((_) {}, onError: (_) {});
 
@@ -115,7 +133,7 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
     final p = context.palette;
     final region = ref.watch(appRegionProvider);
     final key = (ref.watch(accountProvider), widget.cardId);
-    final async = ref.watch(cardDetailProvider(key));
+    final async = _stale ? const AsyncLoading<CardDetailData>() : ref.watch(cardDetailProvider(key));
     final detail = async.isReloading ? null : async.value;
     final money = moneyOf(ref);
     final error = async.error;

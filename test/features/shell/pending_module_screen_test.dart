@@ -28,7 +28,6 @@ final _titles = {
   Routes.budgets: 'Presupuestos',
   // Accesos de «Más de tu plata».
   Routes.calendar: 'Calendario',
-  Routes.debts: 'Cuentas',
   Routes.insights: 'Consejos',
   Routes.export: 'Exportar movimientos',
   Routes.renta: 'Renta y DIAN',
@@ -103,7 +102,6 @@ void main() {
       Routes.toConfirm,
       Routes.budgets,
       Routes.calendar,
-      Routes.debts,
       Routes.insights,
       Routes.export,
       Routes.renta,

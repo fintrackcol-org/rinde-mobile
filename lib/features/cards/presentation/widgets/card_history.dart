@@ -11,7 +11,7 @@ import '../../../home/domain/home_dates.dart';
 import '../../../home/presentation/widgets/home_money.dart';
 import '../../../home/presentation/widgets/home_tap.dart';
 import '../../data/card_models.dart';
-import 'confirm_inline.dart';
+import '../../../../design/widgets/confirm_inline.dart';
 
 /// «Compras y pagos» del detalle (CardDetail.jsx:28-71,102-106): compras con su descripción, pagos
 /// en verde con «−» (y «Eliminar pago» en línea) y «Ajuste con el banco −{x}». Lo arma el servidor.

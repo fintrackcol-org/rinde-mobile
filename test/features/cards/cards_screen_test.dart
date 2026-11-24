@@ -259,6 +259,28 @@ void main() {
       expect(find.text('Reintentar'), findsOneWidget);
     });
 
+    testWidgets('al volver a entrar se pide otra vez, con la carga: no muestra la deuda de antes', (
+      tester,
+    ) async {
+      final router = await _pump(tester);
+      router.pop();
+      await tester.pumpAndSettle();
+      // Desde la web se pagó la Amex: ya no debe nada.
+      final next = Completer<List<CreditCard>>();
+      repo.onList = () => next.future;
+      unawaited(router.push(Routes.cards));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(repo.calls.where((c) => c == 'list'), hasLength(2));
+      expect(find.bySemanticsLabel('Cargando…'), findsOneWidget);
+      expect(find.text(_m(1116000.5)), findsNothing);
+      next.complete([_visa, creditCard(id: 't2', network: 'amex', last4: '1005', limit: 3000000, used: 0)]);
+      await tester.pumpAndSettle();
+      expect(find.text(_m(500000.5)), findsWidgets);
+      expect(find.text(_m(1116000.5)), findsNothing);
+    });
+
     testWidgets('sin pantalla anterior, atrás va a Planear (backPath de la web)', (tester) async {
       final router = await _pump(tester);
       router.go(Routes.cards);
@@ -524,6 +546,38 @@ void main() {
       await _tap(tester, find.text('Registrar pago'));
       expect(repo.bodies.last, {'amount': 650000, 'date': '2026-11-23'});
       expect(find.text('Pago registrado.'), findsOneWidget);
+    });
+
+    testWidgets('al volver a entrar se pide otra vez, con la carga: «Abonar» no sugiere lo ya pagado', (
+      tester,
+    ) async {
+      final router = await _pump(tester, route: Routes.card('t2'));
+      router.pop();
+      await tester.pumpAndSettle();
+      // Desde la web se pagaron 600.000 del extracto de la Amex.
+      final next = Completer<CreditCard>();
+      repo.onGet = (_) => next.future;
+      unawaited(router.push(Routes.card('t2')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(repo.calls.where((c) => c == 'get t2'), hasLength(2));
+      expect(find.bySemanticsLabel('Cargando…'), findsOneWidget);
+      expect(find.bySemanticsLabel('Abonar'), findsNothing);
+      next.complete(
+        creditCard(
+          id: 't2',
+          network: 'amex',
+          last4: '1005',
+          limit: 3000000,
+          used: 16000,
+          statementTotal: 50000,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, find.bySemanticsLabel('Abonar'));
+      expect(find.text('50.000'), findsOneWidget);
+      expect(find.text('650.000'), findsNothing);
     });
 
     testWidgets('«Abonar» con 0: «El pago debe ser mayor que 0» y no se envía', (tester) async {

@@ -8,6 +8,7 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/cards/presentation/card_detail_screen.dart';
 import '../features/cards/presentation/cards_screen.dart';
+import '../features/debts/presentation/debts_screen.dart';
 import '../features/entry/presentation/boot_screen.dart';
 import '../features/entry/presentation/entry_screen.dart';
 import '../features/money/presentation/fix_balance_screen.dart';
@@ -89,6 +90,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: Routes.fixBalance, builder: (_, _) => const FixBalanceScreen()),
       GoRoute(path: Routes.payments, builder: (_, _) => const MoneyPaymentsScreen()),
       GoRoute(path: Routes.cards, builder: (_, _) => const CardsScreen()),
+      GoRoute(path: Routes.debts, builder: (_, _) => const DebtsScreen()),
       GoRoute(
         path: Routes.card(':id'),
         builder: (_, state) => CardDetailScreen(cardId: state.pathParameters['id']!),

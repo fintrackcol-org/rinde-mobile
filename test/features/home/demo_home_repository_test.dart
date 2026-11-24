@@ -5,6 +5,7 @@ import 'dart:ui' show Locale;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rinde_mobile/features/cards/data/demo_cards_store.dart';
+import 'package:rinde_mobile/features/debts/data/demo_debts_store.dart';
 import 'package:rinde_mobile/features/movements/application/movement_saver.dart' show pendingStoreProvider;
 import 'package:rinde_mobile/features/movements/data/demo_movements_repository.dart'
     show demoMovementsStoreProvider;
@@ -109,9 +110,11 @@ void main() {
   late _Regions regions;
   late FakeHttpAdapter network;
   late MemoryJsonListStore cardsStore;
+  late MemoryJsonListStore debtsStore;
 
   setUp(() {
     cardsStore = MemoryJsonListStore();
+    debtsStore = MemoryJsonListStore();
     store = MemoryDemoStateStore();
     drafts = MemoryDraftStore();
     seen = MemoryTourSeenStore();
@@ -141,6 +144,7 @@ void main() {
         tourSeenStoreProvider.overrideWithValue(seen),
         demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         demoCardsStoreProvider.overrideWithValue(cardsStore),
+        demoDebtsStoreProvider.overrideWithValue(debtsStore),
         pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
         regionStoreProvider.overrideWithValue(regions),
         initialRegionProvider.overrideWithValue(initial),
@@ -555,11 +559,15 @@ void main() {
       await cardsStore.write('demo-planListo', [
         {'id': 'x'},
       ]);
+      await debtsStore.write('demo-planListo', [
+        {'id': 'c'},
+      ]);
       await repo.reset();
       await pumpEventQueue();
 
       expect((await store.read('demo-planListo')).toJson(), const DemoState().toJson());
       expect(await cardsStore.read('demo-planListo'), isEmpty, reason: 'las tarjetas del recorrido también');
+      expect(await debtsStore.read('demo-planListo'), isEmpty, reason: 'y las cuentas');
       final controls = c.read(demoControlsProvider);
       expect(controls.offline, isFalse);
       expect(controls.failures, isEmpty);
