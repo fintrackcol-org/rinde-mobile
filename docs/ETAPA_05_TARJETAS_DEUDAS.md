@@ -708,7 +708,7 @@ Modificados:
 ### 5B
 
 - Rama: la misma, `feat/etapa-5-tarjetas-deudas`.
-- Commit del bloque: <<COMMIT5B>>.
+- Commit del bloque: `7188331` (verificado en GitHub con `git ls-remote`).
 - PR: la misma, [fintrackcol-org/rinde-mobile#2](https://github.com/fintrackcol-org/rinde-mobile/pull/2),
   **sin fusionar**.
 
