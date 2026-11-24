@@ -22,6 +22,10 @@ import 'package:rinde_mobile/features/debts/application/debts_providers.dart';
 import 'package:rinde_mobile/features/debts/data/debt_models.dart';
 import 'package:rinde_mobile/features/debts/presentation/debts_screen.dart';
 import 'package:rinde_mobile/features/entry/presentation/entry_screen.dart';
+import 'package:rinde_mobile/features/export/presentation/export_screen.dart';
+import 'package:rinde_mobile/features/insights/application/insights_providers.dart';
+import 'package:rinde_mobile/features/insights/data/insights_repository.dart';
+import 'package:rinde_mobile/features/insights/presentation/insights_screen.dart';
 import 'package:rinde_mobile/features/money/application/money_providers.dart';
 import 'package:rinde_mobile/features/money/data/money_models.dart';
 import 'package:rinde_mobile/features/money/presentation/fix_balance_screen.dart';
@@ -31,6 +35,9 @@ import 'package:rinde_mobile/features/money/presentation/widgets/money_shortcuts
 import 'package:rinde_mobile/features/home/data/home_models.dart';
 import 'package:rinde_mobile/features/movements/domain/movement.dart';
 import 'package:rinde_mobile/features/movements/application/movements_controller.dart';
+import 'package:rinde_mobile/features/notifications/application/notifications_writer.dart';
+import 'package:rinde_mobile/features/notifications/data/notifications_repository.dart';
+import 'package:rinde_mobile/features/notifications/presentation/notifications_screen.dart';
 import 'package:rinde_mobile/features/period/application/period_providers.dart';
 import 'package:rinde_mobile/features/period/data/period_models.dart';
 import 'package:rinde_mobile/features/period/presentation/period_screen.dart';
@@ -41,6 +48,7 @@ import 'package:rinde_mobile/features/plan/presentation/budgets_screen.dart';
 import 'package:rinde_mobile/features/plan/presentation/calendar_screen.dart';
 import 'package:rinde_mobile/features/plan/presentation/liquidity_screen.dart';
 import 'package:rinde_mobile/features/plan/presentation/plan_screen.dart';
+import 'package:rinde_mobile/features/renta/presentation/renta_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/pending_module_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 import 'package:rinde_mobile/features/to_confirm/application/to_confirm_writer.dart';
@@ -60,15 +68,7 @@ const _tabRoutes = {
 };
 
 /// Destinos que se abren encima de una pestaña, con el título que deben mostrar.
-final _pushedRoutes = {
-  Routes.notifications: 'Notificaciones',
-  Routes.goals: 'Metas',
-  Routes.vacas: 'Vacas',
-  Routes.insights: 'Consejos',
-  // Antes que /app/transacciones/:id: no es el movimiento «exportar».
-  Routes.export: 'Exportar movimientos',
-  Routes.renta: 'Renta y DIAN',
-};
+final _pushedRoutes = {Routes.goals: 'Metas', Routes.vacas: 'Vacas'};
 
 // Sin pumpAndSettle: la entrada deja un spinner girando mientras «espera» el perfil.
 Future<void> _settle(WidgetTester tester) async {
@@ -104,6 +104,9 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
         periodKakeiboProvider.overrideWith((ref, _) => Completer<MovementPage>().future),
         movementCategoriesProvider.overrideWith((ref, _) => Completer<CategoryLists>().future),
         toConfirmListProvider.overrideWith((ref, _) => Completer<List<IncomingPayment>>().future),
+        notificationsListProvider.overrideWith((ref, _) => Completer<List<AppNotification>>().future),
+        insightsProvider.overrideWith((ref, _) => Completer<InsightsResult>().future),
+        reflectionProvider.overrideWith((ref, _) => Completer<WeekReflection>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -143,6 +146,10 @@ void main() {
       Routes.card(':id'),
       Routes.debts,
       Routes.account,
+      Routes.notifications,
+      Routes.insights,
+      Routes.export,
+      Routes.renta,
     ]) {
       expect(pendingModules.map((m) => m.path), isNot(contains(route)), reason: route);
     }
@@ -169,6 +176,10 @@ void main() {
       Routes.income,
       Routes.expenses,
       Routes.toConfirm,
+      Routes.notifications,
+      Routes.insights,
+      Routes.export,
+      Routes.renta,
     ]) {
       router.go(route);
       await _settle(tester);
@@ -268,6 +279,45 @@ void main() {
         (Routes.income, Routes.app),
         (Routes.expenses, Routes.app),
         (Routes.toConfirm, Routes.movements),
+      ]) {
+        router.go(route);
+        await _settle(tester);
+        expect(await tester.binding.handlePopRoute(), isTrue, reason: route);
+        await _settle(tester);
+        expect(_location(router), back, reason: route);
+      }
+    },
+  );
+
+  testWidgets(
+    'Notificaciones, Consejos, Exportar y Renta ya son pantallas reales; por enlace directo, atrás va a su pantalla de origen',
+    (tester) async {
+      final router = await _pumpApp(tester, session: _session);
+      for (final (route, screen) in [
+        (Routes.notifications, NotificationsScreen),
+        (Routes.insights, InsightsScreen),
+        // Antes que /app/transacciones/:id: no es el movimiento «exportar».
+        (Routes.export, ExportScreen),
+        (Routes.renta, RentaScreen),
+      ]) {
+        router.go(Routes.plan);
+        await _settle(tester);
+        unawaited(router.push(route));
+        await _settle(tester);
+        expect(find.byType(screen), findsOneWidget, reason: route);
+        expect(find.text('En desarrollo'), findsNothing, reason: route);
+        expect(find.byType(RindeTabScaffold), findsNothing, reason: route);
+        await tester.tap(find.byTooltip('Volver'));
+        await _settle(tester);
+        expect(_location(router), Routes.plan, reason: route);
+      }
+
+      // Sin pantalla anterior (backPath de la web).
+      for (final (route, back) in [
+        (Routes.notifications, Routes.app),
+        (Routes.insights, Routes.myMoney),
+        (Routes.export, Routes.account),
+        (Routes.renta, Routes.insights),
       ]) {
         router.go(route);
         await _settle(tester);

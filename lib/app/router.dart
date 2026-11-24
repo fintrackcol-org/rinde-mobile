@@ -12,14 +12,17 @@ import '../features/cards/presentation/cards_screen.dart';
 import '../features/debts/presentation/debts_screen.dart';
 import '../features/entry/presentation/boot_screen.dart';
 import '../features/entry/presentation/entry_screen.dart';
+import '../features/export/presentation/export_screen.dart';
 import '../features/money/presentation/fix_balance_screen.dart';
 import '../features/money/presentation/my_money_screen.dart';
 import '../features/money/presentation/payments_screen.dart';
 import '../features/home/domain/home_dates.dart';
+import '../features/insights/presentation/insights_screen.dart';
 import '../features/movements/domain/movement.dart';
 import '../features/movements/presentation/detail/movement_detail_screen.dart';
 import '../features/movements/presentation/list/movements_screen.dart';
 import '../features/movements/presentation/record/record_screen.dart';
+import '../features/notifications/presentation/notifications_screen.dart';
 import '../features/onboarding/domain/onboarding_flow.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/plan/presentation/budget_detail_screen.dart';
@@ -28,6 +31,7 @@ import '../features/plan/presentation/calendar_screen.dart';
 import '../features/plan/presentation/liquidity_screen.dart';
 import '../features/period/presentation/period_screen.dart';
 import '../features/plan/presentation/plan_screen.dart';
+import '../features/renta/presentation/renta_screen.dart';
 import '../features/shell/presentation/pending_module_screen.dart';
 import '../features/to_confirm/presentation/to_confirm_screen.dart';
 import '../features/welcome/presentation/welcome_screen.dart';
@@ -129,6 +133,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: Routes.toConfirm, builder: (_, _) => const ToConfirmScreen()),
       GoRoute(path: Routes.liquidity, builder: (_, _) => const LiquidityScreen()),
+      GoRoute(path: Routes.notifications, builder: (_, _) => const NotificationsScreen()),
+      GoRoute(path: Routes.insights, builder: (_, _) => const InsightsScreen()),
+      GoRoute(path: Routes.renta, builder: (_, _) => const RentaScreen()),
+      // Antes de /app/transacciones/:id: no es el movimiento «exportar».
+      GoRoute(path: Routes.export, builder: (_, _) => const ExportScreen()),
       GoRoute(
         path: Routes.card(':id'),
         builder: (_, state) => CardDetailScreen(cardId: state.pathParameters['id']!),

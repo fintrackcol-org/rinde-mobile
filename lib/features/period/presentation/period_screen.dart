@@ -354,6 +354,15 @@ class _ByCategory extends StatelessWidget {
   }
 }
 
+/// Nombre de cada grupo de [kakeiboGroups], en su orden (sin traducir: van por t()).
+const kakeiboLabels = ['Necesidad', 'Deseo', 'Cultura', 'Imprevisto'];
+
+/// --app-chart-cat-1 a 4 de la web (validados para daltonismo), claro y oscuro, en el orden de
+/// [kakeiboGroups]. También los usa la reflexión de la semana de Consejos.
+List<Color> kakeiboColors(Brightness brightness) => brightness == Brightness.dark
+    ? const [Color(0xFF3987E5), Color(0xFFD95926), Color(0xFF199E70), Color(0xFFC98500)]
+    : const [Color(0xFF2A78D6), Color(0xFFEB6834), Color(0xFF1BAF7A), Color(0xFFEDA100)];
+
 /// «¿Podías evitarlo? · Kakeibo» (KakeiboSplit.jsx): la barra de los 4 grupos del periodo con sus
 /// porcentajes en texto y una idea sobre los deseos. Sin todos los gastos del periodo no se muestra.
 class _Kakeibo extends ConsumerWidget {
@@ -363,11 +372,6 @@ class _Kakeibo extends ConsumerWidget {
   final String to;
   final HomeMoney money;
 
-  /// --app-chart-cat-1 a 4 de la web (validados para daltonismo), claro y oscuro.
-  static const _light = [Color(0xFF2A78D6), Color(0xFFEB6834), Color(0xFF1BAF7A), Color(0xFFEDA100)];
-  static const _dark = [Color(0xFF3987E5), Color(0xFFD95926), Color(0xFF199E70), Color(0xFFC98500)];
-  static const _labels = ['Necesidad', 'Deseo', 'Cultura', 'Imprevisto'];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(trProvider);
@@ -375,7 +379,7 @@ class _Kakeibo extends ConsumerWidget {
     final page = ref.watch(periodKakeiboProvider((ref.watch(accountProvider), from, to))).value;
     if (page == null || page.hasMore) return const SizedBox.shrink();
     final split = splitByKakeibo(page.items);
-    final colors = p.brightness == Brightness.dark ? _dark : _light;
+    final colors = kakeiboColors(p.brightness);
     final wish = split.totals['deseo']!;
     final ungrouped = split.ungrouped;
     final note = StringBuffer(
@@ -421,7 +425,7 @@ class _Kakeibo extends ConsumerWidget {
           else ...[
             Semantics(
               image: true,
-              label: [for (final (i, l) in _labels.indexed) '${t(l)} ${share[i].round()} %'].join(', '),
+              label: [for (final (i, l) in kakeiboLabels.indexed) '${t(l)} ${share[i].round()} %'].join(', '),
               child: ExcludeSemantics(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(RindeRadius.pill),
@@ -446,7 +450,7 @@ class _Kakeibo extends ConsumerWidget {
             Wrap(
               runSpacing: RindeSpace.s2,
               children: [
-                for (final (i, l) in _labels.indexed)
+                for (final (i, l) in kakeiboLabels.indexed)
                   FractionallySizedBox(
                     widthFactor: 0.5,
                     child: Row(

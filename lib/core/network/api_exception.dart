@@ -13,6 +13,13 @@ abstract final class ApiCodes {
   static const validation = 'VALIDATION_ERROR';
   static const googleNotConfigured = 'GOOGLE_NOT_CONFIGURED';
 
+  /// Consejos y asistente: la IA no respondió; menos de una semana de historial (GET /insights).
+  static const aiUnavailable = 'AI_UNAVAILABLE';
+  static const insufficientHistory = 'INSUFFICIENT_HISTORY';
+
+  /// Exportar: el periodo no tiene movimientos (REQ-033).
+  static const noData = 'NO_DATA';
+
   // Códigos propios de la app (no vienen del servidor).
 
   /// No se pudo conectar: la petición no salió del teléfono.
