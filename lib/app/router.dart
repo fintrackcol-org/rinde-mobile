@@ -15,12 +15,18 @@ import '../features/entry/presentation/entry_screen.dart';
 import '../features/money/presentation/fix_balance_screen.dart';
 import '../features/money/presentation/my_money_screen.dart';
 import '../features/money/presentation/payments_screen.dart';
+import '../features/home/domain/home_dates.dart';
 import '../features/movements/domain/movement.dart';
 import '../features/movements/presentation/detail/movement_detail_screen.dart';
 import '../features/movements/presentation/list/movements_screen.dart';
 import '../features/movements/presentation/record/record_screen.dart';
 import '../features/onboarding/domain/onboarding_flow.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
+import '../features/plan/presentation/budget_detail_screen.dart';
+import '../features/plan/presentation/budgets_screen.dart';
+import '../features/plan/presentation/calendar_screen.dart';
+import '../features/plan/presentation/liquidity_screen.dart';
+import '../features/plan/presentation/plan_screen.dart';
 import '../features/shell/presentation/pending_module_screen.dart';
 import '../features/welcome/presentation/welcome_screen.dart';
 import 'pending_modules.dart';
@@ -85,6 +91,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               ? MovementType.income
               : MovementType.expense,
           initialCard: state.uri.queryParameters['tarjeta'],
+          initialCategory: state.uri.queryParameters['categoria'],
         ),
       ),
       GoRoute(
@@ -96,6 +103,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: Routes.payments, builder: (_, _) => const MoneyPaymentsScreen()),
       GoRoute(path: Routes.cards, builder: (_, _) => const CardsScreen()),
       GoRoute(path: Routes.debts, builder: (_, _) => const DebtsScreen()),
+      GoRoute(
+        path: Routes.plan,
+        pageBuilder: (_, state) => NoTransitionPage(key: state.pageKey, child: const PlanScreen()),
+      ),
+      GoRoute(path: Routes.budgets, builder: (_, _) => const BudgetsScreen()),
+      GoRoute(
+        path: '${Routes.budgets}/:category',
+        // Sin `?mes=`, el mes en curso (BudgetDetail.jsx).
+        builder: (_, state) => BudgetDetailScreen(
+          category: state.pathParameters['category']!,
+          month: _month(state.uri.queryParameters['mes']) ?? isoMonth(DateTime.now()),
+        ),
+      ),
+      GoRoute(path: Routes.calendar, builder: (_, _) => const CalendarScreen()),
+      GoRoute(path: Routes.liquidity, builder: (_, _) => const LiquidityScreen()),
       GoRoute(
         path: Routes.card(':id'),
         builder: (_, state) => CardDetailScreen(cardId: state.pathParameters['id']!),
@@ -130,6 +152,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   });
   return router;
 });
+
+/// `?mes=AAAA-MM` válido (01 a 12), o null.
+String? _month(String? raw) => raw != null && RegExp(r'^\d{4}-(0[1-9]|1[0-2])$').hasMatch(raw) ? raw : null;
 
 /// El correo viaja como `?correo=` para precargarlo (de registro a login, de login a recuperar).
 String? _email(GoRouterState state) => state.uri.queryParameters['correo'];

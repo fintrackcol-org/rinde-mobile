@@ -18,20 +18,20 @@ const _honest = 'Esta parte todavía no está en la app. Ya funciona en la web d
 
 /// Título esperado de cada destino (los de Rinde Web), por la ruta con que se abre.
 final _titles = {
-  Routes.plan: 'Planear',
   Routes.notifications: 'Notificaciones',
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
-  Routes.budgets: 'Presupuestos',
+  // De Planear y del Calendario.
+  Routes.goals: 'Metas',
+  Routes.vacas: 'Vacas',
   // Accesos de «Más de tu plata».
-  Routes.calendar: 'Calendario',
   Routes.insights: 'Consejos',
   Routes.export: 'Exportar movimientos',
   Routes.renta: 'Renta y DIAN',
-  Routes.liquidity: 'Tu plata en los próximos días',
 };
-const _tabs = {Routes.plan: RindeTab.plan};
+// Planear (etapa 7) ya es pantalla real: ninguna pestaña queda pendiente.
+const _tabs = <String, RindeTab>{};
 
 /// Los destinos pendientes con un router mínimo; el Inicio es un marcador.
 Future<GoRouter> _pump(
@@ -89,19 +89,17 @@ void main() {
     final paths = pendingModules.map((m) => m.path).toList();
     expect(paths.toSet().length, paths.length);
     expect(paths.toSet(), {
-      Routes.plan,
       Routes.notifications,
       Routes.income,
       Routes.expenses,
       Routes.toConfirm,
-      Routes.budgets,
-      Routes.calendar,
+      Routes.goals,
+      Routes.vacas,
       Routes.insights,
       Routes.export,
       Routes.renta,
-      Routes.liquidity,
     });
-    expect({for (final m in pendingModules) ?m.tab}, {RindeTab.plan});
+    expect({for (final m in pendingModules) ?m.tab}, isEmpty);
   });
 
   testWidgets('cada destino dice «En desarrollo» con su título y sin datos ni acciones de mentira', (
@@ -164,7 +162,7 @@ void main() {
 
   for (final (name, theme) in [('claro', RindeTheme.light), ('oscuro', RindeTheme.dark)]) {
     testWidgets('320 de ancho y letra al doble, tema $name: nada se desborda', (tester) async {
-      for (final route in [Routes.plan, Routes.liquidity, Routes.income]) {
+      for (final route in [Routes.goals, Routes.renta, Routes.income]) {
         await _pump(tester, initial: route, size: const Size(320, 568), textScale: 2, theme: theme);
         expect(tester.takeException(), isNull, reason: route);
         expect(find.text('En desarrollo'), findsOneWidget, reason: route);

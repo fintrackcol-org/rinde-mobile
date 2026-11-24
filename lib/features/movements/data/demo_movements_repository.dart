@@ -280,3 +280,19 @@ Future<bool> demoHasMovements(JsonListStore store, String userId) async =>
 
 Future<List<Object?>> _readDemo(JsonListStore store, String userId) async =>
     await store.read(userId) ?? (throw StateError('No se pudieron leer los movimientos de la demostración'));
+
+/// Lo gastado en la demo en [category] durante [month] (AAAA-MM), en centavos: lo que suma al
+/// presupuesto de esa categoría. Solo lectura: un llavero que no responde cuenta como nada anotado.
+Future<int> demoCategoryExpenseCents(
+  JsonListStore store,
+  String userId,
+  String month,
+  String category,
+) async {
+  var cents = 0;
+  for (final raw in await store.read(userId) ?? const <Object?>[]) {
+    final m = Movement.fromJson(raw);
+    if (!m.isIncome && m.category == category && m.date.startsWith(month)) cents += (m.amount * 100).round();
+  }
+  return cents;
+}

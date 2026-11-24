@@ -33,6 +33,7 @@ import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
 import 'package:rinde_mobile/features/onboarding/data/onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/domain/income_sources.dart';
 import 'package:rinde_mobile/features/onboarding/domain/onboarding_flow.dart';
+import 'package:rinde_mobile/features/plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider;
 
 import '../../support/fake_http.dart';
 
@@ -145,6 +146,7 @@ void main() {
         demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         demoCardsStoreProvider.overrideWithValue(cardsStore),
         demoDebtsStoreProvider.overrideWithValue(debtsStore),
+        demoBudgetsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
         regionStoreProvider.overrideWithValue(regions),
         initialRegionProvider.overrideWithValue(initial),

@@ -32,14 +32,22 @@ String savedMessage(Tr t, Movement saved, Map<String, String> names) {
       : t('Guardado en {name}.', {'name': name});
 }
 
-/// `/app/anotar?tipo=ingreso|gasto&tarjeta=<id>` (Anotar.jsx): anotar un movimiento nuevo.
+/// `/app/anotar?tipo=ingreso|gasto&tarjeta=<id>&categoria=<clave>` (Anotar.jsx): anotar un movimiento nuevo.
 class RecordScreen extends ConsumerStatefulWidget {
-  const RecordScreen({super.key, this.initialType = MovementType.expense, this.initialCard});
+  const RecordScreen({
+    super.key,
+    this.initialType = MovementType.expense,
+    this.initialCard,
+    this.initialCategory,
+  });
 
   final MovementType initialType;
 
   /// `?tarjeta=`: llega desde el detalle de una tarjeta, con esa tarjeta elegida.
   final String? initialCard;
+
+  /// `?categoria=`: llega desde un presupuesto, con esa categoría elegida.
+  final String? initialCategory;
 
   @override
   ConsumerState<RecordScreen> createState() => _RecordScreenState();
@@ -77,6 +85,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       child: MovementForm(
         initialType: widget.initialType,
         initialCard: widget.initialCard,
+        initialCategory: widget.initialCategory,
         onSave: _save,
         onTypeChanged: (type) => setState(() => _type = type),
       ),

@@ -137,6 +137,7 @@ class MovementForm extends ConsumerStatefulWidget {
     this.initial,
     this.initialType = MovementType.expense,
     this.initialCard,
+    this.initialCategory,
     this.onTypeChanged,
   });
 
@@ -147,6 +148,10 @@ class MovementForm extends ConsumerStatefulWidget {
   /// Se manda aunque la lista de tarjetas no cargue: el servidor la valida. LA WEB, en ese caso,
   /// guarda el gasto como efectivo sin avisar, y eso baja Mi plata por error (riesgo 2 de RT §8).
   final String? initialCard;
+
+  /// Categoría con que llega `/app/anotar?categoria=<clave>` (el «Anotar» de un presupuesto), solo
+  /// en gastos. Si no está en el catálogo, sigue a la vista y el servidor la valida.
+  final String? initialCategory;
   final ValueChanged<MovementType>? onTypeChanged;
 
   /// [opened]: el movimiento con que se abrió el formulario (null al anotar). Editar manda solo lo que
@@ -167,7 +172,10 @@ class _MovementFormState extends ConsumerState<MovementForm> {
   late MovementType _type = _saved?.type ?? widget.initialType;
   late String _amount = _saved == null ? '' : _raw(_saved.amount);
   late String _date = _saved?.date ?? _today();
-  late String? _category = _saved?.category; // null: la elige la IA del servidor
+  // null: la elige la IA del servidor.
+  late String? _category = _saved == null
+      ? (_type == MovementType.expense ? widget.initialCategory : null)
+      : _saved.category;
 
   /// null = «Efectivo o débito». Al editar, una tarjeta borrada arranca como efectivo
   /// (TransactionForm.jsx:40-41).
@@ -586,8 +594,8 @@ class _MovementFormState extends ConsumerState<MovementForm> {
 String _kakeiboLabel(String key) => _kakeibo.firstWhere((k) => k.$1 == key, orElse: () => (key, key, '')).$2;
 
 /// Píldora elegible de 48 de alto (ChipGroup y los botones de categoría de la web).
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.selected, required this.onTap});
+class ChoiceChipButton extends StatelessWidget {
+  const ChoiceChipButton({super.key, required this.label, required this.selected, required this.onTap});
 
   final String label;
   final bool selected;
@@ -711,10 +719,14 @@ class _CategoryPicker extends ConsumerWidget {
           spacing: 6,
           runSpacing: 6,
           children: [
-            _Chip(label: t('Que la elija la IA'), selected: value == null, onTap: () => onChanged(null)),
-            if (missing) _Chip(label: value!, selected: true, onTap: () {}),
+            ChoiceChipButton(
+              label: t('Que la elija la IA'),
+              selected: value == null,
+              onTap: () => onChanged(null),
+            ),
+            if (missing) ChoiceChipButton(label: value!, selected: true, onTap: () {}),
             for (final c in visible)
-              _Chip(label: name(c), selected: c.key == value, onTap: () => onChanged(c.key)),
+              ChoiceChipButton(label: name(c), selected: c.key == value, onTap: () => onChanged(c.key)),
             if (!all && list.length > _visibleCategories)
               TextButton(
                 onPressed: onShowAll,
@@ -773,9 +785,13 @@ class _PaidWithPicker extends ConsumerWidget {
           spacing: 6,
           runSpacing: 6,
           children: [
-            _Chip(label: t('Efectivo o débito'), selected: value == null, onTap: () => onChanged(null)),
+            ChoiceChipButton(
+              label: t('Efectivo o débito'),
+              selected: value == null,
+              onTap: () => onChanged(null),
+            ),
             for (final c in cards)
-              _Chip(
+              ChoiceChipButton(
                 label: cardListLabel(t, network: c.network, name: c.name, last4: c.last4),
                 selected: value == c.id,
                 onTap: () => onChanged(c.id),
@@ -851,7 +867,7 @@ class _DateQuickPickState extends ConsumerState<_DateQuickPick> {
           spacing: 6,
           runSpacing: 6,
           children: [
-            _Chip(
+            ChoiceChipButton(
               label: t('Hoy'),
               selected: mode == 'today',
               onTap: () {
@@ -859,7 +875,7 @@ class _DateQuickPickState extends ConsumerState<_DateQuickPick> {
                 widget.onChanged(widget.today);
               },
             ),
-            _Chip(
+            ChoiceChipButton(
               label: t('Ayer'),
               selected: mode == 'yesterday',
               onTap: () {
@@ -867,7 +883,7 @@ class _DateQuickPickState extends ConsumerState<_DateQuickPick> {
                 widget.onChanged(_yesterday);
               },
             ),
-            _Chip(label: t('Otra fecha'), selected: mode == 'other', onTap: _pick),
+            ChoiceChipButton(label: t('Otra fecha'), selected: mode == 'other', onTap: _pick),
           ],
         ),
         if (mode == 'other')
@@ -911,7 +927,7 @@ class _KakeiboPicker extends ConsumerWidget {
           runSpacing: 6,
           children: [
             for (final (key, label, _) in _kakeibo)
-              _Chip(
+              ChoiceChipButton(
                 label: t(label),
                 selected: value == key,
                 onTap: () => onChanged(value == key ? null : key),

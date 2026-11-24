@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
@@ -6,6 +8,7 @@ import '../../home/data/demo_home_repository.dart' show demoFixedPending, demoJo
 import '../../home/data/home_models.dart' show readMoney;
 import '../../home/domain/home_dates.dart';
 import '../../onboarding/data/demo_onboarding_repository.dart';
+import '../../plan/data/plan_models.dart';
 import 'money_models.dart';
 import 'money_repository.dart';
 
@@ -355,25 +358,127 @@ class DemoMoneyRepository implements MoneyRepository {
 
   /// Escenarios fijos: las mismas ocurrencias (y fechas) del `pending` del plan, por pagar: «Falta por
   /// pagar» da `pendingTotal`. Recorridos: los pagos de este mes, atrasados si su día ya pasó. La demo
-  /// nunca marca un pago como hecho (no imita la regla del nombre en los gastos). [month] no se mira:
-  /// la app solo pide el mes en curso.
+  /// nunca marca un pago como hecho (no imita la regla del nombre en los gastos).
   @override
-  Future<List<CalendarPayment>> calendar(String month) async {
+  Future<List<CalendarPayment>> calendar(String month) async => (await monthCalendar(month)).payments;
+
+  /// Los mismos pagos del plan del Inicio, solo en el mes en curso (los demás meses salen vacíos). Lo
+  /// que queda después de cada pago es la plata menos lo pagado hasta ese día: la demo no proyecta el
+  /// gasto diario (`pace: null`) ni días de pago, y no suma tarjetas ni cuentas (no las tiene en su
+  /// plan fijo: el «libre» del Inicio seguiría diciendo otra cosa).
+  @override
+  Future<PaymentCalendar> monthCalendar(String month) async {
     final state = await _read(DemoMoneyOperation.calendar);
     final today = _day(0);
-    final pending = _journey ? demoJourneyPending(state, clock()) : demoFixedPending(scenario, state, _day);
-    return CalendarPayment.listFromJson({
-      'events': [
-        for (final p in pending)
-          {
-            'subscription': false,
-            ...p,
-            'kind': 'compromiso',
-            'status': (p['date'] as String).compareTo(today) < 0 ? 'atrasado' : 'pendiente',
-          },
-      ],
+    final money = _planMoney(state);
+    var left = money == null ? null : _cents(money);
+    final events = <Map<String, dynamic>>[];
+    var pending = 0;
+    for (final p in month == today.substring(0, 7) ? _pending(state) : const <Map<String, dynamic>>[]) {
+      pending += _cents(p['amount']);
+      if (left != null) left -= _cents(p['amount']);
+      events.add({
+        'subscription': false,
+        ...p,
+        'kind': 'compromiso',
+        'status': (p['date'] as String).compareTo(today) < 0 ? 'atrasado' : 'pendiente',
+        'balanceAfter': left == null ? null : _fromCents(left),
+        'risk': left == null ? null : (left < 0 ? 'negativo' : 'ok'),
+      });
+    }
+    return PaymentCalendar.fromJson({
+      'month': month,
+      'today': today,
+      'money': money,
+      'projectedUntil': null,
+      'events': events,
+      'cardDates': const <Object>[],
+      'totals': {'pending': _fromCents(pending), 'paid': 0},
     });
   }
+
+  /// GET /liquidity sintético: del hoy al fin de mes, la plata menos los pagos del plan (lo atrasado se
+  /// paga hoy, como el servidor). Sin gasto diario ni ingresos esperados (ver [monthCalendar]).
+  @override
+  Future<Liquidity> liquidity() async {
+    final state = await _read(DemoMoneyOperation.calendar);
+    final today = _day(0);
+    final money = _planMoney(state);
+    if (money == null) return Liquidity.fromJson({'ready': false, 'today': today});
+    final now = clock();
+    final pending = _pending(state);
+    var left = _cents(money);
+    final days = <Map<String, dynamic>>[];
+    for (var d = now.day; d <= DateTime(now.year, now.month + 1, 0).day; d++) {
+      final date = isoDay(DateTime(now.year, now.month, d));
+      final flows = [
+        for (final p in pending)
+          if ((p['date'] as String).compareTo(today) <= 0 ? date == today : p['date'] == date)
+            {
+              'kind': 'compromiso',
+              'id': p['id'],
+              'name': p['name'],
+              'amount': p['amount'],
+              'date': p['date'],
+            },
+      ];
+      final start = left;
+      for (final f in flows) {
+        left -= _cents(f['amount']);
+      }
+      days.add({
+        'date': date,
+        'start': _fromCents(start),
+        'out': _fromCents(start - left),
+        'in': 0,
+        'end': _fromCents(left),
+        'events': flows,
+      });
+    }
+    final index = days.indexWhere((d) => (d['end'] as num) < 0);
+    Map<String, dynamic>? shortfall;
+    if (index >= 0) {
+      var causes = days[index]['events'] as List<Map<String, dynamic>>;
+      if (causes.isEmpty) {
+        causes = [for (final d in days.take(index)) ...d['events'] as List<Map<String, dynamic>>]
+          ..sort((a, b) => (b['amount'] as num).compareTo(a['amount'] as num));
+        causes = causes.take(3).toList();
+      }
+      shortfall = {'date': days[index]['date'], 'missing': -(days[index]['end'] as num), 'causes': causes};
+    }
+    final low = days.reduce((a, b) => (b['end'] as num) < (a['end'] as num) ? b : a);
+    // El tope diario del servidor sin gasto normal: lo que queda tras los pagos de cada día ÷ los días.
+    var safe = double.infinity;
+    for (var k = 1; k <= (index >= 0 ? index : days.length - 1); k++) {
+      safe = math.min(safe, (days[k]['end'] as num) / k);
+    }
+    return Liquidity.fromJson({
+      'ready': true,
+      'today': today,
+      'money': money,
+      'pace': null,
+      'until': days.last['date'],
+      'days': days,
+      'firstShortfall': shortfall,
+      'lowest': {'date': low['date'], 'amount': low['end']},
+      'risk': shortfall == null ? 'ok' : 'falta',
+      'safeDailySpend': safe.isFinite ? math.max(0, (safe / 100).floor() * 100) : 0,
+      'receivable': 0,
+      'assumptions': const ['No contamos ingresos futuros: solo la plata que ya tienes.'],
+    });
+  }
+
+  List<Map<String, dynamic>> _pending(DemoState state) =>
+      _journey ? demoJourneyPending(state, clock()) : demoFixedPending(scenario, state, _day);
+
+  /// La plata del plan de la demo (la del Inicio); null sin plan, como el servidor.
+  num? _planMoney(DemoState state) {
+    if (_journey && state.incomeType == null) return null;
+    return demoWelcomeStatus(scenario, state).money;
+  }
+
+  static int _cents(Object? value) => ((readMoney(value) ?? 0) * 100).round();
+  static num _fromCents(int cents) => readMoney(cents / 100)!;
 
   static const _exists = ApiException(
     code: 'COMMITMENT_EXISTS',

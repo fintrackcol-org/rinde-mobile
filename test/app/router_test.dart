@@ -28,6 +28,15 @@ import 'package:rinde_mobile/features/money/presentation/fix_balance_screen.dart
 import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/payments_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/widgets/money_shortcuts.dart';
+import 'package:rinde_mobile/features/home/data/home_models.dart';
+import 'package:rinde_mobile/features/movements/domain/movement.dart';
+import 'package:rinde_mobile/features/plan/application/plan_providers.dart';
+import 'package:rinde_mobile/features/plan/data/plan_models.dart';
+import 'package:rinde_mobile/features/plan/presentation/budget_detail_screen.dart';
+import 'package:rinde_mobile/features/plan/presentation/budgets_screen.dart';
+import 'package:rinde_mobile/features/plan/presentation/calendar_screen.dart';
+import 'package:rinde_mobile/features/plan/presentation/liquidity_screen.dart';
+import 'package:rinde_mobile/features/plan/presentation/plan_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/pending_module_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 
@@ -49,13 +58,12 @@ final _pushedRoutes = {
   Routes.income: 'Ingresos',
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
-  Routes.budgets: 'Presupuestos',
-  Routes.calendar: 'Calendario',
+  Routes.goals: 'Metas',
+  Routes.vacas: 'Vacas',
   Routes.insights: 'Consejos',
   // Antes que /app/transacciones/:id: no es el movimiento «exportar».
   Routes.export: 'Exportar movimientos',
   Routes.renta: 'Renta y DIAN',
-  Routes.liquidity: 'Tu plata en los próximos días',
 };
 
 // Sin pumpAndSettle: la entrada deja un spinner girando mientras «espera» el perfil.
@@ -82,6 +90,10 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
         cardsProvider.overrideWith((ref, _) => Completer<List<CreditCard>>().future),
         cardDetailProvider.overrideWith((ref, _) => Completer<CardDetailData>().future),
         debtsProvider.overrideWith((ref, _) => Completer<DebtsList>().future),
+        budgetsMonthProvider.overrideWith((ref, _) => Completer<List<BudgetStatus>>().future),
+        budgetMovementsProvider.overrideWith((ref, _) => Completer<MovementPage>().future),
+        calendarMonthProvider.overrideWith((ref, _) => Completer<PaymentCalendar>().future),
+        liquidityProvider.overrideWith((ref, _) => Completer<Liquidity>().future),
         whatsappLinkProvider.overrideWith((ref, _) => Completer<WhatsappLink>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
@@ -105,15 +117,13 @@ void main() {
     }
   });
 
-  test('estas pruebas recorren exactamente los pendientes; Mi plata, Pagos, Corregir saldo, Tarjetas, Cuentas y Yo ya no lo son', () {
-    expect(
-      {for (final m in pendingModules) m.path},
-      {
-        for (final route in [..._tabRoutes.keys, ..._pushedRoutes.keys])
-          if (route != Routes.movements && route != Routes.account) route,
-      },
-    );
+  test('estas pruebas recorren exactamente los pendientes; Mi plata, Pagos, Corregir saldo, Tarjetas, Cuentas, Yo y Planear ya no lo son', () {
+    expect({for (final m in pendingModules) m.path}, _pushedRoutes.keys.toSet());
     for (final route in [
+      Routes.plan,
+      Routes.budgets,
+      Routes.calendar,
+      Routes.liquidity,
       Routes.myMoney,
       Routes.payments,
       Routes.fixBalance,
@@ -139,6 +149,10 @@ void main() {
       Routes.cards,
       Routes.card('t1'),
       Routes.debts,
+      Routes.budgets,
+      Routes.budget('alimentacion', '2026-11'),
+      Routes.calendar,
+      Routes.liquidity,
       Routes.movement('m1'),
     ]) {
       router.go(route);
@@ -159,8 +173,8 @@ void main() {
       await _settle(tester);
       expect(_location(router), route);
       expect(tester.widget<RindeTabScaffold>(find.byType(RindeTabScaffold)).current, tab, reason: route);
-      // Movimientos (etapa 3) y Yo (etapa 6) ya son pantallas reales; Planear sigue pendiente.
-      expect(find.text('En desarrollo'), route == Routes.plan ? findsOneWidget : findsNothing, reason: route);
+      // Movimientos (etapa 3), Yo (etapa 6) y Planear (etapa 7) ya son pantallas reales.
+      expect(find.text('En desarrollo'), findsNothing, reason: route);
       expect(find.byType(EntryScreen), findsNothing, reason: route);
     }
   });
@@ -331,35 +345,92 @@ void main() {
     expect(_location(router), Routes.plan);
   });
 
+  testWidgets('«Más de tu plata»: Tarjetas, Cuentas, Calendario y Próximos días abren sus pantallas; Por '
+      'confirmar sigue «En desarrollo»', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.myMoney);
+    await _settle(tester);
+    for (final (hint, screen) in [
+      ('Cupo y fechas de pago', CardsScreen),
+      ('Lo que te deben y debes', DebtsScreen),
+      ('Topes por categoría', BudgetsScreen),
+      ('Pagos fijos del mes', CalendarScreen),
+      ('Gastos que llegaron solos', PendingModuleScreen),
+      ('Lo que entra y sale', LiquidityScreen),
+    ]) {
+      final shortcut = find.descendant(of: find.byType(MoneyShortcuts), matching: find.text(hint));
+      await tester.ensureVisible(shortcut);
+      await tester.pump();
+      await tester.tap(shortcut);
+      await _settle(tester);
+      expect(find.byType(screen), findsOneWidget, reason: hint);
+      expect(
+        find.text('En desarrollo'),
+        screen == PendingModuleScreen ? findsOneWidget : findsNothing,
+        reason: hint,
+      );
+      await tester.tap(find.byTooltip('Volver'));
+      await _settle(tester);
+      expect(_location(router), Routes.myMoney, reason: hint);
+    }
+  });
+
   testWidgets(
-    '«Más de tu plata»: Tarjetas y Cuentas abren sus pantallas; Calendario, Por confirmar y Próximos '
-    'días siguen «En desarrollo»',
+    'Planear: cada acceso abre su pantalla encima y «Volver» regresa; Metas sigue «En desarrollo»',
     (tester) async {
       final router = await _pumpApp(tester, session: _session);
-      router.go(Routes.myMoney);
+      router.go(Routes.plan);
       await _settle(tester);
+      expect(find.byType(PlanScreen), findsOneWidget);
+      expect(find.text('Tus planes'), findsOneWidget);
       for (final (hint, screen) in [
-        ('Cupo y fechas de pago', CardsScreen),
+        ('Lo que se repite cada mes', MoneyPaymentsScreen),
+        ('Qué toca pagar y cuándo', CalendarScreen),
+        ('Topes por categoría', BudgetsScreen),
+        ('Para qué estás ahorrando', PendingModuleScreen),
         ('Lo que te deben y debes', DebtsScreen),
-        ('Pagos fijos del mes', PendingModuleScreen),
-        ('Gastos que llegaron solos', PendingModuleScreen),
-        ('Lo que entra y sale', PendingModuleScreen),
+        ('Cupo y fechas de pago', CardsScreen),
       ]) {
-        final shortcut = find.descendant(of: find.byType(MoneyShortcuts), matching: find.text(hint));
+        final shortcut = find.text(hint);
         await tester.ensureVisible(shortcut);
         await tester.pump();
         await tester.tap(shortcut);
         await _settle(tester);
         expect(find.byType(screen), findsOneWidget, reason: hint);
-        expect(
-          find.text('En desarrollo'),
-          screen == PendingModuleScreen ? findsOneWidget : findsNothing,
-          reason: hint,
-        );
+        expect(find.byType(RindeTabScaffold), findsNothing, reason: hint);
         await tester.tap(find.byTooltip('Volver'));
         await _settle(tester);
-        expect(_location(router), Routes.myMoney, reason: hint);
+        expect(_location(router), Routes.plan, reason: hint);
       }
+    },
+  );
+
+  testWidgets(
+    'por enlace directo, atrás: Presupuestos y Calendario a Planear, un presupuesto a Presupuestos y '
+    'Próximos días a Mi plata',
+    (tester) async {
+      final router = await _pumpApp(tester, session: _session);
+      for (final (route, screen, back) in [
+        (Routes.budgets, BudgetsScreen, Routes.plan),
+        (Routes.calendar, CalendarScreen, Routes.plan),
+        (Routes.budget('alimentacion', '2026-11'), BudgetDetailScreen, Routes.budgets),
+        (Routes.liquidity, LiquidityScreen, Routes.myMoney),
+      ]) {
+        router.go(route);
+        await _settle(tester);
+        expect(find.byType(screen), findsOneWidget, reason: route);
+        expect(await tester.binding.handlePopRoute(), isTrue, reason: route);
+        await _settle(tester);
+        expect(_location(router), back, reason: route);
+      }
+      // El mes y la categoría del detalle salen de la ruta; un mes inválido es el mes en curso.
+      router.go('${Routes.budgets}/ocio?mes=2026-13');
+      await _settle(tester);
+      final detail = tester.widget<BudgetDetailScreen>(find.byType(BudgetDetailScreen));
+      expect(
+        (detail.category, RegExp(r'^\d{4}-\d{2}$').hasMatch(detail.month), detail.month == '2026-13'),
+        ('ocio', true, false),
+      );
     },
   );
 

@@ -26,12 +26,14 @@ import 'debt_date_field.dart';
 
 /// Abre «Nueva cuenta» (del lado [kind], el de la pestaña activa) o, con [initial], «Editar cuenta».
 /// Devuelve el aviso que la pantalla debe mostrar al cerrarse (sin confirmar, ya saldada, ya no
-/// existe), o null. Al crear, [onCreated] recibe el lado de la cuenta nueva.
+/// existe), o null. Al crear, [onCreated] recibe el lado de la cuenta nueva. [dueDate] precarga la
+/// fecha de pago de una nueva (el «Agregar a este día» del Calendario).
 Future<String?> showDebtSheet(
   BuildContext context, {
   Debt? initial,
   DebtKind kind = DebtKind.receivable,
   ValueChanged<DebtKind>? onCreated,
+  String? dueDate,
 }) => showModalBottomSheet<String>(
   context: context,
   isScrollControlled: true,
@@ -39,7 +41,7 @@ Future<String?> showDebtSheet(
   // Sin arrastre: cerraría la hoja mientras guarda, saltándose PopScope.
   enableDrag: false,
   backgroundColor: context.palette.surface,
-  builder: (_) => DebtSheet(initial: initial, kind: kind, onCreated: onCreated),
+  builder: (_) => DebtSheet(initial: initial, kind: kind, onCreated: onCreated, dueDate: dueDate),
 );
 
 /// El formulario de una cuenta (DebtForm.jsx) en DOS pasos: «Quién y cuánto» y «Cómo se paga». El
@@ -50,11 +52,14 @@ Future<String?> showDebtSheet(
 /// - Un 422 vuelve al paso de su primer campo con error y le pone el foco.
 /// - Editar agrega «Abonos» (cada uno con «Borrar abono» en línea) y «Borrar cuenta».
 class DebtSheet extends ConsumerStatefulWidget {
-  const DebtSheet({super.key, this.initial, this.kind = DebtKind.receivable, this.onCreated});
+  const DebtSheet({super.key, this.initial, this.kind = DebtKind.receivable, this.onCreated, this.dueDate});
 
   final Debt? initial;
   final DebtKind kind;
   final ValueChanged<DebtKind>? onCreated;
+
+  /// AAAA-MM-DD con que arranca la fecha de pago de una cuenta nueva.
+  final String? dueDate;
 
   @override
   ConsumerState<DebtSheet> createState() => _DebtSheetState();
@@ -80,7 +85,7 @@ class _DebtSheetState extends ConsumerState<DebtSheet> {
   /// Con cuotas es la PRIMERA cuota (DebtForm.jsx:47-48): nunca el `dueDate` leído, que ya es la
   /// próxima y correría todo el calendario al guardar.
   late String? _dueDate = widget.initial == null
-      ? null
+      ? widget.dueDate
       : (widget.initial!.installments != null ? widget.initial!.firstDueDate : widget.initial!.dueDate);
   final _focus = {for (final field in _focusOrder) field: FocusNode()};
   Map<String, String> _errors = const {};

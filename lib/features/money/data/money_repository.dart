@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/application/session_controller.dart';
 import '../../onboarding/data/onboarding_repository.dart';
+import '../../plan/data/plan_models.dart';
 import 'demo_money_repository.dart';
 import 'money_models.dart';
 
@@ -24,6 +25,13 @@ abstract interface class MoneyRepository {
 
   /// GET /money-profile/calendar?month=AAAA-MM: solo los pagos fijos del mes.
   Future<List<CalendarPayment>> calendar(String month);
+
+  /// La MISMA respuesta de [calendar], completa: tarjetas, cuentas, días de pago, cortes y totales
+  /// (la pantalla Calendario de Planear).
+  Future<PaymentCalendar> monthCalendar(String month);
+
+  /// GET /liquidity: la proyección día por día que calcula el servidor (FT-0059).
+  Future<Liquidity> liquidity();
 
   /// POST /money-profile/commitments. 409 COMMITMENT_EXISTS si el nombre ya está.
   Future<void> createCommitment(Map<String, dynamic> body);
@@ -60,9 +68,18 @@ class ApiMoneyRepository implements MoneyRepository {
   Future<void> saveSources(List<Map<String, dynamic>> sources) =>
       ApiOnboardingRepository(_api).saveSources(sources);
 
+  Future<Object?> _calendar(String month) => _api.get('/money-profile/calendar', query: {'month': month});
+
   @override
   Future<List<CalendarPayment>> calendar(String month) async =>
-      CalendarPayment.listFromJson(await _api.get('/money-profile/calendar', query: {'month': month}));
+      CalendarPayment.listFromJson(await _calendar(month));
+
+  @override
+  Future<PaymentCalendar> monthCalendar(String month) async =>
+      PaymentCalendar.fromJson(await _calendar(month));
+
+  @override
+  Future<Liquidity> liquidity() async => Liquidity.fromJson(await _api.get('/liquidity'));
 
   @override
   Future<void> createCommitment(Map<String, dynamic> body) =>

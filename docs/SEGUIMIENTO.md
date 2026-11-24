@@ -13,6 +13,7 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 | 5B | Cuentas (deudas) | Validado integral (ciclo largo) | Suite 1466, 2 rondas de revisión, emulador | `7188331` |
 | 5C | Integración: aviso del Inicio con la etiqueta común de la tarjeta («Otra ••1234»); pruebas de integración tarjeta, cuenta y A/B | Validado parcial | analyze, formato, pruebas del Inicio y de integración (95 en verde), gitleaks | ver git log |
 | 6 | «Yo» (Tu cuenta): eliminar cuenta (borra todo lo local), cerrar sesión, perfil, país, idioma, tema guardado, «Pago de tarjetas», categorías, WhatsApp, tutorial. Fuera: instalar PWA, atajo Apple Pay, avisos push | Validado parcial | analyze, formato, 145 pruebas de lo tocado (18 nuevas), gitleaks | ver git log |
+| 7 | Planear: pestaña con accesos, Presupuestos (lista, detalle, crear/editar/borrar), Calendario (pagos fijos, tarjetas, cuentas, cobros) y Próximos días (proyección del servidor). Fuera: Metas y Vacas (siguen «En desarrollo») | Validado parcial | analyze, formato, 578 pruebas de plan, inicio, movimientos y demo; gitleaks | ver git log |
 
 ## Validaciones pendientes para la estabilización
 
@@ -20,6 +21,7 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 - 5C: emulador y capturas del aviso «Otra ••1234»; revisión independiente (se omitió por la directiva).
 - App contra la API de QA con la cuenta sintética (tarjetas y cuentas).
 - iOS (no hay Mac), teléfono real, TalkBack/VoiceOver.
+- 7: emulador con letra grande y dos temas; presupuesto contra el servidor (crear, editar, borrar, 409 BUDGET_EXISTS); calendario con tarjetas, cuentas y vacas; gráfica de Próximos días sin ejes ni cifras (dibujo propio); calendario de la demo sin tarjeta ni cuentas.
 - 6: eliminar cuenta contra QA (y respuesta perdida), «Abrir WhatsApp» en Android/iOS, tema sin destello en compilación real, «Apariencia» y la hoja de eliminar con letra grande y teclado.
 
 ## Bloqueos y decisiones abiertas (de David)
@@ -29,3 +31,4 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 - Traducciones de la web que se leen mal en inglés: «Paid {v1}», «Delete account», «· share», «the».
 - 6: DECIDIDO por David (24-nov): al cerrar sesión la cola sin conexión se queda en el teléfono, aparte por cuenta, como la web. Textos nuevos de la 6 sin aprobar.
 - Rama 6 sale de la rama 5 (PR #2 sin fusionar): su PR va contra la rama de la etapa 5.
+- 7: iniciales de los días (L M M J V S D) en español aunque la app esté en inglés o portugués, como la web; en Mi plata los presupuestos llevan a la lista y no al detalle. Textos nuevos de la 7 sin aprobar.
