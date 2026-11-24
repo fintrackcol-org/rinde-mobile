@@ -19,6 +19,7 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 | 10 | Metas (colchón, metas, apartar plata) y Vacas (lista, crear, detalle, aportar, invitar, miembros, unirse con código). Se quitó el mecanismo «En desarrollo»: ya no queda ningún módulo pendiente. Fuera: cola sin conexión de aportes, refresco cada 15 s, pestaña Calendario de la vaca, Negocios, enlaces profundos | Validado parcial | analyze, formato, 194 pruebas de lo tocado (15 nuevas, aportes sin duplicar con `localId`), router y cuenta, gitleaks | ver git log |
 | Estab. 1 | Revisión aplazada de 5C a 10 (5 revisores + corrector): 15 hallazgos, 14 corregidos con prueba y 1 mitigado (chat del asistente; el arreglo de fondo es del backend). Emulador: 14 capturas en `docs/estabilizacion/` y 1 error más corregido (la demo mostraba «Falta API_BASE_URL» en Consejos) | Validado integral en Android/demo | Suite completa 1569 en verde (0 fallas), analyze, formato, gitleaks en lib/test/docs/tool, APK de depuración | ver git log |
 | Estab. 2 | App contra la API de QA con la cuenta sintética (David inició sesión): tarjeta (abonar con doble toque = 1 pago, borrar pago), cuenta (crear, abonar y saldar con doble toque = 1 abono y 1 ingreso por lo que faltaba), presupuesto (crear, gastado del servidor, borrar), vaca (crear, aportar con doble toque = 1 aporte, consejo de IA, borrar). Datos de prueba borrados después. 3 arreglos de UI encontrados ahí | Validado contra QA (Android) | Recorrido real + prueba nueva del aviso viejo; Planear y Vacas 36 en verde; analyze | ver git log |
+| Protecciones | App usa las protecciones del backend (fintrack#240, fusionada): `Idempotency-Key` por borrador en pagos de tarjeta y abonos, «Pagado con» al confirmar en Por confirmar (sin doble conteo), `expectedVersion` también al guardar las fuentes; «Corregir saldo» se activa solo al llegar `version` | Validado (suite completa) | Suite completa 1580 en verde, analyze, formato, gitleaks; backend 715 + CI de main en verde | ver git log |
 
 ## Validaciones pendientes para la estabilización
 
@@ -38,7 +39,7 @@ Hecho en la estabilización 1 (25-nov-2026): suite completa, revisión de códig
 ## Bloqueos y decisiones abiertas (de David)
 
 - PR #2 sin fusionar. Textos nuevos de 5A y 5B sin aprobar; 6 decisiones del 5B y la pregunta 5 (etiqueta de la tarjeta) tomadas con la recomendación del plan.
-- Backend: B1/B2 (idempotencia de pagos de tarjeta y abonos) y B4 sin aprobar.
+- Backend: B1/B2, B4, Por confirmar con tarjeta y versión del perfil HECHOS en fintrack#240 (fusionada 25-nov; migración 039). Falta confirmar en Render que el despliegue y la 039 quedaron bien, y pasar main a develop para QA. La bienvenida de la app no manda `expectedVersion` (necesita la opción E de la propuesta).
 - Traducciones de la web que se leen mal en inglés: «Paid {v1}», «Delete account», «· share», «the».
 - 6: DECIDIDO por David (24-nov): al cerrar sesión la cola sin conexión se queda en el teléfono, aparte por cuenta, como la web. Textos nuevos de la 6 sin aprobar.
 - Rama 6 sale de la rama 5 (PR #2 sin fusionar): su PR va contra la rama de la etapa 5.

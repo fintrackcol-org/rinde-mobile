@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_models.dart';
+import '../../cards/data/card_models.dart' show CreditCard;
 import '../../home/application/home_providers.dart' show homeToConfirmProvider;
 import '../../money/application/money_writer.dart' show inDoubt;
 import '../../movements/application/movement_saver.dart' show afterMovementChange;
@@ -20,6 +21,16 @@ final toConfirmListProvider = FutureProvider.autoDispose.family<List<IncomingPay
   return ref.watch(toConfirmRepositoryProvider).list();
 });
 
+/// La tarjeta propia que corresponde a la de Wallet ([IncomingPayment.card], solo texto), o null
+/// («Efectivo o débito»). Solo si es inequívoco: el texto trae UN solo grupo de 4 cifras y UNA sola
+/// tarjeta termina en él. Un nombre sin números («Mi Visa») no adivina nada.
+String? walletCardMatch(String? wallet, List<CreditCard> cards) {
+  final groups = {for (final m in RegExp(r'(?<!\d)\d{4}(?!\d)').allMatches(wallet ?? '')) m[0]};
+  if (groups.length != 1) return null;
+  final matches = cards.where((c) => c.last4 == groups.single).toList();
+  return matches.length == 1 ? matches.single.id : null;
+}
+
 /// Confirmar y descartar, con el patrón de los demás writers:
 /// - un solo envío a la vez por pago y cuenta ([_once]): un segundo toque espera al primero;
 /// - «en duda» (espera vencida o 5xx) se resuelve RELEYENDO la lista, nunca reintentando solo: si el
@@ -28,7 +39,8 @@ final toConfirmListProvider = FutureProvider.autoDispose.family<List<IncomingPay
 /// - `_sameAccount` antes de enviar y la bienvenida pendiente bloquea toda escritura.
 ///
 /// Confirmar crea un gasto: después cambian Movimientos, Mi plata, el Inicio y Planear
-/// ([afterMovementChange]). Descartar no anota nada: solo la lista y el aviso del Inicio.
+/// ([afterMovementChange], que también recarga Tarjetas: un gasto con tarjeta cambia lo usado).
+/// Descartar no anota nada: solo la lista y el aviso del Inicio.
 class ToConfirmWriter {
   ToConfirmWriter(this._ref);
   final Ref _ref;
@@ -104,11 +116,17 @@ class ToConfirmWriter {
         _refresh(movement: movement);
       });
 
-  /// POST /pending-payments/:id/confirm. [category] null: la elige la IA.
-  Future<void> confirm(IncomingPayment payment, {required String description, String? category}) => _send(
+  /// POST /pending-payments/:id/confirm. [category] null: la elige la IA. [card] null: efectivo o
+  /// débito (resta de Mi plata); con una tarjeta, resta cuando se pague la tarjeta.
+  Future<void> confirm(
+    IncomingPayment payment, {
+    required String description,
+    String? category,
+    String? card,
+  }) => _send(
     payment.id,
     movement: true,
-    send: () => _repo.confirm(payment.id, description: description, category: category),
+    send: () => _repo.confirm(payment.id, description: description, category: category, card: card),
   );
 
   /// POST /pending-payments/:id/discard.

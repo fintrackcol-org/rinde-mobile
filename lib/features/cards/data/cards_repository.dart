@@ -33,8 +33,10 @@ abstract interface class CardsRepository {
   /// DELETE /cards/:id (borrado lógico). El 404 lo trata quien llama.
   Future<void> delete(String id);
 
-  /// POST /cards/:id/payments. Resta de Mi plata y NO crea un movimiento.
-  Future<void> pay(String id, {required num amount, required String date});
+  /// POST /cards/:id/payments. Resta de Mi plata y NO crea un movimiento. Con [idempotencyKey]
+  /// (cabecera `Idempotency-Key`) el servidor lo aplica una sola vez: la repetición responde 201 con
+  /// `Idempotent-Replayed: true`, que también es «hecho». Un servidor sin ese cambio la ignora.
+  Future<void> pay(String id, {required num amount, required String date, String? idempotencyKey});
 
   /// DELETE /cards/:id/payments/:paymentId.
   Future<void> deletePayment(String id, String paymentId);
@@ -78,8 +80,13 @@ class ApiCardsRepository implements CardsRepository {
   Future<void> delete(String id) => _delete(_path(id));
 
   @override
-  Future<void> pay(String id, {required num amount, required String date}) =>
-      _api.post('${_path(id)}/payments', body: {'amount': amount, 'date': date}, auth: true);
+  Future<void> pay(String id, {required num amount, required String date, String? idempotencyKey}) =>
+      _api.post(
+        '${_path(id)}/payments',
+        body: {'amount': amount, 'date': date},
+        auth: true,
+        headers: {'Idempotency-Key': ?idempotencyKey},
+      );
 
   @override
   Future<void> deletePayment(String id, String paymentId) =>

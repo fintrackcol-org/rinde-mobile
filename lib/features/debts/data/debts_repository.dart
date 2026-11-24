@@ -9,8 +9,9 @@ import 'demo_debts_repository.dart';
 /// - [ApiDebtsRepository]: la real.
 /// - `DemoDebtsRepository`: MODO DEMOSTRACIÓN, guarda en el teléfono y nunca sale a la red.
 ///
-/// POST /debts y POST /debts/:id/payments NO son idempotentes en el backend de hoy: las salvaguardas
-/// (un envío a la vez, foto previa, confirmar leyendo) viven en `DebtsWriter`, no aquí.
+/// POST /debts no es idempotente; POST /debts/:id/payments sí lo es con `Idempotency-Key`, en el
+/// servidor que ya lo tiene. Las salvaguardas (un envío a la vez, la llave por borrador, foto previa,
+/// confirmar leyendo) viven en `DebtsWriter`, no aquí.
 abstract interface class DebtsRepository {
   bool get isDemo;
 
@@ -30,7 +31,15 @@ abstract interface class DebtsRepository {
   Future<void> settle(String id, {required bool createTransaction});
 
   /// POST /debts/:id/payments. Con [createTransaction] crea el ingreso o gasto que cambia Mi plata.
-  Future<void> pay(String id, {required num amount, required String date, required bool createTransaction});
+  /// Con [idempotencyKey] el servidor lo aplica una sola vez (la repetición responde 201 con
+  /// `Idempotent-Replayed: true`, que también es «hecho»); un servidor sin ese cambio la ignora.
+  Future<void> pay(
+    String id, {
+    required num amount,
+    required String date,
+    required bool createTransaction,
+    String? idempotencyKey,
+  });
 
   /// DELETE /debts/:id/payments/:paymentId: la cuenta como queda. Borra también su movimiento.
   Future<Debt> deletePayment(String id, String paymentId);
@@ -62,12 +71,18 @@ class ApiDebtsRepository implements DebtsRepository {
       _api.post('${_path(id)}/settle', body: {'createTransaction': createTransaction}, auth: true);
 
   @override
-  Future<void> pay(String id, {required num amount, required String date, required bool createTransaction}) =>
-      _api.post(
-        '${_path(id)}/payments',
-        body: {'amount': amount, 'date': date, 'createTransaction': createTransaction},
-        auth: true,
-      );
+  Future<void> pay(
+    String id, {
+    required num amount,
+    required String date,
+    required bool createTransaction,
+    String? idempotencyKey,
+  }) => _api.post(
+    '${_path(id)}/payments',
+    body: {'amount': amount, 'date': date, 'createTransaction': createTransaction},
+    auth: true,
+    headers: {'Idempotency-Key': ?idempotencyKey},
+  );
 
   @override
   Future<Debt> deletePayment(String id, String paymentId) async =>

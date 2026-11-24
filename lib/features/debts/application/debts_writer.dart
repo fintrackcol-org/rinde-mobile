@@ -4,7 +4,7 @@ import '../../../core/network/api_exception.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_models.dart';
 import '../../money/application/money_writer.dart' show inDoubt;
-import '../../movements/application/movement_saver.dart' show afterMovementChange;
+import '../../movements/application/movement_saver.dart' show MovementSaver, afterMovementChange;
 import '../../onboarding/data/onboarding_repository.dart' show pendingSourcesProvider;
 import '../data/debt_models.dart';
 import '../data/debts_repository.dart';
@@ -14,8 +14,9 @@ import 'debts_providers.dart';
 /// MoneyWriter ni CardsWriter):
 /// - un solo envío a la vez por operación y cuenta ([_once]);
 /// - «en duda» (espera vencida o 5xx) se confirma VOLVIENDO A LEER GET /debts, nunca reintentando
-///   solo. POST /debts y POST /debts/:id/payments no tienen llave de reintento: foto previa de los
-///   ids ANTES de enviar y «guardado» = apareció un id NUEVO con lo enviado; si no, UNCONFIRMED;
+///   solo. POST /debts no tiene llave de reintento y el abono la tiene (`Idempotency-Key`, ver
+///   [pay]); para los dos, foto previa de los ids ANTES de enviar y «guardado» = apareció un id
+///   NUEVO con lo enviado; si no, UNCONFIRMED;
 /// - saldar: un 409 (ya saldada) tras una duda cuenta como hecho si quedó con la casilla que se pide;
 ///   borrar una cuenta: un 404; borrar un
 ///   abono: un 404 se comprueba leyendo (el servidor también lo da si la cuenta ya está saldada);
@@ -29,6 +30,11 @@ class DebtsWriter {
   DebtsWriter(this._ref);
   final Ref _ref;
   final _running = <String, Future<Object?>>{};
+
+  /// Llave de los abonos que quedaron en duda, por borrador (cuenta, cuenta personal, monto y fecha):
+  /// un reintento a mano del MISMO abono la reusa y el servidor no lo aplica dos veces; uno
+  /// nuevo (o uno ya confirmado o rechazado) saca otra. Vive mientras la app está abierta.
+  final _payKeys = <String, String>{};
 
   DebtsRepository get _repo => _ref.read(debtsRepositoryProvider);
 
@@ -154,21 +160,35 @@ class DebtsWriter {
     _refresh();
   });
 
-  /// POST /debts/:id/payments: con la casilla crea un movimiento que cambia Mi plata, y el servidor no
-  /// tiene llave de reintento (riesgo ALTO). Foto previa de los abonos de ESA cuenta; en duda,
-  /// «guardado» = un abono NUEVO con el mismo monto y fecha (sigue en la lista aunque la cuenta haya
-  /// quedado saldada). Si no, UNCONFIRMED y nada se reintenta: los abonos quedan a la vista (hoja
-  /// de editar) para borrar uno doble.
+  /// POST /debts/:id/payments: con la casilla crea un movimiento que cambia Mi plata (riesgo ALTO). Va
+  /// con `Idempotency-Key`, una por borrador ([_payKeys]): reintentar a mano el mismo abono tras una
+  /// duda no abona dos veces (aunque la cuenta ya haya quedado saldada), y una repetición
+  /// (`Idempotent-Replayed`) es una respuesta 2xx más: hecho. Igual se conserva la foto previa de los
+  /// abonos de ESA cuenta para un servidor sin la llave; en duda, «guardado» = un abono NUEVO con el
+  /// mismo monto y fecha (sigue en la lista aunque la cuenta haya quedado saldada). Si no,
+  /// UNCONFIRMED y nada se reintenta solo: los abonos quedan a la vista (hoja de editar) para borrar
+  /// uno doble.
   Future<void> pay(String id, {required num amount, required String date, required bool createTransaction}) =>
       _once('debt-pay $id', () async {
         final account = _ref.read(accountProvider);
+        // Sin la casilla: si cambia entre intentos, la misma llave da 409 en vez de un segundo abono.
+        final draft = '${account?.user.id} $id ${_cents(amount)} $date';
+        // El localId de Anotar sirve de llave: 128 bits al azar con el formato que acepta el servidor.
+        final key = _payKeys[draft] ?? MovementSaver.newLocalId();
         await _welcomeDone();
         final before = (await _read())?.items.where((d) => d.id == id).firstOrNull;
         _sameAccount(account);
         try {
-          await _repo.pay(id, amount: amount, date: date, createTransaction: createTransaction);
+          await _repo.pay(
+            id,
+            amount: amount,
+            date: date,
+            createTransaction: createTransaction,
+            idempotencyKey: key,
+          );
         } on ApiException catch (e, stack) {
           if (!inDoubt(e)) {
+            _payKeys.remove(draft); // Rechazado: no se aplicó; el próximo intento es otro abono.
             if (e.status == 404 || e.status == 409) _refresh();
             rethrow;
           }
@@ -182,10 +202,13 @@ class DebtsWriter {
                   .any((p) => !ids!.contains(p.id) && _cents(p.amount) == _cents(amount) && p.date == date) ??
               false;
           if (!confirmed) {
+            // Sigue en duda: el próximo intento del mismo abono va con esta misma llave.
+            _payKeys[draft] = key;
             _refresh(movement: createTransaction);
             Error.throwWithStackTrace(_unconfirmed(e), stack);
           }
         }
+        _payKeys.remove(draft);
         _refresh(movement: createTransaction);
       });
 

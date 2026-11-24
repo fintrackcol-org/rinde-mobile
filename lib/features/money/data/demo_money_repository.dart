@@ -310,7 +310,7 @@ class DemoMoneyRepository implements MoneyRepository {
   }
 
   @override
-  Future<void> saveSources(List<Map<String, dynamic>> sources) async {
+  Future<void> saveSources(List<Map<String, dynamic>> sources, {int? expectedVersion}) async {
     await _write();
     await store.update(userId, (state) => state.withSources(sources));
   }

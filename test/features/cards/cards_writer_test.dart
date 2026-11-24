@@ -670,4 +670,67 @@ void main() {
     await expectLater(writer.syncWithBank(cardOfJson(), {'available': 1}), pending);
     expect(adapter.requests, isEmpty);
   });
+
+  group('Idempotency-Key del pago', () {
+    test(
+      'el mismo pago tras una duda reusa la llave; uno nuevo, otro monto o un rechazo sacan otra',
+      () async {
+        var answer = 'timeout';
+        final (c, adapter) = await open((o) {
+          if (o.method != 'POST') return jsonBody(200, [_payment]);
+          return switch (answer) {
+            'timeout' => _timeout(o),
+            'rejected' => errorBody(422, 'VALIDATION_ERROR', 'Datos inválidos'),
+            _ => jsonBody(201, {'payment': _payment, 'card': cardJson()}),
+          };
+        });
+        final writer = c.read(cardsWriterProvider);
+        Future<void> pay(num amount) => writer.pay(_id, amount: amount, date: '2026-11-23');
+        List<String?> keys() => [
+          for (final r in adapter.requests)
+            if (r.method == 'POST') r.headers['Idempotency-Key'] as String?,
+        ];
+
+        // En duda y sin confirmar (el pago que aparece ya estaba): UNCONFIRMED.
+        await expectLater(pay(100000), throwsA(isA<ApiException>()));
+        answer = 'ok';
+        await pay(100000); // reintento a mano del mismo borrador: misma llave (el servidor lo repite)
+        await pay(100000); // un pago nuevo igual, ya confirmado el anterior: otra llave
+        await pay(90000); // otro monto: otra llave
+        answer = 'rejected';
+        await expectLater(pay(80000), throwsA(isA<ApiException>()));
+        answer = 'ok';
+        await pay(80000); // tras un rechazo no se aplicó nada: otra llave
+
+        final [doubt, retry, fresh, other, rejected, after] = keys();
+        expect(doubt, matches(RegExp(r'^[A-Za-z0-9._:-]{8,128}$')));
+        expect(retry, doubt);
+        expect({doubt, fresh, other, rejected, after}, hasLength(5));
+      },
+    );
+
+    test('la llave de una duda es de esa cuenta: otra persona con el mismo pago saca la suya', () async {
+      var timeout = true;
+      final (c, adapter) = await open(
+        (o) => o.method != 'POST'
+            ? jsonBody(200, [_payment])
+            : timeout
+            ? _timeout(o)
+            : jsonBody(201, {'payment': _payment, 'card': cardJson()}),
+      );
+      await expectLater(
+        c.read(cardsWriterProvider).pay(_id, amount: 100000, date: '2026-11-23'),
+        throwsA(isA<ApiException>()),
+      );
+      timeout = false;
+      (c.read(sessionControllerProvider.notifier) as _Sessions).enter(_beto);
+      await c.read(cardsWriterProvider).pay(_id, amount: 100000, date: '2026-11-23');
+      final posts = [
+        for (final r in adapter.requests)
+          if (r.method == 'POST') r.headers['Idempotency-Key'],
+      ];
+      expect(posts, hasLength(2));
+      expect(posts.first, isNot(posts.last));
+    });
+  });
 }

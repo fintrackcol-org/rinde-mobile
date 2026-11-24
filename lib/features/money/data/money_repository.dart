@@ -20,8 +20,10 @@ abstract interface class MoneyRepository {
   /// GET /money-profile/income.
   Future<IncomeOverview> income();
 
-  /// PUT /money-profile/sources {sources}: reemplaza todas las fuentes.
-  Future<void> saveSources(List<Map<String, dynamic>> sources);
+  /// PUT /money-profile/sources {sources, expectedVersion?}: reemplaza todas las fuentes. Con
+  /// [expectedVersion] (la `version` del perfil que se tenía a la vista) el servidor responde 409
+  /// `PROFILE_CHANGED` y no guarda nada si otro dispositivo cambió el perfil mientras tanto.
+  Future<void> saveSources(List<Map<String, dynamic>> sources, {int? expectedVersion});
 
   /// GET /money-profile/calendar?month=AAAA-MM: solo los pagos fijos del mes.
   Future<List<CalendarPayment>> calendar(String month);
@@ -63,10 +65,12 @@ class ApiMoneyRepository implements MoneyRepository {
   @override
   Future<IncomeOverview> income() async => IncomeOverview.fromJson(await _api.get('/money-profile/income'));
 
-  // El mismo envío de la bienvenida: un solo lugar arma la petición.
+  // El de la bienvenida, más la versión que se tenía a la vista (la bienvenida no la manda).
   @override
-  Future<void> saveSources(List<Map<String, dynamic>> sources) =>
-      ApiOnboardingRepository(_api).saveSources(sources);
+  Future<void> saveSources(List<Map<String, dynamic>> sources, {int? expectedVersion}) =>
+      expectedVersion == null
+      ? ApiOnboardingRepository(_api).saveSources(sources)
+      : _api.put('/money-profile/sources', body: {'sources': sources, 'expectedVersion': expectedVersion});
 
   Future<Object?> _calendar(String month) => _api.get('/money-profile/calendar', query: {'month': month});
 

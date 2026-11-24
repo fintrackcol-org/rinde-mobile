@@ -455,26 +455,27 @@ class DemoCardsRepository implements CardsRepository {
   }
 
   @override
-  Future<void> pay(String id, {required num amount, required String date}) => _write((all) async {
-    final raw = all.where((c) => c['id'] == id).firstOrNull ?? (throw _notFound);
-    if (amount <= 0) throw _invalid({'amount': 'Debe ser un número mayor que 0'});
-    if (date.compareTo(isoDay(clock())) > 0) {
-      throw _invalid({'date': 'No puede ser una fecha futura'});
-    }
-    final next = {
-      ...raw,
-      'payments': [
-        ..._payments(raw),
-        {
-          'id': _rand('demo-p'),
-          'date': date,
-          'amount': readMoney(amount),
-          'createdAt': clock().toUtc().toIso8601String(),
-        },
-      ],
-    };
-    await _save([for (final c in all) c['id'] == id ? next : c]);
-  });
+  Future<void> pay(String id, {required num amount, required String date, String? idempotencyKey}) =>
+      _write((all) async {
+        final raw = all.where((c) => c['id'] == id).firstOrNull ?? (throw _notFound);
+        if (amount <= 0) throw _invalid({'amount': 'Debe ser un número mayor que 0'});
+        if (date.compareTo(isoDay(clock())) > 0) {
+          throw _invalid({'date': 'No puede ser una fecha futura'});
+        }
+        final next = {
+          ...raw,
+          'payments': [
+            ..._payments(raw),
+            {
+              'id': _rand('demo-p'),
+              'date': date,
+              'amount': readMoney(amount),
+              'createdAt': clock().toUtc().toIso8601String(),
+            },
+          ],
+        };
+        await _save([for (final c in all) c['id'] == id ? next : c]);
+      });
 
   @override
   Future<void> deletePayment(String id, String paymentId) => _write((all) async {

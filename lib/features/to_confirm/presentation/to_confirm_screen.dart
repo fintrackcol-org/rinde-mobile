@@ -14,6 +14,8 @@ import '../../../design/widgets/rinde_feedback.dart';
 import '../../../design/widgets/rinde_icon.dart';
 import '../../../design/widgets/rinde_text_field.dart';
 import '../../auth/application/session_controller.dart';
+import '../../cards/application/cards_providers.dart' show cardsProvider;
+import '../../cards/data/card_models.dart' show CreditCard;
 import '../../home/application/home_providers.dart' show todayProvider;
 import '../../home/data/home_models.dart' show readMoney;
 import '../../home/presentation/widgets/home_money.dart';
@@ -22,7 +24,7 @@ import '../../money/presentation/widgets/income_overview_card.dart' show moneyOf
 import '../../money/presentation/widgets/paid_button.dart' show moneyErrorText;
 import '../../movements/domain/movement.dart' show MovementType;
 import '../../movements/presentation/list/movement_dates.dart';
-import '../../movements/presentation/record/movement_form.dart' show MovementCategoryPicker;
+import '../../movements/presentation/record/movement_form.dart' show MovementCategoryPicker, PaidWithPicker;
 import '../../shell/presentation/pushed_frame.dart';
 import '../application/to_confirm_writer.dart';
 import '../data/to_confirm_repository.dart';
@@ -309,8 +311,10 @@ class _PaymentRow extends ConsumerWidget {
   }
 }
 
-/// Hoja «Confirmar pago» (ConfirmForm de la web): la descripción (el comercio, editable) y la
-/// categoría (o que la elija la IA). Devuelve la descripción anotada al confirmar.
+/// Hoja «Confirmar pago» (ConfirmForm de la web): la descripción (el comercio, editable), la
+/// categoría (o que la elija la IA) y «Pagado con», como en Anotar: con tarjeta el gasto no resta de
+/// Mi plata hasta pagarla. Arranca con la tarjeta de Wallet si coincide sin duda ([walletCardMatch]);
+/// si no, «Efectivo o débito». Devuelve la descripción anotada al confirmar.
 class _ConfirmSheet extends ConsumerStatefulWidget {
   const _ConfirmSheet({required this.payment});
   final IncomingPayment payment;
@@ -322,6 +326,12 @@ class _ConfirmSheet extends ConsumerStatefulWidget {
 class _ConfirmSheetState extends ConsumerState<_ConfirmSheet> {
   late final _description = TextEditingController(text: widget.payment.merchant);
   String? _category;
+
+  /// La tarjeta que eligió la persona (null = «Efectivo o débito»); antes de tocar nada manda la de
+  /// Wallet ([walletCardMatch]).
+  String? _card;
+  bool _cardTouched = false;
+  String? _cardError;
   bool _showAll = false;
   bool _busy = false;
   String? _error;
@@ -331,6 +341,18 @@ class _ConfirmSheetState extends ConsumerState<_ConfirmSheet> {
   void dispose() {
     _description.dispose();
     super.dispose();
+  }
+
+  /// Las tarjetas cargadas, o null mientras cargan o si fallaron: entonces «Pagado con» no aparece y
+  /// el gasto va en efectivo, como en Anotar.
+  static List<CreditCard>? _known(AsyncValue<List<CreditCard>> cards) =>
+      cards.isLoading || cards.hasError ? null : cards.value;
+
+  /// La tarjeta que se manda: solo una de la lista cargada.
+  String? _selected(List<CreditCard>? cards) {
+    if (cards == null || cards.isEmpty) return null;
+    if (!_cardTouched) return walletCardMatch(widget.payment.card, cards);
+    return cards.any((c) => c.id == _card) ? _card : null;
   }
 
   Future<void> _submit() async {
@@ -344,13 +366,24 @@ class _ConfirmSheetState extends ConsumerState<_ConfirmSheet> {
     FocusScope.of(context).unfocus();
     setState(() => (_busy = true, _error = null, _fieldError = null));
     try {
-      await ref.read(toConfirmWriterProvider).confirm(widget.payment, description: text, category: _category);
+      final card = _selected(_known(ref.read(cardsProvider(ref.read(accountProvider)))));
+      await ref
+          .read(toConfirmWriterProvider)
+          .confirm(widget.payment, description: text, category: _category, card: card);
       if (mounted) Navigator.of(context).pop(text);
     } on ApiException catch (e) {
       final field = e.fields['description'];
+      // Tarjeta ajena o borrada en otro dispositivo: la lista se pone al día y el campo lo dice.
+      final cardField = e.fields['card'];
+      if (cardField != null) ref.invalidate(cardsProvider);
       if (mounted) {
         setState(
-          () => (_error = moneyErrorText(e, t), _fieldError = field == null ? null : t(field), _busy = false),
+          () => (
+            _error = moneyErrorText(e, t),
+            _fieldError = field == null ? null : t(field),
+            _cardError = cardField == null ? null : t(cardField),
+            _busy = false,
+          ),
         );
       }
     } on Object catch (e) {
@@ -365,6 +398,7 @@ class _ConfirmSheetState extends ConsumerState<_ConfirmSheet> {
     final region = ref.watch(appRegionProvider);
     final money = moneyOf(ref);
     final payment = widget.payment;
+    final cards = _known(ref.watch(cardsProvider(ref.watch(accountProvider))));
     return PopScope(
       canPop: !_busy,
       child: Padding(
@@ -407,6 +441,15 @@ class _ConfirmSheetState extends ConsumerState<_ConfirmSheet> {
                 onShowAll: () => setState(() => _showAll = true),
                 onChanged: (c) => setState(() => _category = c),
               ),
+              if (cards != null && cards.isNotEmpty) ...[
+                const SizedBox(height: RindeSpace.s5),
+                PaidWithPicker(
+                  cards: cards,
+                  value: _selected(cards),
+                  error: _cardError,
+                  onChanged: (id) => setState(() => (_card = id, _cardTouched = true, _cardError = null)),
+                ),
+              ],
               if (_error case final error?) ...[
                 const SizedBox(height: RindeSpace.s4),
                 RindeBanner(message: error),

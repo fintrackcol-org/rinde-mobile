@@ -6,6 +6,9 @@ class FakeCardsRepository implements CardsRepository {
   final calls = <String>[];
   final bodies = <Map<String, dynamic>>[];
 
+  /// La cabecera `Idempotency-Key` de cada pago.
+  final payKeys = <String?>[];
+
   Future<List<CreditCard>> Function() onList = () async => const [];
   Future<CreditCard> Function(String id) onGet = (id) async => throw UnimplementedError(id);
   Future<List<CardMovement>> Function(String id) onMovements = (id) async => const [];
@@ -60,8 +63,9 @@ class FakeCardsRepository implements CardsRepository {
   }
 
   @override
-  Future<void> pay(String id, {required num amount, required String date}) {
+  Future<void> pay(String id, {required num amount, required String date, String? idempotencyKey}) {
     calls.add('pay $id');
+    payKeys.add(idempotencyKey);
     bodies.add({'amount': amount, 'date': date});
     return onPay(id, amount, date);
   }

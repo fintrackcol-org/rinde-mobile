@@ -78,7 +78,7 @@ class _FakeToConfirm implements ToConfirmRepository {
   Future<List<IncomingPayment>> list() async => _payments;
 
   @override
-  Future<void> confirm(String id, {required String description, String? category}) {
+  Future<void> confirm(String id, {required String description, String? category, String? card}) {
     sent.add('confirm $id $description');
     return gate.future;
   }

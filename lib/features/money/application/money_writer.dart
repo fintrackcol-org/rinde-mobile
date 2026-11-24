@@ -84,14 +84,22 @@ class MoneyWriter {
     afterMoneyChange(_ref.container, money: money);
   }
 
-  /// PUT /money-profile/sources. Gana el último: dos envíos a la vez podrían dejar fuentes repetidas.
-  Future<void> saveSources(List<Map<String, dynamic>> sources) => _once(
-    'sources',
-    () => _send(
-      () => _repo.saveSources(sources),
-      () async => sameSources(sources, (await _repo.income()).sources),
-    ),
-  );
+  /// PUT /money-profile/sources. Dos envíos a la vez podrían dejar fuentes repetidas: uno a la vez.
+  /// Con [expectedVersion] (la `version` del perfil al empezar a editar) no pisa un cambio de otro
+  /// dispositivo: el 409 PROFILE_CHANGED vuelve a leer y llega a la hoja, sin reintentar. Sin ella
+  /// (perfil sin leer o servidor sin versión), gana el último como antes.
+  Future<void> saveSources(List<Map<String, dynamic>> sources, {int? expectedVersion}) =>
+      _once('sources', () async {
+        try {
+          await _send(
+            () => _repo.saveSources(sources, expectedVersion: expectedVersion),
+            () async => sameSources(sources, (await _repo.income()).sources),
+          );
+        } on ApiException catch (e) {
+          if (e.code == ApiCodes.profileChanged) afterMoneyChange(_ref.container, money: true);
+          rethrow;
+        }
+      });
 
   /// POST /money-profile/commitments. El nombre es único: si quedó en duda, se busca en el perfil.
   Future<void> createCommitment(Map<String, dynamic> body) => _once(

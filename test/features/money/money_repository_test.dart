@@ -264,6 +264,14 @@ void main() {
       });
     });
 
+    test('con expectedVersion la manda junto a las fuentes (y sin ella no)', () async {
+      final adapter = FakeHttpAdapter((_) => jsonBody(200, _income));
+      await repo(adapter).saveSources(const [], expectedVersion: 4);
+      await repo(adapter).saveSources(const []);
+      expect(adapter.requests.first.data, {'sources': <Object>[], 'expectedVersion': 4});
+      expect(adapter.requests.last.data, {'sources': <Object>[]});
+    });
+
     test('un 422 llega con el problema de cada campo', () async {
       final adapter = FakeHttpAdapter(
         (_) => errorBody(
