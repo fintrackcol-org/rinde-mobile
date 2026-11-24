@@ -460,8 +460,8 @@ No se tocó: el backend, la web (React), producción, ni la cuenta de QA fuera d
 ### 5A
 
 - Rama: `feat/etapa-5-tarjetas-deudas` (sale de `main` en `a8f0541`).
-- Commit del bloque: se anota al abrir la PR.
-- PR: se anota al abrir la PR hacia `main`, **sin fusionar** (la fusión la decide David).
+- Commit del bloque: `c5ef34b` (verificado en GitHub con `git ls-remote`).
+- PR: [fintrackcol-org/rinde-mobile#2](https://github.com/fintrackcol-org/rinde-mobile/pull/2) hacia `main`, **sin fusionar** (la fusión la decide David).
 
 ## 18. Riesgos abiertos
 
