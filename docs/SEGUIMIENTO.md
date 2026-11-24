@@ -27,5 +27,5 @@ Niveles: **implementado** (código hecho) · **validado parcial** (comprobacione
 - PR #2 sin fusionar. Textos nuevos de 5A y 5B sin aprobar; 6 decisiones del 5B y la pregunta 5 (etiqueta de la tarjeta) tomadas con la recomendación del plan.
 - Backend: B1/B2 (idempotencia de pagos de tarjeta y abonos) y B4 sin aprobar.
 - Traducciones de la web que se leen mal en inglés: «Paid {v1}», «Delete account», «· share», «the».
-- 6: al cerrar sesión la cola sin conexión de esa cuenta queda en el teléfono (aparte por cuenta, como la web); ¿se borra? Textos nuevos de la 6 sin aprobar.
+- 6: DECIDIDO por David (24-nov): al cerrar sesión la cola sin conexión se queda en el teléfono, aparte por cuenta, como la web. Textos nuevos de la 6 sin aprobar.
 - Rama 6 sale de la rama 5 (PR #2 sin fusionar): su PR va contra la rama de la etapa 5.
