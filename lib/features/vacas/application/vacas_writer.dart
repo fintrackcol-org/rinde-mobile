@@ -1,12 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_models.dart';
 import '../../money/application/money_writer.dart' show inDoubt;
-import '../../movements/application/movement_saver.dart' show MovementSaver;
 import '../../onboarding/data/onboarding_repository.dart' show pendingSourcesProvider;
 import '../data/vaca_models.dart';
 import '../data/vacas_repository.dart';
@@ -16,17 +13,14 @@ import 'vacas_providers.dart';
 /// - un solo envío a la vez por operación y cuenta ([_once]): un segundo toque espera al primero;
 /// - `_sameAccount` antes de cada envío; la bienvenida pendiente bloquea lo que mueve plata;
 /// - «en duda» (espera vencida o 5xx) se confirma VOLVIENDO A LEER, nunca reintentando solo;
-/// - el aporte SÍ es idempotente en el servidor (`localId`): el mismo borrador reusa su localId en
-///   cada reintento hasta guardarse, así una duda o dos toques no lo duplican;
+/// - el aporte SÍ es idempotente en el servidor (`localId`): la hoja lo genera y lo reusa en cada
+///   reintento del mismo borrador, así una duda o dos toques no lo duplican;
 /// - un 404 al borrar o al sacar a alguien cuenta como hecho.
 /// Permisos (quién edita, borra o saca miembros) los decide el servidor: aquí no se adivinan.
 class VacasWriter {
   VacasWriter(this._ref);
   final Ref _ref;
   final _running = <String, Future<Object?>>{};
-
-  /// localId de cada borrador de aporte que no terminó, por cuenta, vaca y contenido.
-  final _draftIds = <String, String>{};
 
   static const unconfirmedText = 'No pudimos confirmar si se guardó. Revisa antes de intentarlo otra vez.';
 
@@ -191,19 +185,14 @@ class VacasWriter {
   Future<({int reminded, int delivered})> remind(String id) =>
       _once('vaca-remind $id', () => _send(() => _repo.remind(id)));
 
-  /// POST /vacas/:id/contributions: crea también el GASTO en Movimientos (Mi plata baja). El mismo
-  /// borrador (vaca, monto, fecha, nota y categoría) reusa su localId hasta guardarse: un reintento
-  /// tras una duda devuelve el aporte que ya llegó en vez de crear otro. Un borrador distinto es un
-  /// aporte nuevo. Devuelve el monto que quedó registrado.
-  Future<num> contribute(String id, Map<String, dynamic> body) {
-    final draft = '${_ref.read(accountProvider)?.user.id} $id ${jsonEncode(body)}';
-    return _once('vaca-contribute $id', () async {
-      final localId = _draftIds[draft] ??= MovementSaver.newLocalId();
-      final amount = await _send(() => _repo.contribute(id, body, localId: localId), movement: true);
-      _draftIds.remove(draft);
-      return amount;
-    });
-  }
+  /// POST /vacas/:id/contributions: crea también el GASTO en Movimientos (Mi plata baja). [localId] es
+  /// del borrador de la hoja (como MovementSaver): un reintento tras una duda devuelve el aporte que ya
+  /// llegó en vez de crear otro; otra hoja u otro borrador es un aporte nuevo, aunque sea idéntico (el
+  /// servidor devuelve el que tenga ese localId, también si se borró). Devuelve el monto registrado.
+  Future<num> contribute(String id, Map<String, dynamic> body, {required String localId}) => _once(
+    'vaca-contribute $id',
+    () => _send(() => _repo.contribute(id, body, localId: localId), movement: true),
+  );
 
   /// DELETE de un aporte propio (y su gasto). Un 404 cuenta como borrado solo si la vaca sigue a la
   /// vista: el servidor también responde 404 cuando ya no se es miembro, y entonces el gasto sigue.

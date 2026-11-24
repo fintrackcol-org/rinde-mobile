@@ -15,7 +15,6 @@ import '../../auth/application/session_controller.dart';
 import '../../home/application/home_providers.dart' show homeCategoryNamesProvider;
 import '../../home/data/home_models.dart';
 import '../../home/presentation/widgets/home_money.dart';
-import '../../home/presentation/widgets/home_tap.dart' show HomeSurface;
 import '../../money/presentation/widgets/income_overview_card.dart' show moneyOf;
 import '../../money/presentation/widgets/paid_button.dart' show moneyErrorText;
 import '../../movements/presentation/list/movement_row.dart';
@@ -125,22 +124,21 @@ class _Detail extends ConsumerWidget {
         style: RindeType.small.copyWith(color: p.inkMuted),
       );
     } else {
-      list = HomeSurface(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Column(
-          children: [
-            for (final (i, m) in movements.value!.items.indexed) ...[
-              if (i > 0) Divider(height: 1, color: p.ink.withValues(alpha: 0.1)),
-              MovementRow(
+      // Cada fila ya es una tarjeta (como en Movimientos): sin otra tarjeta alrededor (doble borde).
+      list = Column(
+        children: [
+          for (final m in movements.value!.items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: MovementRow(
                 movement: m,
                 category: movementCategoryName(m, names, t),
                 money: money,
                 t: t,
                 onTap: () => context.push(Routes.movement(m.id)),
               ),
-            ],
-          ],
-        ),
+            ),
+        ],
       );
     }
 

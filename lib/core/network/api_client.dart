@@ -39,10 +39,12 @@ class ApiClient {
     public.interceptors
       ..add(guard)
       ..add(region);
+    // La sesión demo va primero: una compilación de demo sin API_BASE_URL debe decir «Modo
+    // demostración…», no el error técnico de configuración (se vio en Consejos en el emulador).
     authed.interceptors
+      ..add(_AuthInterceptor(session: session, refresher: public))
       ..add(guard)
-      ..add(region)
-      ..add(_AuthInterceptor(session: session, refresher: public));
+      ..add(region);
   }
 
   late final Dio public;
@@ -82,15 +84,7 @@ class ApiClient {
         disposition: response.headers.value('content-disposition'),
       );
     } on DioException catch (e) {
-      // El error también llega en bytes: se lee como el JSON de siempre para conservar su código.
-      final response = e.response;
-      if (response != null && response.data is List<int>) {
-        try {
-          response.data = jsonDecode(utf8.decode(response.data as List<int>));
-        } on FormatException {
-          response.data = null;
-        }
-      }
+      _jsonFromBytes(e.response);
       throw ApiException.fromDio(e);
     }
   }
@@ -102,6 +96,17 @@ class ApiClient {
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }
+  }
+}
+
+/// El error de una descarga también llega en bytes: se lee como el JSON de siempre para conservar su
+/// código (y que un 401 TOKEN_EXPIRED renueve la sesión).
+void _jsonFromBytes(Response<dynamic>? response) {
+  if (response == null || response.data is! List<int>) return;
+  try {
+    response.data = jsonDecode(utf8.decode(response.data as List<int>));
+  } on FormatException {
+    response.data = null;
   }
 }
 
@@ -184,6 +189,7 @@ class _AuthInterceptor extends QueuedInterceptor {
 
   @override
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    _jsonFromBytes(err.response);
     final failure = ApiException.fromDio(err);
     final isAuthError =
         err.response?.statusCode == 401 &&

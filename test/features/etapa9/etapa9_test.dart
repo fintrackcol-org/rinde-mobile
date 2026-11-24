@@ -4,10 +4,12 @@
 // incluidos los límites del servidor y los periodos sin movimientos.
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +24,7 @@ import 'package:rinde_mobile/core/region/region.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
 import 'package:rinde_mobile/design/theme/rinde_theme.dart';
 import 'package:rinde_mobile/design/widgets/rinde_button.dart';
+import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/export/data/export_repository.dart';
 import 'package:rinde_mobile/features/export/presentation/export_screen.dart';
@@ -54,6 +57,13 @@ Future<ApiClient> _api(FakeHttpAdapter http) async {
     session: holder,
     adapter: http,
   );
+}
+
+class _Sessions extends SessionController {
+  @override
+  Future<SessionState> build() async => const SessionState(session: _session);
+
+  void leave() => state = const AsyncData(SessionState());
 }
 
 class _FakeNotifications implements NotificationsRepository {
@@ -182,6 +192,20 @@ void main() {
       expect(toConversation([(fromUser: false, text: 'hola')]), isEmpty);
     });
 
+    test(
+      'una respuesta larga de la IA se reenvía recortada: la API rechaza más de 500 por mensaje',
+      () async {
+        final http = FakeHttpAdapter((_) => jsonBody(200, {'reply': 'A seis meses, 9 %.', 'toolsUsed': []}));
+        await InsightsRepository(await _api(http)).ask([
+          (fromUser: true, text: '¿Cuánto paga un CDT a un año?'),
+          (fromUser: false, text: 'x' * 620),
+          (fromUser: true, text: '¿y a seis meses?'),
+        ]);
+        final sent = (jsonDecode(jsonEncode(http.requests.single.data)) as Map)['messages'] as List;
+        expect([for (final m in sent) ((m as Map)['text'] as String).length], [29, 500, 16]);
+      },
+    );
+
     test('exportar baja los bytes con el nombre del servidor; un 422 en bytes conserva NO_DATA', () async {
       final bytes = Uint8List.fromList([1, 2, 3]);
       var fail = false;
@@ -217,6 +241,35 @@ void main() {
         repo.export(ExportFormat.csv, '2026-11-01', '2026-11-30'),
         throwsA(isA<ApiException>().having((e) => e.code, 'code', ApiCodes.noData)),
       );
+    });
+
+    test('exportar con el acceso vencido: el 401 en bytes renueva la sesión y repite la descarga', () async {
+      final bytes = Uint8List.fromList([7, 8, 9]);
+      var downloads = 0;
+      final http = FakeHttpAdapter((o) {
+        if (o.path == '/auth/refresh') {
+          return jsonBody(200, {'accessToken': 'acceso-2', 'refreshToken': 'refresh-2'});
+        }
+        if (downloads++ == 0) {
+          return ResponseBody.fromBytes(
+            utf8.encode(
+              jsonEncode({
+                'error': {'code': 'TOKEN_EXPIRED', 'message': 'Token expirado'},
+              }),
+            ),
+            401,
+            headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType],
+            },
+          );
+        }
+        return ResponseBody.fromBytes(bytes, 200);
+      });
+      final file = await ExportRepository(await _api(http))
+          .export(ExportFormat.xlsx, '2026-11-01', '2026-11-30');
+      expect(file.bytes, bytes);
+      expect(http.to('/auth/refresh'), hasLength(1));
+      expect(http.requests.last.headers['Authorization'], 'Bearer acceso-2');
     });
 
     test('el nombre del archivo nunca trae barras; sin encabezado, el de respaldo', () {
@@ -397,6 +450,110 @@ void main() {
     expect(find.text('rinde_2026-11.pdf'), findsOneWidget);
     // Cambiar el formato no vuelve a pedir la vista previa: las cifras son las mismas.
     expect(http.requests.length, 1);
+  });
+
+  group('Exportar: compartir', () {
+    const share = MethodChannel('dev.fluttercommunity.plus/share');
+    const paths = MethodChannel('plugins.flutter.io/path_provider');
+    late Directory temp;
+    late List<String> shared;
+    late bool existed;
+    late Completer<void> answer;
+
+    setUp(() {
+      temp = Directory.systemTemp.createTempSync('rinde-prueba-');
+      shared = [];
+      existed = false;
+      answer = Completer<void>()..complete();
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(paths, (_) async => temp.path);
+      messenger.setMockMethodCallHandler(share, (call) async {
+        final path = ((call.arguments as Map)['paths'] as List).single as String;
+        shared.add(path);
+        existed = File(path).existsSync();
+        return 'dev.fluttercommunity.plus/share/success';
+      });
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(paths, null);
+        messenger.setMockMethodCallHandler(share, null);
+        temp.deleteSync(recursive: true);
+      });
+    });
+
+    Future<FakeHttpAdapter> open(WidgetTester tester, [List<Override> extra = const []]) async {
+      final http = FakeHttpAdapter((o) async {
+        if (o.path != '/reports/export') {
+          return jsonBody(200, {
+            'totals': {'income': 700000, 'expense': 220000, 'balance': 480000, 'count': 3},
+            'expenseByCategory': const <Object>[],
+            'insights': const <Object>[],
+          });
+        }
+        await answer.future;
+        return ResponseBody.fromBytes(
+          [1, 2, 3],
+          200,
+          headers: {
+            'content-disposition': ['attachment; filename="rinde_2026-11.xlsx"'],
+          },
+        );
+      });
+      final api = await tester.runAsync(() => _api(http));
+      await _pump(tester, Routes.export, [
+        exportRepositoryProvider.overrideWithValue(ExportRepository(api!)),
+        ...extra,
+      ]);
+      return http;
+    }
+
+    /// La descarga y el archivo son E/S real: se esperan fuera del tiempo simulado, hasta que el botón
+    /// deja de cargar.
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 40; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pump();
+        final button = find.widgetWithText(RindeButton, 'Descargar Excel');
+        if (button.evaluate().isNotEmpty && !tester.widget<RindeButton>(button).loading && i > 2) break;
+      }
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('el archivo sale de una carpeta propia, con su nombre, y se borra al terminar', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.runAsync(() async => tester.tap(find.text('Descargar Excel')));
+      await settle(tester);
+
+      expect(shared.single, endsWith('${Platform.pathSeparator}rinde_2026-11.xlsx'));
+      expect(existed, isTrue);
+      expect(File(shared.single).existsSync(), isFalse);
+      expect(File(shared.single).parent.existsSync(), isFalse);
+      expect(find.text('Descargado rinde_2026-11.xlsx'), findsOneWidget);
+    });
+
+    testWidgets('si la sesión termina mientras baja, el reporte no se abre en la hoja de compartir', (
+      tester,
+    ) async {
+      answer = Completer<void>();
+      await open(tester, [sessionControllerProvider.overrideWith(_Sessions.new)]);
+      await settle(tester);
+      expect(
+        tester.widget<RindeButton>(find.widgetWithText(RindeButton, 'Descargar Excel')).onPressed,
+        isNotNull,
+      );
+      await tester.runAsync(() async => tester.tap(find.text('Descargar Excel')));
+      await tester.pump();
+      final container = ProviderScope.containerOf(tester.element(find.byType(ExportScreen)));
+      (container.read(sessionControllerProvider.notifier) as _Sessions).leave();
+      await tester.pump();
+      answer.complete();
+      // El Completer es del tiempo simulado: se suelta con un pump y lo demás es E/S real.
+      await tester.pump();
+      await settle(tester);
+
+      expect(shared, isEmpty);
+    });
   });
 
   testWidgets('Renta y DIAN: los dos servicios oficiales y la nota de privacidad', (tester) async {

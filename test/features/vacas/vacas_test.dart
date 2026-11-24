@@ -35,6 +35,12 @@ import 'package:rinde_mobile/features/vacas/data/vaca_models.dart';
 import 'package:rinde_mobile/features/vacas/data/vacas_repository.dart';
 import 'package:rinde_mobile/features/vacas/presentation/vaca_detail_screen.dart';
 import 'package:rinde_mobile/features/vacas/presentation/vacas_screens.dart';
+import 'package:rinde_mobile/features/vacas/presentation/widgets/contribution_sheet.dart';
+import 'package:rinde_mobile/features/vacas/presentation/widgets/vaca_widgets.dart';
+import 'package:rinde_mobile/features/home/presentation/widgets/home_money.dart';
+import 'package:rinde_mobile/core/region/region.dart';
+import 'package:rinde_mobile/design/widgets/rinde_button.dart';
+import 'package:rinde_mobile/features/movements/domain/movement.dart' show CategoryLists;
 
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_http.dart';
@@ -220,11 +226,11 @@ void main() {
 
     test('aportar: POST con monto, fecha, categoría y localId; devuelve lo registrado', () async {
       final (c, adapter) = await open((o) => jsonBody(201, _contributed(100000)));
-      expect(await c.read(vacasWriterProvider).contribute(_id, body), 100000);
+      expect(await c.read(vacasWriterProvider).contribute(_id, body, localId: 'm-1'), 100000);
       final post = posts(adapter).single;
       expect(post.path, '$_path/contributions');
       expect({...post.data as Map}..remove('localId'), body);
-      expect((post.data as Map)['localId'], startsWith('m-'));
+      expect((post.data as Map)['localId'], 'm-1');
     });
 
     test('unirse, sacar, salir, invitar y pasar a Metas usan los endpoints de la web', () async {
@@ -266,15 +272,15 @@ void main() {
         return jsonBody(201, _contributed(100000));
       });
       final writer = c.read(vacasWriterProvider);
-      final first = writer.contribute(_id, body);
-      final second = writer.contribute(_id, body);
+      final first = writer.contribute(_id, body, localId: 'm-1');
+      final second = writer.contribute(_id, body, localId: 'm-1');
       await pumpEventQueue();
       answer.complete();
       expect(await Future.wait([first, second]), [100000, 100000]);
       expect(posts(adapter), hasLength(1));
     });
 
-    test('en duda: no se reintenta solo; el reintento del MISMO borrador lleva el mismo localId', () async {
+    test('en duda: no se reintenta solo; el reintento lleva el localId que le dio la hoja', () async {
       var calls = 0;
       final (c, adapter) = await open((o) {
         calls++;
@@ -283,23 +289,13 @@ void main() {
       });
       final writer = c.read(vacasWriterProvider);
       await expectLater(
-        writer.contribute(_id, body),
+        writer.contribute(_id, body, localId: 'm-1'),
         throwsA(isA<ApiException>().having((e) => e.code, 'code', ApiCodes.timeout)),
       );
       expect(posts(adapter), hasLength(1), reason: 'nada de reintentos solos');
-      await writer.contribute(_id, body);
+      await writer.contribute(_id, body, localId: 'm-1');
       final [first, second] = posts(adapter);
       expect((second.data as Map)['localId'], (first.data as Map)['localId']);
-    });
-
-    test('guardado, el siguiente aporte (o un borrador distinto) lleva un localId nuevo', () async {
-      final (c, adapter) = await open((o) => jsonBody(201, _contributed(100000)));
-      final writer = c.read(vacasWriterProvider);
-      await writer.contribute(_id, body);
-      await writer.contribute(_id, body);
-      await writer.contribute(_id, {...body, 'amount': 5000});
-      final ids = {for (final r in posts(adapter)) (r.data as Map)['localId']};
-      expect(ids, hasLength(3));
     });
 
     test(
@@ -342,7 +338,7 @@ void main() {
       await c.read(moneyProfileProvider(account).future);
       await c.read(homePlanProvider(account).future);
       await c.read(movementDetailProvider((account, 'm1')).future);
-      await c.read(vacasWriterProvider).contribute(_id, body);
+      await c.read(vacasWriterProvider).contribute(_id, body, localId: 'm-1');
       await pumpEventQueue();
       expect((money.count('profile'), home.count('plan')), (2, 2));
       expect(movements.calls.where((call) => call == 'get m1'), hasLength(2));
@@ -356,7 +352,7 @@ void main() {
       );
       final (c, adapter) = await open((o) => jsonBody(201, _contributed(1)), drafts: drafts);
       await expectLater(
-        c.read(vacasWriterProvider).contribute(_id, body),
+        c.read(vacasWriterProvider).contribute(_id, body, localId: 'm-1'),
         throwsA(isA<ApiException>().having((e) => e.code, 'code', ApiCodes.welcomePending)),
       );
       expect(adapter.requests, isEmpty);
@@ -367,7 +363,7 @@ void main() {
       final (c, adapter) = await open((o) => jsonBody(200, [_vaca()]), drafts: drafts);
       final account = c.read(accountProvider);
       await c.read(vacasProvider(account).future);
-      final sending = c.read(vacasWriterProvider).contribute(_id, body);
+      final sending = c.read(vacasWriterProvider).contribute(_id, body, localId: 'm-1');
       await pumpEventQueue();
       (c.read(sessionControllerProvider.notifier) as _Sessions).enter(_beto);
       drafts.gate.complete();
@@ -469,4 +465,120 @@ void main() {
       });
     }
   });
+
+  group('la hoja de aporte', () {
+    Future<List<String>> pump(
+      WidgetTester tester,
+      Widget Function(BuildContext) home, {
+      bool hidden = false,
+    }) async {
+      tester.view.physicalSize = const Size(390, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final sent = <String>[];
+      await tester.pumpWidget(
+        ProviderScope(
+          retry: (_, _) => null,
+          overrides: [
+            sessionControllerProvider.overrideWith(_Sessions.new),
+            clockProvider.overrideWithValue(() => DateTime(2026, 11, 23, 10)),
+            initialHiddenAmountsProvider.overrideWithValue(hidden),
+            draftStoreProvider.overrideWithValue(MemoryDraftStore()),
+            movementCategoriesProvider.overrideWith(
+              (ref, _) async => const CategoryLists(expense: [], income: []),
+            ),
+            vacasWriterProvider.overrideWith((ref) => _Writer(ref, sent)),
+          ],
+          child: MaterialApp(
+            theme: RindeTheme.light,
+            home: Scaffold(body: Builder(builder: home)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return sent;
+    }
+
+    Widget opener(BuildContext context, {bool quick = true}) => TextButton(
+      onPressed: () =>
+          showContributionSheet(context, vaca: Vaca.fromJson(_vaca(personal: true)), quick: quick),
+      child: const Text('abrir'),
+    );
+
+    testWidgets(
+      'el localId es de la hoja: el reintento lo reusa; otra hoja, aunque sea igual, es otro aporte',
+      (tester) async {
+        final sent = await pump(tester, opener);
+        await tester.tap(find.text('abrir'));
+        await tester.pumpAndSettle();
+        // La primera respuesta se pierde (en duda); el reintento en la misma hoja sí llega.
+        await tester.tap(find.byType(RindeButton));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(RindeButton));
+        await tester.pumpAndSettle();
+        expect(find.text('abrir'), findsOneWidget);
+
+        // Otra hoja con el mismo monto y la misma fecha: un aporte nuevo.
+        await tester.tap(find.text('abrir'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(RindeButton));
+        await tester.pumpAndSettle();
+
+        expect(sent, hasLength(3));
+        expect(sent[1], sent[0]);
+        expect(sent[2], isNot(sent[0]));
+      },
+    );
+
+    testWidgets(
+      'con los montos ocultos, el plan, «Apartar», «Poner lo que me falta» y «Borrar aporte» se leen «Monto oculto»',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        final money = HomeMoney(format: formatFor(kDefaultRegion), hidden: true, hiddenLabel: 'Monto oculto');
+        await pump(
+          tester,
+          (context) => Column(
+            children: [
+              opener(context),
+              opener(context, quick: false),
+              VacaContributionList(
+                vaca: Vaca.fromJson(_vaca(personal: true)),
+                money: money,
+                onDelete: (_) async {},
+              ),
+            ],
+          ),
+          hidden: true,
+        );
+        expect(find.bySemanticsLabel(RegExp('Borrar aporte de Monto oculto')), findsOneWidget);
+        await tester.tap(find.text('abrir').first);
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsLabel(RegExp('Monto oculto · tu plan')), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('Apartar Monto oculto')), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('••')), findsNothing);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('abrir').last);
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsLabel(RegExp(r'Poner lo que me falta \(Monto oculto\)')), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('••')), findsNothing);
+        semantics.dispose();
+      },
+    );
+  });
+}
+
+/// Aportes a la medida: guarda el localId de cada envío; el primero queda en duda.
+class _Writer extends VacasWriter {
+  _Writer(super.ref, this.sent);
+  final List<String> sent;
+
+  @override
+  Future<num> contribute(String id, Map<String, dynamic> body, {required String localId}) async {
+    sent.add(localId);
+    if (sent.length == 1) {
+      throw const ApiException(code: ApiCodes.timeout, serverMessage: 'Se venció la espera');
+    }
+    return body['amount'] as num;
+  }
 }

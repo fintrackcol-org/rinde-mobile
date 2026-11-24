@@ -10,9 +10,18 @@ enum RindeBannerTone { error, success, info, neutral }
 /// Avisos de Rinde Web: error del servidor (destructive/10), éxito (mint/10), invitación
 /// (violet/15) y neutro (white/10). Se anuncian al lector de pantalla al aparecer.
 class RindeBanner extends StatelessWidget {
-  const RindeBanner({super.key, required this.message, this.tone = RindeBannerTone.error, this.action});
+  const RindeBanner({
+    super.key,
+    required this.message,
+    this.tone = RindeBannerTone.error,
+    this.action,
+    this.semanticsLabel,
+  });
 
   final String message;
+
+  /// Lo que oye el lector si no es [message] (con montos ocultos, `money.spoken(message)`).
+  final String? semanticsLabel;
   final RindeBannerTone tone;
   final Widget? action;
 
@@ -41,7 +50,11 @@ class RindeBanner extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(message, style: RindeType.small.copyWith(color: color)),
+              Text(
+                message,
+                semanticsLabel: semanticsLabel,
+                style: RindeType.small.copyWith(color: color),
+              ),
               if (action != null) ...[const SizedBox(height: RindeSpace.s2), action!],
             ],
           ),

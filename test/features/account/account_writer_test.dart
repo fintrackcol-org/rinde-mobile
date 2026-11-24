@@ -15,12 +15,14 @@ import 'package:rinde_mobile/features/auth/data/auth_repository.dart';
 import 'package:rinde_mobile/features/cards/data/demo_cards_store.dart';
 import 'package:rinde_mobile/features/debts/data/demo_debts_store.dart';
 import 'package:rinde_mobile/features/home/application/tour_controller.dart';
+import 'package:rinde_mobile/features/money/application/money_providers.dart' show dismissedStoreProvider;
 import 'package:rinde_mobile/features/movements/application/movement_saver.dart' show pendingStoreProvider;
 import 'package:rinde_mobile/features/movements/data/demo_movements_repository.dart'
     show demoMovementsStoreProvider;
 import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
 import 'package:rinde_mobile/features/onboarding/data/demo_onboarding_repository.dart';
 import 'package:rinde_mobile/features/onboarding/data/draft_store.dart';
+import 'package:rinde_mobile/features/plan/application/plan_providers.dart' show budgetsMonthProvider;
 import 'package:rinde_mobile/features/plan/data/demo_budgets_repository.dart' show demoBudgetsStoreProvider;
 
 const _ana = Session(
@@ -62,6 +64,7 @@ class _FakeAuth implements AuthRepository {
 class _FakeAccount implements AccountRepository {
   final sent = <ReminderSettings>[];
   Object? deleteCategoryError;
+  int moved = 2;
 
   @override
   bool get isDemo => false;
@@ -79,7 +82,7 @@ class _FakeAccount implements AccountRepository {
   @override
   Future<int> deleteCategory(String key) async {
     if (deleteCategoryError case final e?) throw e;
-    return 2;
+    return moved;
   }
 
   @override
@@ -92,6 +95,7 @@ void main() {
   late MemoryJsonListStore pending;
   late MemoryDraftStore drafts;
   late MemoryTourSeenStore tours;
+  late MemoryJsonListStore dismissed;
   late MemoryDemoStateStore demoState;
 
   Future<ProviderContainer> container(Session session, {List<Object> extra = const []}) async {
@@ -100,6 +104,7 @@ void main() {
     pending = MemoryJsonListStore();
     drafts = MemoryDraftStore();
     tours = MemoryTourSeenStore();
+    dismissed = MemoryJsonListStore();
     demoState = MemoryDemoStateStore();
     final c = ProviderContainer.test(
       overrides: [
@@ -111,6 +116,7 @@ void main() {
         pendingStoreProvider.overrideWithValue(pending),
         draftStoreProvider.overrideWithValue(drafts),
         tourSeenStoreProvider.overrideWithValue(tours),
+        dismissedStoreProvider.overrideWithValue(dismissed),
         demoStateStoreProvider.overrideWithValue(demoState),
         demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
         demoCardsStoreProvider.overrideWithValue(MemoryJsonListStore()),
@@ -132,6 +138,7 @@ void main() {
       ]);
       await drafts.write(id, {'step': 'balance'});
       await tours.write(id);
+      await dismissed.write(id, ['pago-$id-2026-11-30']);
     }
   }
 
@@ -152,10 +159,12 @@ void main() {
       expect(pending.data.containsKey('ana'), isFalse);
       expect(drafts.data.containsKey('ana'), isFalse);
       expect(tours.seen.contains('ana'), isFalse);
+      expect(dismissed.data.containsKey('ana'), isFalse);
       // Lo de otra cuenta en el mismo teléfono sigue.
       expect(pending.data.containsKey('beto'), isTrue);
       expect(drafts.data.containsKey('beto'), isTrue);
       expect(tours.seen.contains('beto'), isTrue);
+      expect(dismissed.data.containsKey('beto'), isTrue);
       // La contraseña no queda en ningún almacén.
       expect('${pending.data}${drafts.data}', isNot(contains('secreta-123')));
     });
@@ -235,6 +244,56 @@ void main() {
       expect(drafts.data.containsKey(id), isFalse);
       expect(tours.seen.contains(id), isFalse);
       expect(pending.data.containsKey(id), isFalse);
+      // El reinicio borra sin esperar: los avisos cerrados también.
+      await pumpEventQueue();
+      expect(dismissed.data.containsKey(id), isFalse);
+    });
+
+    // Renovar la sesión falló por red: el interceptor devuelve un 401 sintético que no dice nada.
+    for (final code in [ApiCodes.network, ApiCodes.timeout, 'REFRESH_FAILED']) {
+      test('en duda y al leer el perfil renovar falla ($code, 401): no se sabe y nada se borra', () async {
+        final c = await container(_ana);
+        await seed('ana');
+        auth
+          ..deleteError = const ApiException(code: ApiCodes.timeout)
+          ..meError = ApiException(code: code, status: 401);
+
+        await expectLater(
+          c.read(accountWriterProvider).deleteAccount('secreta-123'),
+          throwsA(isA<ApiException>()),
+        );
+        expect(c.read(sessionControllerProvider).value!.signedIn, isTrue);
+        expect(pending.data.containsKey('ana'), isTrue);
+      });
+    }
+
+    test('tras una duda sin resolver, un 401 auténtico del reintento es que ya se borró', () async {
+      final c = await container(_ana);
+      await seed('ana');
+      final writer = c.read(accountWriterProvider);
+      auth
+        ..deleteError = const ApiException(code: ApiCodes.timeout)
+        ..meError = const ApiException(code: ApiCodes.network, status: 401);
+      await expectLater(writer.deleteAccount('secreta-123'), throwsA(isA<ApiException>()));
+
+      auth.deleteError = const ApiException(code: ApiCodes.tokenExpired, status: 401);
+      await writer.deleteAccount('secreta-123');
+
+      expect(c.read(sessionControllerProvider).value!.deleted, isTrue);
+      expect(pending.data.containsKey('ana'), isFalse);
+      expect(drafts.data.containsKey('ana'), isFalse);
+    });
+
+    test('sin una duda antes, un 401 del DELETE no borra nada de la cuenta', () async {
+      final c = await container(_ana);
+      await seed('ana');
+      auth.deleteError = const ApiException(code: ApiCodes.tokenExpired, status: 401);
+
+      await expectLater(
+        c.read(accountWriterProvider).deleteAccount('secreta-123'),
+        throwsA(isA<ApiException>()),
+      );
+      expect(pending.data.containsKey('ana'), isTrue);
     });
   });
 
@@ -257,6 +316,31 @@ void main() {
 
     expect(await c.read(accountWriterProvider).deleteCategory('cat-1'), 0);
   });
+
+  test(
+    'borrar una categoría sin movimientos recarga los presupuestos (el servidor borró los suyos)',
+    () async {
+      final account = _FakeAccount()..moved = 0;
+      var reads = 0;
+      final c = await container(
+        _ana,
+        extra: [
+          accountRepositoryProvider.overrideWithValue(account),
+          budgetsMonthProvider.overrideWith((ref, _) async {
+            reads++;
+            return const [];
+          }),
+        ],
+      );
+      final key = (c.read(accountProvider), '2026-11');
+      c.listen(budgetsMonthProvider(key), (_, _) {});
+      await c.read(budgetsMonthProvider(key).future);
+
+      expect(await c.read(accountWriterProvider).deleteCategory('cat-1'), 0);
+      await c.read(budgetsMonthProvider(key).future);
+      expect(reads, 2);
+    },
+  );
 
   group('demostración', () {
     test('en un escenario fijo las escrituras dan demoNoBackend', () async {

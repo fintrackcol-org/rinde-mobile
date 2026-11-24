@@ -183,6 +183,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
               const SizedBox(height: RindeSpace.s4),
               ConfirmInline(
                 compact: true,
+                icon: RindeIcons.refreshCw,
                 label: t('Cambiar código'),
                 question: t('El enlace actual dejará de servir. ¿Cambiar el código?'),
                 confirmLabel: t('Sí, cambiar'),

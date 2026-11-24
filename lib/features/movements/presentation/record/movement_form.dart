@@ -595,9 +595,18 @@ String _kakeiboLabel(String key) => _kakeibo.firstWhere((k) => k.$1 == key, orEl
 
 /// Píldora elegible de 48 de alto (ChipGroup y los botones de categoría de la web).
 class ChoiceChipButton extends StatelessWidget {
-  const ChoiceChipButton({super.key, required this.label, required this.selected, required this.onTap});
+  const ChoiceChipButton({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.semanticsLabel,
+  });
 
   final String label;
+
+  /// Lo que oye el lector en vez de [label] (con montos ocultos, `money.spoken(label)`).
+  final String? semanticsLabel;
   final bool selected;
   final VoidCallback onTap;
 
@@ -622,7 +631,11 @@ class ChoiceChipButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Flexible(
-                    child: Text(label, style: RindeType.meta.w(FontWeight.w600).copyWith(color: fg)),
+                    child: Text(
+                      label,
+                      semanticsLabel: semanticsLabel,
+                      style: RindeType.meta.w(FontWeight.w600).copyWith(color: fg),
+                    ),
                   ),
                 ],
               ),

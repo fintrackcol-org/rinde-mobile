@@ -125,6 +125,14 @@ List<ChatMessage> toConversation(List<ChatMessage> messages) {
   return first == -1 ? const [] : recent.sublist(first);
 }
 
+/// La API rechaza (422) cualquier mensaje de más de [maxQuestionChars], también las respuestas de la
+/// IA, que pueden llegar a 1500: se reenvía solo su comienzo. shortcut: quitar cuando parseChat aplique
+/// el tope solo a role 'user'.
+String _clip(String text) {
+  final clean = text.trim();
+  return clean.length > maxQuestionChars ? clean.substring(0, maxQuestionChars) : clean;
+}
+
 /// Consejos, reflexión de la semana y asistente (insightService, transactionService.getReflection y
 /// assistantService de la web). Solo endpoints del servidor: la app no llama a ningún proveedor de IA.
 ///
@@ -152,7 +160,7 @@ class InsightsRepository {
         body: {
           'messages': [
             for (final m in toConversation(messages))
-              {'role': m.fromUser ? 'user' : 'assistant', 'text': m.text},
+              {'role': m.fromUser ? 'user' : 'assistant', 'text': m.fromUser ? m.text : _clip(m.text)},
           ],
         },
       ),

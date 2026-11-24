@@ -9,6 +9,7 @@ import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_models.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../home/application/tour_controller.dart' show tourSeenStoreProvider;
+import '../../money/application/money_providers.dart' show dismissedStoreProvider;
 import '../../money/application/money_writer.dart' show inDoubt;
 import '../../movements/application/movement_saver.dart' show afterMovementChange, pendingStoreProvider;
 import '../../movements/application/movements_controller.dart' show movementCategoriesProvider;
@@ -32,6 +33,10 @@ class AccountWriter {
   AccountWriter(this._ref);
   final Ref _ref;
   final _running = <String, Future<Object?>>{};
+
+  /// Cuentas cuyo DELETE quedó en duda sin poder comprobarse: si el siguiente da un 401 auténtico, es
+  /// que el primero sí la borró.
+  final _unresolved = <String>{};
 
   AccountRepository get _repo => _ref.read(accountRepositoryProvider);
 
@@ -150,13 +155,15 @@ class AccountWriter {
         rethrow;
       }
     }
-    _categoriesChanged(movements: moved > 0);
+    // Aunque no moviera nada, el servidor borró sus presupuestos: Planear y el Inicio se vuelven a pedir.
+    _categoriesChanged(movements: true);
     return moved;
   });
 
   /// DeleteAccount.jsx (FT-0017): DELETE /users/me con la contraseña; al terminar sale y no deja nada
   /// de la cuenta en el teléfono. En duda (se venció la espera o 5xx) se comprueba leyendo el perfil:
   /// si la cuenta ya no existe, cuenta como eliminada; si sigue o no se sabe, el error llega a la hoja.
+  /// Si no se supo, el reintento que da un 401 auténtico (la cuenta ya no está) también cuenta.
   /// En la demostración solo la reinicia y sale.
   Future<void> deleteAccount(String password) => _once('delete-account', () async {
     final account = _ref.read(accountProvider);
@@ -169,34 +176,46 @@ class AccountWriter {
       try {
         await auth.deleteAccount(password);
       } on ApiException catch (e, stack) {
-        if (!inDoubt(e) || !await _gone(auth)) Error.throwWithStackTrace(e, stack);
+        final id = account.user.id;
+        final gone = inDoubt(e) ? await _gone(auth) : _unresolved.contains(id) && _authGone(e);
+        if (gone != true) {
+          if (gone == null) _unresolved.add(id);
+          Error.throwWithStackTrace(e, stack);
+        }
       }
     }
     await _ref.read(sessionControllerProvider.notifier).leaveDeleted();
     await forgetAccountOnDevice(_ref, account.user.id);
   });
 
-  /// ¿La cuenta ya no existe? Solo un «no autorizado» o «no existe» lo dice; sin red no se sabe.
-  static Future<bool> _gone(AuthRepository auth) async {
+  /// Un 401 del servidor, no el sintético del interceptor cuando renovar falló por red
+  /// (NETWORK, TIMEOUT o REFRESH_FAILED, también con status 401).
+  static bool _authGone(ApiException e) =>
+      e.status == 401 && (e.code == ApiCodes.unauthorized || e.code == ApiCodes.tokenExpired);
+
+  /// ¿La cuenta ya no existe? true: un «no autorizado» o «no existe»; false: sigue; null: no se sabe.
+  static Future<bool?> _gone(AuthRepository auth) async {
     try {
       await auth.me();
       return false;
     } on ApiException catch (e) {
-      return e.status == 401 || e.status == 404;
+      return _authGone(e) || e.status == 404 ? true : null;
     } on Object {
-      return false;
+      return null;
     }
   }
 }
 
 /// Lo que la app guarda de una cuenta en el teléfono: la cola sin conexión (con sus rechazados), el
-/// borrador de la bienvenida y la marca del tutorial. Lo de la demostración lo borra su reinicio.
+/// borrador de la bienvenida, la marca del tutorial y los avisos de pago cerrados. Lo de la demostración
+/// lo borra su reinicio.
 /// El tema, la región y «ocultar montos» son del dispositivo, no de la cuenta.
 Future<void> forgetAccountOnDevice(Ref ref, String userId) async {
   await Future.wait([
     ref.read(pendingStoreProvider).clear(userId),
     ref.read(draftStoreProvider).clear(userId),
     ref.read(tourSeenStoreProvider).clear(userId),
+    ref.read(dismissedStoreProvider).clear(userId),
   ]);
 }
 

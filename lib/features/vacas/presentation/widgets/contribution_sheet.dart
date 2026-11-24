@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,7 @@ import '../../../home/domain/runway.dart';
 import '../../../home/presentation/widgets/home_money.dart';
 import '../../../money/presentation/widgets/income_overview_card.dart' show moneyOf;
 import '../../../money/presentation/widgets/paid_button.dart' show moneyErrorText;
+import '../../../movements/application/movement_saver.dart' show MovementSaver;
 import '../../../movements/application/movements_controller.dart' show movementCategoriesProvider;
 import '../../../movements/domain/movement.dart' show MovementType;
 import '../../../movements/presentation/record/movement_form.dart' show ChoiceChipButton;
@@ -75,6 +77,11 @@ class _ContributionSheetState extends ConsumerState<_ContributionSheet> {
   String? _error;
   bool _saving = false;
 
+  /// localId del borrador que se envió (y lo que llevaba): un reintento del mismo lo reusa; si cambió
+  /// el monto, la fecha, la nota o la categoría, es otro aporte.
+  String? _localId;
+  String? _sent;
+
   /// El plan de la semana, sin pasarse de lo que falta (Metas.jsx).
   num? _plan() {
     final week = widget.vaca.projection.neededPerWeek ?? 0;
@@ -112,13 +119,18 @@ class _ContributionSheetState extends ConsumerState<_ContributionSheet> {
       _errors = const {};
       _error = null;
     });
+    final body = {
+      'amount': amount,
+      'date': _date,
+      'note': widget.quick || note.isEmpty ? null : note,
+      'category': widget.quick ? kVacaCategory : _category,
+    };
+    if (jsonEncode(body) != _sent) {
+      _sent = jsonEncode(body);
+      _localId = MovementSaver.newLocalId();
+    }
     try {
-      final saved = await ref.read(vacasWriterProvider).contribute(widget.vaca.id, {
-        'amount': amount,
-        'date': _date,
-        'note': widget.quick || note.isEmpty ? null : note,
-        'category': widget.quick ? kVacaCategory : _category,
-      });
+      final saved = await ref.read(vacasWriterProvider).contribute(widget.vaca.id, body, localId: _localId!);
       if (mounted) Navigator.of(context).pop(saved);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -161,6 +173,11 @@ class _ContributionSheetState extends ConsumerState<_ContributionSheet> {
                 ? t('Te faltan {myRemaining} de tu parte.', {'myRemaining': pesos(money, vaca.myRemaining)})
                 : t('Ya pusiste tu parte.'));
     }
+    final button = !widget.quick
+        ? t('Aportar')
+        : value > 0
+        ? t('Apartar {value}', {'value': pesos(money, value)})
+        : t('Apartar');
     return PopScope(
       canPop: !_saving,
       child: Padding(
@@ -205,6 +222,7 @@ class _ContributionSheetState extends ConsumerState<_ContributionSheet> {
                   alignment: AlignmentDirectional.centerStart,
                   child: ChoiceChipButton(
                     label: '${pesos(money, _suggested)} ${t('· tu plan')}',
+                    semanticsLabel: money.spoken('${pesos(money, _suggested)} ${t('· tu plan')}'),
                     selected: false,
                     onTap: () => setState(() => _amount = '${_suggested.round()}'),
                   ),
@@ -214,6 +232,9 @@ class _ContributionSheetState extends ConsumerState<_ContributionSheet> {
                   alignment: AlignmentDirectional.centerStart,
                   child: RindeTextLink(
                     label: '${t('Poner lo que me falta (')}${pesos(money, vaca.myRemaining)})',
+                    semanticsLabel: money.spoken(
+                      '${t('Poner lo que me falta (')}${pesos(money, vaca.myRemaining)})',
+                    ),
                     onPressed: _saving ? null : () => setState(() => _amount = '${vaca.myRemaining.round()}'),
                   ),
                 ),
@@ -224,11 +245,8 @@ class _ContributionSheetState extends ConsumerState<_ContributionSheet> {
               ],
               const SizedBox(height: RindeSpace.s5),
               RindeButton(
-                label: !widget.quick
-                    ? t('Aportar')
-                    : value > 0
-                    ? t('Apartar {value}', {'value': pesos(money, value)})
-                    : t('Apartar'),
+                label: button,
+                semanticsLabel: money.spoken(button),
                 loading: _saving,
                 loadingLabel: t('Guardando…'),
                 onPressed: _save,

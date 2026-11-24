@@ -54,6 +54,21 @@ void main() {
       expect(adapter.requests, isEmpty);
     });
 
+    test(
+      'con sesión demo y sin API_BASE_URL, la petición dice «Modo demostración», no la configuración',
+      () async {
+        final adapter = FakeHttpAdapter((_) => jsonBody(200, {}));
+        final api = client(
+          adapter,
+          config: const AppConfig(apiBaseUrl: '', environment: 'local'),
+        );
+        await holder.save(const Session(user: _user, accessToken: 'demo', refreshToken: 'demo', demo: true));
+
+        expect((await _failure(api.get('/insights'))).code, ApiCodes.demoNoBackend);
+        expect(adapter.requests, isEmpty);
+      },
+    );
+
     test('producción con APP_ENV distinto de production falla igual', () async {
       final adapter = FakeHttpAdapter((_) => jsonBody(200, {}));
       final api = client(
