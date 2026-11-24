@@ -34,8 +34,6 @@ final pendingModules = <PendingModule>[
   PendingModule(path: Routes.expenses, title: (t, _) => t('Gastos'), web: 'PeriodDetail.jsx (gasto)'),
   PendingModule(path: Routes.toConfirm, title: (t, _) => t('Por confirmar'), web: 'PendingPayments.jsx'),
   PendingModule(path: Routes.budgets, title: (t, _) => t('Presupuestos'), web: 'Budgets.jsx'),
-  PendingModule(path: Routes.cards, title: (t, _) => t('Tarjetas'), web: 'Cards.jsx'),
-  PendingModule(path: Routes.card(':id'), title: (t, _) => t('Tarjeta'), web: 'CardDetail.jsx'),
   // Accesos de «Más de tu plata».
   PendingModule(path: Routes.calendar, title: (t, _) => t('Calendario'), web: 'Calendar.jsx'),
   PendingModule(path: Routes.debts, title: (t, _) => t('Cuentas'), web: 'Debts.jsx'),

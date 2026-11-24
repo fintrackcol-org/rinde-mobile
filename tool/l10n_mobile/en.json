@@ -1,6 +1,7 @@
 {
  "(cumplido)": "(met)",
  "(pendiente)": "(pending)",
+ ", vence {expiry}": ", expires {expiry}",
  ", ver gastos de {period}": ", view expenses for {period}",
  ", ver ingresos de {period}": ", view income for {period}",
  "Al mes": "Monthly",
@@ -18,6 +19,7 @@
  "Lo que ves puede estar desactualizado: es lo último que llegó.": "What you see may be out of date: it's the last thing we received.",
  "Modo demostración: esta acción no llega a ningún servidor.": "Demo mode: this action doesn't reach any server.",
  "Monto oculto": "Amount hidden",
+ "Monto pagado ({currency})": "Amount paid ({currency})",
  "Movimientos (pestaña)": "Activity",
  "No encontramos ese país.": "We couldn't find that country.",
  "No pudimos confirmar si se guardó. Revisa antes de intentarlo otra vez.": "We couldn't confirm whether it was saved. Check before trying again.",
@@ -30,6 +32,7 @@
  "Por ahora corrige tu saldo en la web de Rinde, con tu misma cuenta. En la app llega pronto.": "For now, fix your balance on the Rinde website, with the same account. It's coming to the app soon.",
  "Por ahora cámbialo en la web de Rinde, con tu misma cuenta.": "For now, change it on the Rinde website, with the same account.",
  "Primero terminemos de guardar tu bienvenida.": "Let's finish saving your welcome first.",
+ "Próximo pago {when}": "Next payment {when}",
  "Responder": "Answer",
  "Rinde tiene guardado {amount}. «Omitir» lo deja así; «Seguir» lo cambia por lo que escribas.": "Rinde has {amount} saved. “Skip” leaves it that way; “Continue” replaces it with what you type.",
  "Rinde, cargando": "Rinde, loading",

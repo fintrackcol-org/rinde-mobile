@@ -9,6 +9,7 @@ enum RindeIcons {
   bell('bell'),
   bike('bike'),
   briefcaseBusiness('briefcase-business'),
+  calendarClock('calendar-clock'),
   calendarDays('calendar-days'),
   calendarRange('calendar-range'),
   chevronDown('chevron-down'),
@@ -19,6 +20,7 @@ enum RindeIcons {
   /// Check con trazo 3: casilla y reglas de contraseña (strokeWidth 3 en la web).
   checkBold('check-bold'),
   circleAlert('circle-alert'),
+  circleDollarSign('circle-dollar-sign'),
 
   /// Módulo en desarrollo.
   construction('construction'),
@@ -40,6 +42,7 @@ enum RindeIcons {
   mic('mic'),
   pencil('pencil'),
   plus('plus'),
+  refreshCw('refresh-cw'),
   rotateCcw('rotate-ccw'),
 
   /// Ajuste de saldo: no es ingreso ni gasto.
@@ -48,6 +51,7 @@ enum RindeIcons {
   shieldAlert('shield-alert'),
   sparkles('sparkles'),
   target('target'),
+  trash2('trash-2'),
   trendingUp('trending-up'),
   userRound('user-round'),
   users('users'),

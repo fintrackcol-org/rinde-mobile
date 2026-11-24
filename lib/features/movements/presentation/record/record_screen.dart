@@ -9,6 +9,7 @@ import '../../../../design/widgets/rinde_button.dart';
 import '../../../../design/widgets/rinde_feedback.dart';
 import '../../../../design/widgets/rinde_icon.dart';
 import '../../../auth/application/session_controller.dart';
+import '../../../cards/application/cards_providers.dart' show cardsProvider;
 import '../../../shell/presentation/pushed_frame.dart';
 import '../../application/movement_saver.dart';
 import '../../application/movements_controller.dart';
@@ -31,11 +32,14 @@ String savedMessage(Tr t, Movement saved, Map<String, String> names) {
       : t('Guardado en {name}.', {'name': name});
 }
 
-/// `/app/anotar?tipo=ingreso|gasto` (Anotar.jsx): anotar un movimiento nuevo.
+/// `/app/anotar?tipo=ingreso|gasto&tarjeta=<id>` (Anotar.jsx): anotar un movimiento nuevo.
 class RecordScreen extends ConsumerStatefulWidget {
-  const RecordScreen({super.key, this.initialType = MovementType.expense});
+  const RecordScreen({super.key, this.initialType = MovementType.expense, this.initialCard});
 
   final MovementType initialType;
+
+  /// `?tarjeta=`: llega desde el detalle de una tarjeta, con esa tarjeta elegida.
+  final String? initialCard;
 
   @override
   ConsumerState<RecordScreen> createState() => _RecordScreenState();
@@ -47,7 +51,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   late MovementType _type = widget.initialType;
 
   Future<String?> _save(MovementInput input, Movement? _) async {
-    final saved = await ref.read(movementSaverProvider).create(input, localId: _localId);
+    // La etiqueta de la tarjeta va con el pendiente, para que en la cola se vea con su tarjeta.
+    final card = input.card == null
+        ? null
+        : ref
+              .read(cardsProvider(ref.read(accountProvider)))
+              .value
+              ?.where((c) => c.id == input.card)
+              .firstOrNull;
+    final saved = await ref
+        .read(movementSaverProvider)
+        .create(input, localId: _localId, cardName: card?.name, cardLast4: card?.last4);
     final t = ref.read(trProvider);
     final names = ref.read(movementCategoriesProvider(ref.read(accountProvider))).value?.names ?? const {};
     return savedMessage(t, saved, {for (final e in names.entries) e.key: t(e.value)});
@@ -62,6 +76,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       back: false,
       child: MovementForm(
         initialType: widget.initialType,
+        initialCard: widget.initialCard,
         onSave: _save,
         onTypeChanged: (type) => setState(() => _type = type),
       ),

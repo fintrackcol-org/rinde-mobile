@@ -249,7 +249,9 @@ class MovementInput {
   final String? kakeibo;
   final OriginalAmount? original;
 
-  /// Cuerpo de PUT con solo lo que cambió respecto a [saved] (changedFields de la web).
+  /// Cuerpo de PUT con solo lo que cambió respecto a [saved] (changedFields de la web). Con otra
+  /// tarjeta van también las cuotas: sin ellas el servidor guarda 1 (transactions.service.js:299-300)
+  /// aunque el formulario muestre otras. La web, al pasar de una tarjeta a otra, las pierde.
   Map<String, dynamic> changesFrom(Movement saved) {
     final before = MovementInput(
       type: saved.type,
@@ -264,10 +266,14 @@ class MovementInput {
       original: saved.original,
     ).toJson(update: true);
     final now = toJson(update: true);
-    return {
+    final changes = {
       for (final MapEntry(:key, :value) in now.entries)
         if (jsonEncode(value) != jsonEncode(before[key])) key: value,
     };
+    if (card != null && installments != null && changes.containsKey('card')) {
+      changes['installments'] = installments;
+    }
+    return changes;
   }
 
   /// Cuerpo de POST (sin nulos opcionales) o de PUT (`update: true`: el estado completo, con null

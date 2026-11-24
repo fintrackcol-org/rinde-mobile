@@ -755,8 +755,11 @@ class _PendingPanel extends StatelessWidget {
                   container: true,
                   liveRegion: true,
                   child: Text(
-                    '${r.movement.input.description} · ${t('No se pudo sincronizar:')} ${t(r.message)}',
-                    style: RindeType.small.copyWith(color: p.negative),
+                    // cardDropped NO es un rechazo: el gasto quedó guardado, solo que sin tarjeta.
+                    r.cardDropped
+                        ? '${r.movement.input.description} · ${t(r.message)}'
+                        : '${r.movement.input.description} · ${t('No se pudo sincronizar:')} ${t(r.message)}',
+                    style: RindeType.small.copyWith(color: r.cardDropped ? p.ink : p.negative),
                   ),
                 ),
               if (rejected.isNotEmpty)

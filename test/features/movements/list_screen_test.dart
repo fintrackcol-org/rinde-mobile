@@ -297,6 +297,23 @@ void main() {
     expect(find.text('No se pudo sincronizar'), findsOneWidget);
   });
 
+  testWidgets('cardDropped: la fila avisa que se guardó sin tarjeta, sin decir «No se pudo sincronizar»', (
+    tester,
+  ) async {
+    final store = MemoryJsonListStore()
+      ..data['a'] = jsonEncode([
+        {
+          ...PendingMovement(localId: 'm-local', input: inputOf, queuedAt: _now).toJson(),
+          'rejected': kCardDroppedMessage,
+          'cardDropped': true,
+        },
+      ]);
+    await _pump(tester, repo, store: store);
+    expect(find.text('Almuerzo · $kCardDroppedMessage'), findsOneWidget);
+    expect(find.textContaining('No se pudo sincronizar'), findsNothing);
+    expect(find.text('Descartar'), findsOneWidget);
+  });
+
   testWidgets('320 de ancho con letra al doble: sin desbordes', (tester) async {
     await _pump(tester, repo, size: const Size(320, 640), textScale: 2);
     expect(tester.takeException(), isNull);

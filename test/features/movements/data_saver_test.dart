@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rinde_mobile/core/network/api_exception.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
+import 'package:rinde_mobile/features/cards/application/cards_providers.dart';
+import 'package:rinde_mobile/features/cards/data/cards_repository.dart';
 import 'package:rinde_mobile/features/home/application/home_providers.dart';
 import 'package:rinde_mobile/features/movements/application/movement_saver.dart';
 import 'package:rinde_mobile/features/movements/application/movements_controller.dart';
@@ -13,6 +15,7 @@ import 'package:rinde_mobile/features/movements/data/json_list_store.dart';
 import 'package:rinde_mobile/features/movements/data/movements_repository.dart';
 import 'package:rinde_mobile/features/movements/domain/movement.dart';
 
+import '../../support/fake_cards_repository.dart';
 import '../../support/fake_movements_repository.dart';
 
 const _ana = Session(
@@ -37,17 +40,20 @@ const _offline = ApiException(code: ApiCodes.network);
 
 void main() {
   late FakeMovementsRepository repo;
+  late FakeCardsRepository cards;
   late MemoryJsonListStore store;
   late ProviderContainer c;
 
   setUp(() {
     repo = FakeMovementsRepository();
+    cards = FakeCardsRepository();
     store = MemoryJsonListStore();
     c = ProviderContainer.test(
       retry: (_, _) => null,
       overrides: [
         sessionControllerProvider.overrideWith(_Sessions.new),
         movementsRepositoryProvider.overrideWithValue(repo),
+        cardsRepositoryProvider.overrideWithValue(cards),
         pendingStoreProvider.overrideWithValue(store),
         clockProvider.overrideWithValue(() => DateTime(2026, 11, 22, 10)),
       ],
@@ -247,5 +253,97 @@ void main() {
         .read(movementsControllerProvider.notifier)
         .setQuery(const MovementQuery(type: MovementType.income));
     expect([for (final m in c.read(movementsControllerProvider).items) m.id], ['s1']);
+  });
+
+  group('tarjeta en la cola (regla cardDropped)', () {
+    const withCard = MovementInput(
+      type: MovementType.expense,
+      amount: 12500,
+      description: 'Almuerzo',
+      date: '2026-11-21',
+      card: 't1',
+      installments: 3,
+    );
+
+    test(
+      'anotar con tarjeta: la app no resta nada; vuelve a pedir las tarjetas (lo usado lo da el servidor)',
+      () async {
+        final account = c.read(accountProvider);
+        c.listen(cardsProvider(account), (_, _) {});
+        await c.read(cardsProvider(account).future);
+        expect(cards.calls, ['list']);
+        await saver().create(withCard, localId: 'm-1');
+        await pumpEventQueue();
+        expect(cards.calls, ['list', 'list']);
+        expect(repo.calls.where((call) => call.startsWith('create')), hasLength(1));
+      },
+    );
+
+    test(
+      'la cola guarda en el disco el id de la tarjeta y las cuotas, nunca su nombre ni últimos 4',
+      () async {
+        repo.onCreate = (_, _) async => throw _offline;
+        await saver().create(withCard, localId: 'm-1', cardName: 'Mi Visa', cardLast4: '4242');
+        // Mientras la sesión sigue, la etiqueta vive en memoria.
+        expect((await pending()).items.single.toMovement().card?.name, 'Mi Visa');
+        final disk = store.data['a']!;
+        expect(disk, isNot(contains('Mi Visa')));
+        expect(disk, isNot(contains('4242')));
+        expect(disk, isNot(contains('cardName')));
+        c.invalidate(pendingMovementsProvider);
+        final p = (await pending()).items.single;
+        expect((p.input.card, p.input.installments), ('t1', 3), reason: 'al reabrir');
+        expect(p.toMovement().card?.id, 't1');
+      },
+    );
+
+    test(
+      'la tarjeta ya no existe al reenviar: UNA vez sin tarjeta ni cuotas, mismo localId, y avisa',
+      () async {
+        repo.onCreate = (_, _) async => throw _offline;
+        await saver().create(withCard, localId: 'm-1');
+        final sent = <MovementInput>[];
+        repo.onCreate = (input, id) async {
+          sent.add(input);
+          if (input.card != null) {
+            throw const ApiException(
+              code: ApiCodes.validation,
+              status: 422,
+              fields: {'card': 'No es una de tus tarjetas'},
+            );
+          }
+          return movementOf('srv-$id');
+        };
+        expect(await c.read(pendingMovementsProvider.notifier).retryPending(), 1);
+        expect(repo.localIds, ['m-1', 'm-1', 'm-1']);
+        expect([for (final i in sent) (i.card, i.installments)], [('t1', 3), (null, null)]);
+        final state = await pending();
+        expect(state.items, isEmpty);
+        final notice = state.rejected.single;
+        expect(notice.cardDropped, isTrue, reason: 'no es un rechazo: el gasto quedó guardado');
+        expect(
+          notice.message,
+          'Guardamos el gasto sin tarjeta: esa tarjeta ya no existe. Puedes asignarle una al editarlo.',
+        );
+        // Al reabrir sigue siendo el aviso, y no se reenvía nada.
+        c.invalidate(pendingMovementsProvider);
+        expect((await pending()).rejected.single.cardDropped, isTrue);
+        await c.read(pendingMovementsProvider.notifier).retryPending();
+        expect(repo.localIds, hasLength(3));
+      },
+    );
+
+    test('si el reenvío sin tarjeta también se rechaza, queda como rechazo normal', () async {
+      repo.onCreate = (_, _) async => throw _offline;
+      await saver().create(withCard, localId: 'm-1');
+      repo.onCreate = (input, id) async => throw ApiException(
+        code: ApiCodes.validation,
+        status: 422,
+        fields: input.card != null ? const {'card': 'No es una de tus tarjetas'} : const {'date': 'Futura'},
+      );
+      await c.read(pendingMovementsProvider.notifier).retryPending();
+      final rejected = (await pending()).rejected.single;
+      expect((rejected.cardDropped, rejected.message), (false, 'Futura'));
+    });
   });
 }

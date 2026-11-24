@@ -12,6 +12,10 @@ import 'package:rinde_mobile/core/storage/session_storage.dart';
 import 'package:rinde_mobile/features/auth/application/session_controller.dart';
 import 'package:rinde_mobile/features/auth/data/auth_models.dart';
 import 'package:rinde_mobile/features/auth/presentation/login_screen.dart';
+import 'package:rinde_mobile/features/cards/application/cards_providers.dart';
+import 'package:rinde_mobile/features/cards/data/card_models.dart';
+import 'package:rinde_mobile/features/cards/presentation/card_detail_screen.dart';
+import 'package:rinde_mobile/features/cards/presentation/cards_screen.dart';
 import 'package:rinde_mobile/features/entry/presentation/entry_screen.dart';
 import 'package:rinde_mobile/features/money/application/money_providers.dart';
 import 'package:rinde_mobile/features/money/data/money_models.dart';
@@ -39,8 +43,6 @@ final _pushedRoutes = {
   Routes.expenses: 'Gastos',
   Routes.toConfirm: 'Por confirmar',
   Routes.budgets: 'Presupuestos',
-  Routes.cards: 'Tarjetas',
-  Routes.card('t1'): 'Tarjeta',
   Routes.calendar: 'Calendario',
   Routes.debts: 'Cuentas',
   Routes.insights: 'Consejos',
@@ -71,6 +73,8 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
         // Mi plata se queda cargando: estas pruebas son de rutas, no de sus datos.
         incomeOverviewProvider.overrideWith((ref, _) => Completer<IncomeOverview>().future),
         moneyProfileProvider.overrideWith((ref, _) => Completer<MoneyProfile>().future),
+        cardsProvider.overrideWith((ref, _) => Completer<List<CreditCard>>().future),
+        cardDetailProvider.overrideWith((ref, _) => Completer<CardDetailData>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -93,21 +97,24 @@ void main() {
     }
   });
 
-  test(
-    'estas pruebas recorren exactamente los pendientes; Mi plata, Pagos y Corregir saldo ya no lo son',
-    () {
-      expect(
-        {for (final m in pendingModules) m.path},
-        {
-          for (final route in [..._tabRoutes.keys, ..._pushedRoutes.keys])
-            if (route != Routes.movements) route == Routes.card('t1') ? Routes.card(':id') : route,
-        },
-      );
-      for (final route in [Routes.myMoney, Routes.payments, Routes.fixBalance]) {
-        expect(pendingModules.map((m) => m.path), isNot(contains(route)), reason: route);
-      }
-    },
-  );
+  test('estas pruebas recorren exactamente los pendientes; Mi plata, Pagos, Corregir saldo y Tarjetas ya no lo son', () {
+    expect(
+      {for (final m in pendingModules) m.path},
+      {
+        for (final route in [..._tabRoutes.keys, ..._pushedRoutes.keys])
+          if (route != Routes.movements) route,
+      },
+    );
+    for (final route in [
+      Routes.myMoney,
+      Routes.payments,
+      Routes.fixBalance,
+      Routes.cards,
+      Routes.card(':id'),
+    ]) {
+      expect(pendingModules.map((m) => m.path), isNot(contains(route)), reason: route);
+    }
+  });
 
   testWidgets('sin sesión, ninguna ruta de la app se abre: todas terminan en el login', (tester) async {
     final router = await _pumpApp(tester);
@@ -119,6 +126,8 @@ void main() {
       Routes.myMoney,
       Routes.fixBalance,
       Routes.payments,
+      Routes.cards,
+      Routes.card('t1'),
       Routes.movement('m1'),
     ]) {
       router.go(route);
@@ -258,6 +267,48 @@ void main() {
     expect(await tester.binding.handlePopRoute(), isTrue);
     await _settle(tester);
     expect(_location(router), Routes.plan);
+  });
+
+  testWidgets(
+    'Tarjetas ya es pantalla real; por enlace directo, atrás va a Planear y el detalle a Tarjetas',
+    (tester) async {
+      final router = await _pumpApp(tester, session: _session);
+      router.go(Routes.myMoney);
+      await _settle(tester);
+      unawaited(router.push(Routes.cards));
+      await _settle(tester);
+      expect(find.byType(CardsScreen), findsOneWidget);
+      expect(find.text('En desarrollo'), findsNothing);
+      // Empujada, sin barra (la web la muestra con «Planear» marcado: la app se aparta, como Mi plata).
+      expect(find.byType(RindeTabScaffold), findsNothing);
+      await tester.tap(find.byTooltip('Volver'));
+      await _settle(tester);
+      expect(_location(router), Routes.myMoney);
+
+      // Sin pantalla anterior (backPath de la web): Tarjetas → Planear; el detalle → Tarjetas.
+      router.go(Routes.cards);
+      await _settle(tester);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await _settle(tester);
+      expect(_location(router), Routes.plan);
+
+      router.go(Routes.card('t1'));
+      await _settle(tester);
+      expect(find.byType(CardDetailScreen), findsOneWidget);
+      expect(find.text('En desarrollo'), findsNothing);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await _settle(tester);
+      expect(_location(router), Routes.cards);
+    },
+  );
+
+  testWidgets('«Anotar» con ?tarjeta= llega a Anotar (la tarjeta la toma el formulario)', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.plan);
+    await _settle(tester);
+    unawaited(router.push('${Routes.record}?tarjeta=t1'));
+    await _settle(tester);
+    expect(find.text('Anotar un gasto'), findsOneWidget);
   });
 
   testWidgets('un destino abierto por enlace directo no cierra la app con atrás: va al Inicio', (

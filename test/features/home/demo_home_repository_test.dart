@@ -4,6 +4,7 @@ import 'dart:ui' show Locale;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rinde_mobile/features/cards/data/demo_cards_store.dart';
 import 'package:rinde_mobile/features/movements/application/movement_saver.dart' show pendingStoreProvider;
 import 'package:rinde_mobile/features/movements/data/demo_movements_repository.dart'
     show demoMovementsStoreProvider;
@@ -107,8 +108,10 @@ void main() {
   late MemorySessionStorage sessions;
   late _Regions regions;
   late FakeHttpAdapter network;
+  late MemoryJsonListStore cardsStore;
 
   setUp(() {
+    cardsStore = MemoryJsonListStore();
     store = MemoryDemoStateStore();
     drafts = MemoryDraftStore();
     seen = MemoryTourSeenStore();
@@ -137,6 +140,7 @@ void main() {
         draftStoreProvider.overrideWithValue(drafts),
         tourSeenStoreProvider.overrideWithValue(seen),
         demoMovementsStoreProvider.overrideWithValue(MemoryJsonListStore()),
+        demoCardsStoreProvider.overrideWithValue(cardsStore),
         pendingStoreProvider.overrideWithValue(MemoryJsonListStore()),
         regionStoreProvider.overrideWithValue(regions),
         initialRegionProvider.overrideWithValue(initial),
@@ -548,9 +552,14 @@ void main() {
         ..setOffline(true)
         ..failNext(DemoHomeOperation.plan, DemoFailure.server);
 
+      await cardsStore.write('demo-planListo', [
+        {'id': 'x'},
+      ]);
       await repo.reset();
+      await pumpEventQueue();
 
       expect((await store.read('demo-planListo')).toJson(), const DemoState().toJson());
+      expect(await cardsStore.read('demo-planListo'), isEmpty, reason: 'las tarjetas del recorrido también');
       final controls = c.read(demoControlsProvider);
       expect(controls.offline, isFalse);
       expect(controls.failures, isEmpty);

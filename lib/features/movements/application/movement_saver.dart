@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
 import '../../auth/application/session_controller.dart';
 import '../../auth/data/auth_models.dart' show ContractException;
+import '../../cards/application/cards_providers.dart' show cardDetailProvider, cardsProvider;
 import '../../home/application/home_providers.dart' show clockProvider;
 import '../../money/application/money_providers.dart' show afterMoneyChange;
 import '../data/json_list_store.dart';
@@ -16,10 +17,22 @@ import 'movements_controller.dart';
 /// Tope de la cola: más allá de esto, sin conexión no se guarda (se muestra el error de red).
 const kMaxPendingMovements = 50;
 
+/// El aviso de la regla `cardDropped` (sync.service.js:54-72, MovementList.jsx:138-139): el gasto
+/// SÍ quedó guardado, pero sin la tarjeta, porque ya no existe.
+const kCardDroppedMessage =
+    'Guardamos el gasto sin tarjeta: esa tarjeta ya no existe. Puedes asignarle una al editarlo.';
+
 /// Un movimiento nuevo que no llegó al servidor por falta de conexión. Se reintenta con el MISMO
 /// localId: si el primer envío sí llegó, el servidor lo reconoce y no lo duplica.
 class PendingMovement {
-  const PendingMovement({required this.localId, required this.input, required this.queuedAt, this.rejected});
+  const PendingMovement({
+    required this.localId,
+    required this.input,
+    required this.queuedAt,
+    this.rejected,
+    this.cardName,
+    this.cardLast4,
+  });
 
   factory PendingMovement.fromJson(Object? raw) {
     if (raw is! Map || raw['localId'] is! String || raw['queuedAt'] is! String) {
@@ -39,6 +52,12 @@ class PendingMovement {
 
   /// Mensaje del servidor si lo rechazó al reintentar. Se guarda hasta que la persona lo descarte.
   final String? rejected;
+
+  /// La etiqueta de la tarjeta elegida (`input.card`), para mostrarla mientras espera: el servidor
+  /// la devolvería al sincronizar. Solo en memoria: no va al disco ([toJson]), porque en una cuenta
+  /// real no se guarda nada de tarjetas en el teléfono; en el disco queda solo el id.
+  final String? cardName;
+  final String? cardLast4;
 
   Map<String, dynamic> toJson() => {
     'localId': localId,
@@ -60,6 +79,9 @@ class PendingMovement {
     date: input.date,
     createdAt: queuedAt,
     pending: true,
+    card: input.card == null
+        ? null
+        : MovementCard(id: input.card!, name: cardName ?? '', last4: cardLast4 ?? '', deleted: false),
     installments: input.installments,
     emotion: input.emotion,
     kakeibo: input.kakeibo,
@@ -68,12 +90,14 @@ class PendingMovement {
 }
 
 /// Un pendiente que el servidor rechazó (4xx) al reintentar: sale de la cola y queda con el mensaje,
-/// guardado en el teléfono, hasta que la persona lo descarte.
+/// guardado en el teléfono, hasta que la persona lo descarte. Con [cardDropped], NO fue un rechazo:
+/// el gasto se guardó sin tarjeta y esto es solo el aviso.
 class RejectedMovement {
-  const RejectedMovement({required this.movement, required this.message});
+  const RejectedMovement({required this.movement, required this.message, this.cardDropped = false});
 
   final PendingMovement movement;
   final String message;
+  final bool cardDropped;
 }
 
 class PendingState {
@@ -114,7 +138,13 @@ class PendingMovements extends AsyncNotifier<PendingState> {
       try {
         final p = PendingMovement.fromJson(item);
         if (p.rejected case final message?) {
-          rejected.add(RejectedMovement(movement: p, message: message));
+          rejected.add(
+            RejectedMovement(
+              movement: p,
+              message: message,
+              cardDropped: item is Map && item['cardDropped'] == true,
+            ),
+          );
         } else {
           items.add(p);
         }
@@ -138,7 +168,8 @@ class PendingMovements extends AsyncNotifier<PendingState> {
       if (!identical(next.items, current.items) || !identical(next.rejected, current.rejected)) {
         await ref.read(pendingStoreProvider).write(account.user.id, [
           for (final p in next.items) p.toJson(),
-          for (final r in next.rejected) {...r.movement.toJson(), 'rejected': r.message},
+          for (final r in next.rejected)
+            {...r.movement.toJson(), 'rejected': r.message, if (r.cardDropped) 'cardDropped': true},
         ]);
       }
       if (owner.mounted) state = AsyncData(next);
@@ -149,7 +180,7 @@ class PendingMovements extends AsyncNotifier<PendingState> {
   }
 
   /// false si no cabe (tope o cola ilegible): quien llama muestra el error de red.
-  Future<bool> enqueue(String localId, MovementInput input) async {
+  Future<bool> enqueue(String localId, MovementInput input, {String? cardName, String? cardLast4}) async {
     var added = false;
     final ok = await _change((s) {
       final others = s.items.where((p) => p.localId != localId).toList();
@@ -158,7 +189,13 @@ class PendingMovements extends AsyncNotifier<PendingState> {
       return s.copyWith(
         items: [
           ...others,
-          PendingMovement(localId: localId, input: input, queuedAt: ref.read(clockProvider)()),
+          PendingMovement(
+            localId: localId,
+            input: input,
+            queuedAt: ref.read(clockProvider)(),
+            cardName: cardName,
+            cardLast4: cardLast4,
+          ),
         ],
       );
     });
@@ -182,6 +219,17 @@ class PendingMovements extends AsyncNotifier<PendingState> {
     final owner = ref;
     final repo = ref.read(movementsRepositoryProvider);
     var done = 0;
+    bool fatal(int status) => status < 400 || status >= 500 || const {401, 408, 429}.contains(status);
+    Future<void> reject(PendingMovement pending, String message, {bool cardDropped = false}) => _change(
+      (s) => s.copyWith(
+        items: s.items.where((p) => p.localId != pending.localId).toList(),
+        rejected: [
+          ...s.rejected,
+          RejectedMovement(movement: pending, message: message, cardDropped: cardDropped),
+        ],
+      ),
+    );
+
     for (final pending in (await future).items) {
       if (!owner.mounted) break;
       try {
@@ -190,20 +238,26 @@ class PendingMovements extends AsyncNotifier<PendingState> {
         done++;
       } on ApiException catch (e) {
         // Sesión vencida, espera o demasiados intentos no son un rechazo del movimiento: se queda.
-        final status = e.status ?? 0;
-        if (status < 400 || status >= 500 || const {401, 408, 429}.contains(status)) break;
-        await _change(
-          (s) => s.copyWith(
-            items: s.items.where((p) => p.localId != pending.localId).toList(),
-            rejected: [
-              ...s.rejected,
-              RejectedMovement(
-                movement: pending,
-                message: e.messageFor(fallback: ApiMessages.generic),
-              ),
-            ],
-          ),
-        );
+        var status = e.status ?? 0;
+        if (fatal(status)) break;
+        // Regla cardDropped (sync.service.js:54-72): la tarjeta elegida ya no existe. Se reenvía
+        // UNA sola vez, con el MISMO localId, sin tarjeta ni cuotas; el gasto queda y la fila avisa.
+        if (e.fields.containsKey('card') && pending.input.card != null) {
+          try {
+            await repo.create(_withoutCard(pending.input), localId: pending.localId);
+            await reject(pending, kCardDroppedMessage, cardDropped: true);
+            done++;
+            continue;
+          } on ApiException catch (retryError) {
+            status = retryError.status ?? 0;
+            if (fatal(status)) break;
+            await reject(pending, retryError.messageFor(fallback: ApiMessages.generic));
+            continue;
+          } on ContractException {
+            break;
+          }
+        }
+        await reject(pending, e.messageFor(fallback: ApiMessages.generic));
       } on ContractException {
         // Respuesta ilegible: pudo guardarse. Se queda y el próximo reintento lo confirma sin duplicar.
         break;
@@ -212,6 +266,18 @@ class PendingMovements extends AsyncNotifier<PendingState> {
     if (done > 0 && owner.mounted) afterMovementChange(ref.container);
     return done;
   }
+
+  /// El mismo movimiento sin tarjeta ni cuotas, para la regla cardDropped.
+  static MovementInput _withoutCard(MovementInput input) => MovementInput(
+    type: input.type,
+    amount: input.amount,
+    description: input.description,
+    date: input.date,
+    category: input.category,
+    emotion: input.emotion,
+    kakeibo: input.kakeibo,
+    original: input.original,
+  );
 }
 
 final pendingMovementsProvider = AsyncNotifierProvider<PendingMovements, PendingState>(PendingMovements.new);
@@ -223,6 +289,9 @@ void afterMovementChange(ProviderContainer container) {
     unawaited(container.read(movementsControllerProvider.notifier).refresh());
   }
   container.invalidate(movementDetailProvider);
+  // Una compra con tarjeta cambia lo usado de esa tarjeta (y el servidor lo recalcula).
+  container.invalidate(cardsProvider);
+  container.invalidate(cardDetailProvider);
   afterMoneyChange(container);
 }
 
@@ -242,8 +311,14 @@ class MovementSaver {
 
   /// Crea con el localId que el formulario guarda ([newLocalId]). Sin conexión (o si se venció la
   /// espera) queda en la cola y devuelve el movimiento con `pending: true`. Si la cola no lo acepta,
-  /// o el servidor lo rechaza, lanza el error.
-  Future<Movement> create(MovementInput input, {required String localId}) async {
+  /// o el servidor lo rechaza, lanza el error. [cardName] y [cardLast4]: la etiqueta de la tarjeta
+  /// de `input.card`, para que el pendiente se vea con su tarjeta.
+  Future<Movement> create(
+    MovementInput input, {
+    required String localId,
+    String? cardName,
+    String? cardLast4,
+  }) async {
     final owner = _ref.read(accountProvider)?.user.id;
     final Movement created;
     try {
@@ -252,11 +327,13 @@ class MovementSaver {
       // Si la cuenta cambió mientras iba el envío, no se mete en la cola de la otra persona.
       if (!e.isNetwork || _ref.read(accountProvider)?.user.id != owner) rethrow;
       final pending = _ref.read(pendingMovementsProvider.notifier);
-      if (!await pending.enqueue(localId, input)) rethrow;
+      if (!await pending.enqueue(localId, input, cardName: cardName, cardLast4: cardLast4)) rethrow;
       return PendingMovement(
         localId: localId,
         input: input,
         queuedAt: _ref.read(clockProvider)(),
+        cardName: cardName,
+        cardLast4: cardLast4,
       ).toMovement();
     }
     // Si este borrador estaba en la cola, ya llegó.
