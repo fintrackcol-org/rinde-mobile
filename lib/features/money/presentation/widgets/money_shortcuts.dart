@@ -13,7 +13,7 @@ import '../../../../design/widgets/rinde_icon.dart';
 import '../../../home/presentation/widgets/home_tap.dart';
 
 /// «Más de tu plata» (MORE_OF_YOUR_MONEY de MiPlata.jsx + common/ShortcutGrid.jsx): los accesos a lo
-/// demás de la plata, en el orden de la web. Los que la app aún no tiene abren «En desarrollo».
+/// demás de la plata, en el orden de la web.
 class MoneyShortcuts extends ConsumerWidget {
   const MoneyShortcuts({super.key});
 

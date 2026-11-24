@@ -27,12 +27,12 @@ enum RindeIcons {
   circleDollarSign('circle-dollar-sign'),
   clock('clock'),
 
-  /// Módulo en desarrollo.
-  construction('construction'),
+  copy('copy'),
   creditCard('credit-card'),
   database('database'),
   download('download'),
   externalLink('external-link'),
+  ellipsis('ellipsis'),
   eye('eye'),
   eyeOff('eye-off'),
   fileSearch('file-search'),

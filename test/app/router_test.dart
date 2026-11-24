@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:rinde_mobile/app/app.dart';
-import 'package:rinde_mobile/app/pending_modules.dart';
 import 'package:rinde_mobile/app/router.dart';
 import 'package:rinde_mobile/app/routes.dart';
 import 'package:rinde_mobile/core/storage/session_storage.dart';
@@ -32,6 +31,7 @@ import 'package:rinde_mobile/features/money/presentation/fix_balance_screen.dart
 import 'package:rinde_mobile/features/money/presentation/my_money_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/payments_screen.dart';
 import 'package:rinde_mobile/features/money/presentation/widgets/money_shortcuts.dart';
+import 'package:rinde_mobile/features/home/application/home_providers.dart' show homeTotalsProvider;
 import 'package:rinde_mobile/features/home/data/home_models.dart';
 import 'package:rinde_mobile/features/movements/domain/movement.dart';
 import 'package:rinde_mobile/features/movements/application/movements_controller.dart';
@@ -49,11 +49,15 @@ import 'package:rinde_mobile/features/plan/presentation/calendar_screen.dart';
 import 'package:rinde_mobile/features/plan/presentation/liquidity_screen.dart';
 import 'package:rinde_mobile/features/plan/presentation/plan_screen.dart';
 import 'package:rinde_mobile/features/renta/presentation/renta_screen.dart';
-import 'package:rinde_mobile/features/shell/presentation/pending_module_screen.dart';
 import 'package:rinde_mobile/features/shell/presentation/rinde_tab_scaffold.dart';
 import 'package:rinde_mobile/features/to_confirm/application/to_confirm_writer.dart';
 import 'package:rinde_mobile/features/to_confirm/data/to_confirm_repository.dart';
 import 'package:rinde_mobile/features/to_confirm/presentation/to_confirm_screen.dart';
+import 'package:rinde_mobile/features/vacas/application/vacas_providers.dart';
+import 'package:rinde_mobile/features/vacas/data/vaca_models.dart';
+import 'package:rinde_mobile/features/vacas/presentation/vaca_detail_screen.dart';
+import 'package:rinde_mobile/features/vacas/presentation/vaca_join_screen.dart';
+import 'package:rinde_mobile/features/vacas/presentation/vacas_screens.dart';
 
 const _session = Session(
   user: AuthUser(id: 'u1', email: 'ana@rinde.co'),
@@ -67,8 +71,14 @@ const _tabRoutes = {
   Routes.account: RindeTab.account,
 };
 
-/// Destinos que se abren encima de una pestaña, con el título que deben mostrar.
-final _pushedRoutes = {Routes.goals: 'Metas', Routes.vacas: 'Vacas'};
+/// Metas y Vacas (etapa 10), que se abren encima de una pestaña, con la pantalla que deben mostrar.
+final _pushedRoutes = {
+  Routes.goals: MetasScreen,
+  Routes.goal('v1'): VacaDetailScreen,
+  Routes.vacas: VacasScreen,
+  Routes.vaca('v1'): VacaDetailScreen,
+  Routes.vacaJoin('K7M2QX'): VacaJoinScreen,
+};
 
 // Sin pumpAndSettle: la entrada deja un spinner girando mientras «espera» el perfil.
 Future<void> _settle(WidgetTester tester) async {
@@ -107,6 +117,10 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
         notificationsListProvider.overrideWith((ref, _) => Completer<List<AppNotification>>().future),
         insightsProvider.overrideWith((ref, _) => Completer<InsightsResult>().future),
         reflectionProvider.overrideWith((ref, _) => Completer<WeekReflection>().future),
+        homeTotalsProvider.overrideWith((ref, _) => Completer<MonthTotals>().future),
+        vacasProvider.overrideWith((ref, _) => Completer<List<Vaca>>().future),
+        vacaDetailProvider.overrideWith((ref, _) => Completer<Vaca>().future),
+        invitationPreviewProvider.overrideWith((ref, _) => Completer<InvitationPreview>().future),
       ],
       child: MediaQuery(data: const MediaQueryData(disableAnimations: true), child: const RindeApp()),
     ),
@@ -118,43 +132,6 @@ Future<GoRouter> _pumpApp(WidgetTester tester, {Session? session}) async {
 String _location(GoRouter router) => router.routerDelegate.currentConfiguration.uri.toString();
 
 void main() {
-  test('todo destino pendiente vive bajo /app: sin sesión, al login', () {
-    for (final module in pendingModules) {
-      expect(module.path, startsWith('${Routes.app}/'));
-      expect(
-        sessionRedirect(session: const AsyncData(SessionState()), location: module.path),
-        Routes.login,
-        reason: module.path,
-      );
-    }
-  });
-
-  test('estas pruebas recorren exactamente los pendientes; Mi plata, Pagos, Corregir saldo, Tarjetas, Cuentas, Yo y Planear ya no lo son', () {
-    expect({for (final m in pendingModules) m.path}, _pushedRoutes.keys.toSet());
-    for (final route in [
-      Routes.income,
-      Routes.expenses,
-      Routes.toConfirm,
-      Routes.plan,
-      Routes.budgets,
-      Routes.calendar,
-      Routes.liquidity,
-      Routes.myMoney,
-      Routes.payments,
-      Routes.fixBalance,
-      Routes.cards,
-      Routes.card(':id'),
-      Routes.debts,
-      Routes.account,
-      Routes.notifications,
-      Routes.insights,
-      Routes.export,
-      Routes.renta,
-    ]) {
-      expect(pendingModules.map((m) => m.path), isNot(contains(route)), reason: route);
-    }
-  });
-
   testWidgets('sin sesión, ninguna ruta de la app se abre: todas terminan en el login', (tester) async {
     final router = await _pumpApp(tester);
     for (final route in [
@@ -219,17 +196,15 @@ void main() {
     expect(await tester.binding.handlePopRoute(), isFalse);
   });
 
-  testWidgets('con sesión, los demás destinos abren «En desarrollo» sin barra y «Volver» regresa', (
-    tester,
-  ) async {
+  testWidgets('con sesión, Metas, Vacas, su detalle y la invitación abren su pantalla sin barra y «Volver» '
+      'regresa', (tester) async {
     final router = await _pumpApp(tester, session: _session);
-    for (final MapEntry(key: route, value: title) in _pushedRoutes.entries) {
+    for (final MapEntry(key: route, value: screen) in _pushedRoutes.entries) {
       router.go(Routes.plan);
       await _settle(tester);
       unawaited(router.push(route));
       await _settle(tester);
-      expect(find.text(title), findsOneWidget, reason: route);
-      expect(find.text('En desarrollo'), findsOneWidget, reason: route);
+      expect(find.byType(screen), findsOneWidget, reason: route);
       expect(find.byType(RindeTabScaffold), findsNothing, reason: route);
 
       await tester.tap(find.byTooltip('Volver'));
@@ -465,46 +440,38 @@ void main() {
       await tester.tap(shortcut);
       await _settle(tester);
       expect(find.byType(screen), findsOneWidget, reason: hint);
-      expect(
-        find.text('En desarrollo'),
-        screen == PendingModuleScreen ? findsOneWidget : findsNothing,
-        reason: hint,
-      );
       await tester.tap(find.byTooltip('Volver'));
       await _settle(tester);
       expect(_location(router), Routes.myMoney, reason: hint);
     }
   });
 
-  testWidgets(
-    'Planear: cada acceso abre su pantalla encima y «Volver» regresa; Metas sigue «En desarrollo»',
-    (tester) async {
-      final router = await _pumpApp(tester, session: _session);
-      router.go(Routes.plan);
+  testWidgets('Planear: cada acceso abre su pantalla encima y «Volver» regresa', (tester) async {
+    final router = await _pumpApp(tester, session: _session);
+    router.go(Routes.plan);
+    await _settle(tester);
+    expect(find.byType(PlanScreen), findsOneWidget);
+    expect(find.text('Tus planes'), findsOneWidget);
+    for (final (hint, screen) in [
+      ('Lo que se repite cada mes', MoneyPaymentsScreen),
+      ('Qué toca pagar y cuándo', CalendarScreen),
+      ('Topes por categoría', BudgetsScreen),
+      ('Para qué estás ahorrando', MetasScreen),
+      ('Lo que te deben y debes', DebtsScreen),
+      ('Cupo y fechas de pago', CardsScreen),
+    ]) {
+      final shortcut = find.text(hint);
+      await tester.ensureVisible(shortcut);
+      await tester.pump();
+      await tester.tap(shortcut);
       await _settle(tester);
-      expect(find.byType(PlanScreen), findsOneWidget);
-      expect(find.text('Tus planes'), findsOneWidget);
-      for (final (hint, screen) in [
-        ('Lo que se repite cada mes', MoneyPaymentsScreen),
-        ('Qué toca pagar y cuándo', CalendarScreen),
-        ('Topes por categoría', BudgetsScreen),
-        ('Para qué estás ahorrando', PendingModuleScreen),
-        ('Lo que te deben y debes', DebtsScreen),
-        ('Cupo y fechas de pago', CardsScreen),
-      ]) {
-        final shortcut = find.text(hint);
-        await tester.ensureVisible(shortcut);
-        await tester.pump();
-        await tester.tap(shortcut);
-        await _settle(tester);
-        expect(find.byType(screen), findsOneWidget, reason: hint);
-        expect(find.byType(RindeTabScaffold), findsNothing, reason: hint);
-        await tester.tap(find.byTooltip('Volver'));
-        await _settle(tester);
-        expect(_location(router), Routes.plan, reason: hint);
-      }
-    },
-  );
+      expect(find.byType(screen), findsOneWidget, reason: hint);
+      expect(find.byType(RindeTabScaffold), findsNothing, reason: hint);
+      await tester.tap(find.byTooltip('Volver'));
+      await _settle(tester);
+      expect(_location(router), Routes.plan, reason: hint);
+    }
+  });
 
   testWidgets(
     'por enlace directo, atrás: Presupuestos y Calendario a Planear, un presupuesto a Presupuestos y '

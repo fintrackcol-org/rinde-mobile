@@ -527,7 +527,8 @@ class _EventRow extends ConsumerWidget {
   final HomeMoney money;
 
   String _route() => switch (event.kind) {
-    // Las vacas aún no están en la app: «En desarrollo».
+    // Como eventLink de la web: también las metas personales abren /app/vacas/:id.
+    'vaca' when event.id != null => Routes.vaca(event.id!),
     'vaca' => Routes.vacas,
     'card' || 'corte' || 'limite' when event.id != null => Routes.card(event.id!),
     'card' || 'corte' || 'limite' => Routes.cards,

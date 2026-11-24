@@ -32,10 +32,11 @@ import '../features/plan/presentation/liquidity_screen.dart';
 import '../features/period/presentation/period_screen.dart';
 import '../features/plan/presentation/plan_screen.dart';
 import '../features/renta/presentation/renta_screen.dart';
-import '../features/shell/presentation/pending_module_screen.dart';
 import '../features/to_confirm/presentation/to_confirm_screen.dart';
+import '../features/vacas/presentation/vaca_detail_screen.dart';
+import '../features/vacas/presentation/vaca_join_screen.dart';
+import '../features/vacas/presentation/vacas_screens.dart';
 import '../features/welcome/presentation/welcome_screen.dart';
-import 'pending_modules.dart';
 import 'routes.dart';
 
 /// Decide adónde va la persona según la sesión. Es una función pura para poder probarla.
@@ -142,20 +143,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.card(':id'),
         builder: (_, state) => CardDetailScreen(cardId: state.pathParameters['id']!),
       ),
-      // Destinos de Rinde Web que aún no tienen pantalla: «En desarrollo». Todos bajo /app (con sesión).
-      for (final module in pendingModules)
-        if (module.tab != null)
-          GoRoute(
-            path: module.path,
-            pageBuilder: (_, state) =>
-                NoTransitionPage(key: state.pageKey, child: PendingModuleScreen(module)),
-          )
-        else
-          GoRoute(
-            path: module.path,
-            builder: (_, state) => PendingModuleScreen(module, query: state.uri.queryParameters),
-          ),
-      // Después de los pendientes: /app/transacciones/exportar no es el movimiento «exportar».
+      GoRoute(path: Routes.goals, builder: (_, _) => const MetasScreen()),
+      GoRoute(
+        path: '${Routes.goals}/:id',
+        builder: (_, state) => VacaDetailScreen(
+          vacaId: state.pathParameters['id']!,
+          inMetas: true,
+          arrival: state.extra is VacaArrival ? state.extra as VacaArrival : null,
+        ),
+      ),
+      GoRoute(path: Routes.vacas, builder: (_, _) => const VacasScreen()),
+      GoRoute(
+        path: '${Routes.vacas}/unirse/:code',
+        builder: (_, state) => VacaJoinScreen(code: state.pathParameters['code']!),
+      ),
+      GoRoute(
+        path: '${Routes.vacas}/:id',
+        builder: (_, state) => VacaDetailScreen(
+          vacaId: state.pathParameters['id']!,
+          inMetas: false,
+          arrival: state.extra is VacaArrival ? state.extra as VacaArrival : null,
+        ),
+      ),
       GoRoute(
         path: '/app/transacciones/:id',
         builder: (_, state) => MovementDetailScreen(movementId: state.pathParameters['id']!),

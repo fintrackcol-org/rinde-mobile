@@ -11,7 +11,6 @@ import '../../money/presentation/widgets/money_shortcuts.dart' show ShortcutGrid
 import '../../shell/presentation/rinde_tab_scaffold.dart';
 
 /// Pestaña Planear (Planear.jsx): «Inicio es hoy, Movimientos lo que ya pasó, Planear lo que viene».
-/// Metas todavía no está en la app: abre «En desarrollo».
 class PlanScreen extends ConsumerWidget {
   const PlanScreen({super.key});
 

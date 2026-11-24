@@ -6,12 +6,10 @@ import '../../auth/data/auth_models.dart';
 import '../../onboarding/data/onboarding_repository.dart';
 import '../data/home_repository.dart';
 
-/// Si el tutorial de primera vez se abre solo en cuentas reales. Apagado a propósito: Anotar y Mi plata
-/// ya existen, pero tour_steps.dart promete lo que la app todavía no tiene: Ingresos/Gastos, Planear
-/// (metas, deudas, tarjetas), Yo y, «en Mi plata», por confirmar, consejos de la IA, renta y tus próximos
-/// días, que siguen «En desarrollo». Además, cerrarlo lo marca como visto en el servidor, también para
-/// la web. Se enciende cuando esos módulos existan. En una sesión de demostración sí se abre, y desde
-/// «Yo» siempre.
+/// Si el tutorial de primera vez se abre solo en cuentas reales. Apagado a propósito mientras faltaban
+/// módulos que tour_steps.dart promete; desde la etapa 10 (Metas y Vacas) ya existen todos, pero
+/// encenderlo es decisión aparte: cerrarlo lo marca como visto en el servidor, también para la web.
+/// En una sesión de demostración sí se abre, y desde «Yo» siempre.
 const kCoachTourForRealAccounts = false;
 
 /// Marca local «el tutorial ya se vio aquí aunque el servidor aún no lo sepa» (TOUR_SEEN_KEY de la
