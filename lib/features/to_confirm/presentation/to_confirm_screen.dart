@@ -42,6 +42,9 @@ class _ToConfirmScreenState extends ConsumerState<ToConfirmScreen> {
   String? _error;
   String? _discarding;
 
+  /// Los que ya se confirmaron o descartaron: salen de la lista sin esperar a que llegue la recarga.
+  final _resolved = <String>{};
+
   Future<void> _confirm(IncomingPayment payment) async {
     setState(() => (_notice = null, _error = null));
     final description = await showModalBottomSheet<String>(
@@ -55,6 +58,7 @@ class _ToConfirmScreenState extends ConsumerState<ToConfirmScreen> {
     );
     if (description == null || !mounted) return;
     final t = ref.read(trProvider);
+    _resolved.add(payment.id);
     setState(
       () => _notice = t('Anotado: {description}, {amount}.', {
         'description': description,
@@ -68,6 +72,7 @@ class _ToConfirmScreenState extends ConsumerState<ToConfirmScreen> {
     setState(() => (_discarding = payment.id, _notice = null, _error = null));
     try {
       await ref.read(toConfirmWriterProvider).discard(payment);
+      _resolved.add(payment.id);
       if (mounted) {
         setState(
           () => _notice = t('Descartado: {merchant}. No se anotó nada.', {'merchant': payment.merchant}),
@@ -87,7 +92,7 @@ class _ToConfirmScreenState extends ConsumerState<ToConfirmScreen> {
     final account = ref.watch(accountProvider);
     final async = ref.watch(toConfirmListProvider(account));
     final money = moneyOf(ref);
-    final items = async.value;
+    final items = async.value?.where((p) => !_resolved.contains(p.id)).toList();
 
     final children = <Widget>[
       Text(
@@ -123,6 +128,7 @@ class _ToConfirmScreenState extends ConsumerState<ToConfirmScreen> {
           RindeBanner(
             tone: RindeBannerTone.info,
             message: notice,
+            semanticsLabel: money.spoken(notice),
             action: RindeTextLink(label: t('Ver movimientos'), onPressed: () => context.push(Routes.myMoney)),
           ),
           const SizedBox(height: RindeSpace.s4),

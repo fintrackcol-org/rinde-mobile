@@ -28,6 +28,9 @@ dependencies:
   # Exportar: entrega el archivo que arma el servidor a la hoja de compartir del sistema (guardar en
   # Archivos o Drive, abrir en Excel, enviar). url_launcher no puede abrir un archivo local.
   share_plus: ^13.3.1
+  # La carpeta temporal donde Exportar deja el archivo mientras se comparte y lo borra al terminar (ya
+  # venía con share_plus).
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

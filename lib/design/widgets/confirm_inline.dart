@@ -19,9 +19,13 @@ class ConfirmInline extends StatefulWidget {
     required this.errorText,
     this.compact = false,
     this.questionSemantics,
+    this.labelSemantics,
   });
 
   final String label;
+
+  /// Lo que oye el lector en vez de [label] (con montos ocultos: «Monto oculto», no la máscara).
+  final String? labelSemantics;
   final String question;
   final String confirmLabel;
   final String cancelLabel;
@@ -83,7 +87,7 @@ class _ConfirmInlineState extends State<ConfirmInline> {
             textStyle: widget.compact ? RindeType.small.w(FontWeight.w600) : RindeType.bodyMedium,
           ),
           icon: RindeIcon(RindeIcons.trash2, size: widget.compact ? 16 : 18, color: p.negative),
-          label: Text(widget.label),
+          label: Text(widget.label, semanticsLabel: widget.labelSemantics),
         ),
       );
     }

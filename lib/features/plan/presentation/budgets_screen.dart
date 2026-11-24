@@ -51,9 +51,13 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     final result = await showBudgetSheet(context, month: _month, used: before.toList());
     if (result != BudgetSheetResult.created || !mounted) return;
     // La categoría nueva es la que no estaba: la hoja no la devuelve.
-    final created = (await ref.read(budgetsMonthProvider((ref.read(accountProvider), _month)).future))
-        .where((b) => !before.contains(b.category))
-        .firstOrNull;
+    // Ya quedó guardado: si la relectura falla, solo no sale el aviso.
+    final created =
+        (await ref
+                .read(budgetsMonthProvider((ref.read(accountProvider), _month)).future)
+                .catchError((_) => const <BudgetStatus>[]))
+            .where((b) => !before.contains(b.category))
+            .firstOrNull;
     if (!mounted || created == null) return;
     final t = ref.read(trProvider);
     setState(

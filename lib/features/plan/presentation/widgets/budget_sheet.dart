@@ -69,10 +69,13 @@ class _BudgetSheetState extends ConsumerState<_BudgetSheet> {
   String? _error;
   bool _saving = false;
 
+  /// Mientras se elimina, la hoja no se cierra ni guarda: un PUT a la vez con el DELETE daría 404.
+  bool _deleting = false;
+
   bool get _editing => widget.initial != null;
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _deleting) return;
     final t = ref.read(trProvider);
     final amount = moneyValue(_amount);
     // budgetSchema de la web.
@@ -222,13 +225,13 @@ class _BudgetSheetState extends ConsumerState<_BudgetSheet> {
             label: _editing ? t('Guardar límite') : t('Crear presupuesto'),
             loading: _saving,
             loadingLabel: t('Guardando…'),
-            onPressed: _save,
+            onPressed: _deleting ? null : _save,
           ),
           const SizedBox(height: RindeSpace.s2),
           RindeButton(
             label: t('Cancelar'),
             variant: RindeButtonVariant.outline,
-            onPressed: _saving ? null : () => Navigator.of(context).pop(),
+            onPressed: _saving || _deleting ? null : () => Navigator.of(context).pop(),
           ),
           if (initial != null && widget.canDelete) ...[
             const SizedBox(height: RindeSpace.s3),
@@ -241,8 +244,13 @@ class _BudgetSheetState extends ConsumerState<_BudgetSheet> {
                 errorText: (e) => moneyErrorText(e, t),
                 onConfirm: () async {
                   final navigator = Navigator.of(context);
-                  await ref.read(budgetsWriterProvider).delete(initial, widget.month);
-                  if (mounted) navigator.pop(BudgetSheetResult.deleted);
+                  setState(() => _deleting = true);
+                  try {
+                    await ref.read(budgetsWriterProvider).delete(initial, widget.month);
+                    if (mounted) navigator.pop(BudgetSheetResult.deleted);
+                  } finally {
+                    if (mounted) setState(() => _deleting = false);
+                  }
                 },
               ),
             ),
@@ -252,7 +260,7 @@ class _BudgetSheetState extends ConsumerState<_BudgetSheet> {
     }
 
     return PopScope(
-      canPop: !_saving,
+      canPop: !_saving && !_deleting,
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
         child: SingleChildScrollView(

@@ -50,9 +50,13 @@ class RindeButton extends StatefulWidget {
     this.pill = false,
     this.trailing,
     this.leading,
+    this.semanticsLabel,
   });
 
   final String label;
+
+  /// Lo que oye el lector en vez de [label] (con montos ocultos, `money.spoken(label)`).
+  final String? semanticsLabel;
   final VoidCallback? onPressed;
   final RindeButtonVariant variant;
   final RindeButtonSize size;
@@ -106,7 +110,12 @@ class _RindeButtonState extends State<RindeButton> {
           const SizedBox(width: RindeSpace.s2),
         ],
         Flexible(
-          child: Text(label, style: textStyle, textAlign: TextAlign.center),
+          child: Text(
+            label,
+            semanticsLabel: widget.loading ? null : widget.semanticsLabel,
+            style: textStyle,
+            textAlign: TextAlign.center,
+          ),
         ),
         if (!widget.loading && widget.trailing != null) ...[
           const SizedBox(width: RindeSpace.s2),
@@ -162,9 +171,19 @@ class _RindeButtonState extends State<RindeButton> {
 
 /// Enlace de texto (variante `link`): violeta, sin subrayado hasta presionarlo.
 class RindeTextLink extends StatelessWidget {
-  const RindeTextLink({super.key, required this.label, required this.onPressed, this.color, this.style});
+  const RindeTextLink({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.color,
+    this.style,
+    this.semanticsLabel,
+  });
 
   final String label;
+
+  /// Lo que oye el lector en vez de [label] (con montos ocultos, `money.spoken(label)`).
+  final String? semanticsLabel;
   final VoidCallback? onPressed;
   final Color? color;
   final TextStyle? style;
@@ -183,7 +202,11 @@ class RindeTextLink extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: RindeSpace.s1),
             child: Align(
               widthFactor: 1,
-              child: Text(label, style: (style ?? RindeType.small.w(FontWeight.w500)).copyWith(color: c)),
+              child: Text(
+                label,
+                semanticsLabel: semanticsLabel,
+                style: (style ?? RindeType.small.w(FontWeight.w500)).copyWith(color: c),
+              ),
             ),
           ),
         ),

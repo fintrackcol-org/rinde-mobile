@@ -82,7 +82,8 @@ class BudgetsWriter {
           await send();
         } on ApiException catch (e, stack) {
           if (!inDoubt(e)) {
-            if (e.status == 404) _refresh();
+            // 404: lo borraron en otro lado; BUDGET_EXISTS: ya lo crearon (en la web o tras una duda).
+            if (e.status == 404 || e.code == 'BUDGET_EXISTS') _refresh();
             rethrow;
           }
           if (!await confirmed()) {

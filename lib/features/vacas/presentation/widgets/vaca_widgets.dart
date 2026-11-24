@@ -363,6 +363,9 @@ class VacaContributionList extends ConsumerWidget {
                       ConfirmInline(
                         compact: true,
                         label: t('Borrar aporte de {amount}', {'amount': pesos(money, c.amount)}),
+                        labelSemantics: money.spoken(
+                          t('Borrar aporte de {amount}', {'amount': pesos(money, c.amount)}),
+                        ),
                         question: t('¿Borrar el aporte y su gasto?'),
                         confirmLabel: t('Sí, borrar'),
                         cancelLabel: t('No'),

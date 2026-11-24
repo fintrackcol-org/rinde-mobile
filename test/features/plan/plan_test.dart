@@ -298,6 +298,28 @@ void main() {
       expect(home.count('budgets'), greaterThan(before));
     });
 
+    test(
+      'un 409 BUDGET_EXISTS recarga el mes y el Inicio: la categoría repetida deja de ofrecerse',
+      () async {
+        final c = open();
+        await c.read(sessionControllerProvider.future);
+        c.listen(homeBudgetsProvider(_ana), (_, _) {});
+        await c.read(homeBudgetsProvider(_ana).future);
+        final before = home.count('budgets');
+        budgets.onSend = () async => throw const ApiException(
+          code: 'BUDGET_EXISTS',
+          status: 409,
+          serverMessage: 'Ya existe un presupuesto para esa categoría en ese mes',
+        );
+        await expectLater(
+          c.read(budgetsWriterProvider).create(category: 'ocio', month: '2026-11', amount: 150000),
+          throwsA(isA<ApiException>().having((e) => e.status, 'status', 409)),
+        );
+        await c.read(homeBudgetsProvider(_ana).future);
+        expect(home.count('budgets'), greaterThan(before));
+      },
+    );
+
     test('en duda, crear vale si al releer la categoría ya tiene ese límite; si no, UNCONFIRMED', () async {
       final c = open();
       await c.read(sessionControllerProvider.future);

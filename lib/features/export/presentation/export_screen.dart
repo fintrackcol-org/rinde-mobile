@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/routes.dart';
@@ -115,15 +117,25 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   Future<void> _download(({String from, String to}) range, String rangeText) async {
     final t = ref.read(trProvider);
     final box = _button.currentContext?.findRenderObject() as RenderBox?;
+    // El formato puede cambiar mientras baja: se comparte con el que se pidió.
+    final format = _format;
+    final userId = ref.read(accountProvider)?.user.id;
     _change(() => _busy = true);
+    Directory? folder;
     try {
       final file = await ref
           .read(exportRepositoryProvider)
-          .export(_format, range.from, range.to, detail: _detail);
+          .export(format, range.from, range.to, detail: _detail);
+      // Salió de la pantalla o de la cuenta mientras bajaba: el reporte no se abre encima de otra.
+      if (!mounted || ref.read(accountProvider)?.user.id != userId) return;
+      // Un archivo propio (XFile.fromData lo deja en la carpeta temporal para siempre) que se borra al
+      // terminar: Android lo copia antes de enviarlo y en iOS share() espera a que se cierre la hoja.
+      folder = await (await getTemporaryDirectory()).createTemp('rinde-export-');
+      final path = '${folder.path}${Platform.pathSeparator}${file.filename}';
+      await File(path).writeAsBytes(file.bytes, flush: true);
       final result = await SharePlus.instance.share(
         ShareParams(
-          files: [XFile.fromData(file.bytes, mimeType: _format.mime)],
-          fileNameOverrides: [file.filename],
+          files: [XFile(path, mimeType: format.mime)],
           // El iPad abre la hoja junto al botón.
           sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
         ),
@@ -139,6 +151,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             : moneyErrorText(e, t),
       );
     } finally {
+      unawaited(folder?.delete(recursive: true).then((_) {}, onError: (_) {}));
       if (mounted) setState(() => _busy = false);
     }
   }
